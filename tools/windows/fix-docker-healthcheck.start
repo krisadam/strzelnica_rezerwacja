@@ -1,0 +1,16 @@
+#!/bin/sh
+# Obejście błędu Rancher Desktop, przez który docker przestaje odpowiadać
+# 1-3 minuty po każdym starcie: healthcheck usługi docker woła
+# `curl --url http://./_ping`, a curl 8.21.0 odrzuca "." jako nazwę hosta
+# ("URL rejected: Bad hostname"). Healthcheck pada co 60 s mimo zdrowego
+# demona, nadzorca restartuje docker-proxy i po dziesięciu próbach go zabija —
+# wtedy znika potok \.\pipe\docker_engine, a każde `docker` kończy się
+# błędem "timed out dialing Hyper-V socket".
+#
+# Zobacz rancher-sandbox/rancher-desktop#10780. Poprawkę scalono u źródła,
+# ale wydanie 1.24.0 jeszcze jej nie zawiera. Ten plik można usunąć, gdy
+# Rancher wyda wersję z naprawą.
+#
+# Bezpośrednia edycja /etc/init.d/docker nie działa — plik jest odtwarzany
+# przy każdym starcie, więc poprawka musi iść przez provisioning.
+sed -i 's|http://\./_ping|http://localhost/_ping|g' /etc/init.d/docker
