@@ -5,7 +5,14 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/playwright-report/**', '**/test-results/**'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/playwright-report/**',
+      '**/test-results/**',
+      // Plik generowany przez `pnpm db:types`; jego styl narzuca Supabase CLI.
+      'packages/shared/src/database.types.ts',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
