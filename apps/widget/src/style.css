@@ -1,0 +1,114 @@
+/* Jeden wygląd dla wszystkich Strzelnic — bez konfiguracji kolorów. */
+:root {
+  --tlo: #ffffff;
+  --tekst: #16181d;
+  --przygaszony: #5d636e;
+  --ramka: #d5d9e0;
+  --wolny: #1f7a3f;
+  --blad: #a3232b;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--tekst);
+  background: var(--tlo);
+}
+
+body {
+  margin: 0;
+}
+
+.widget {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2.5rem;
+}
+
+.widget h1 {
+  font-size: 1.35rem;
+  margin: 0 0 1.25rem;
+}
+
+.osie {
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem 1rem;
+  margin: 0 0 1.25rem;
+}
+
+.osie legend {
+  padding: 0 0.35rem;
+  font-weight: 600;
+}
+
+.osie__pozycja {
+  display: block;
+  padding: 0.25rem 0;
+  cursor: pointer;
+}
+
+.osie__pojemnosc {
+  color: var(--przygaszony);
+  font-size: 0.85rem;
+}
+
+.dzien {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.dzien h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  text-align: center;
+  flex: 1;
+}
+
+.dzien button {
+  border: 1px solid var(--ramka);
+  background: none;
+  border-radius: 0.4rem;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.bloki {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.blok {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  padding: 0.7rem 0.9rem;
+}
+
+.blok__czas {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.blok--wolny .blok__stan {
+  color: var(--wolny);
+}
+
+.blok--niedostepny {
+  background: #f6f7f9;
+  color: var(--przygaszony);
+}
+
+.komunikat {
+  color: var(--przygaszony);
+}
+
+.komunikat--blad {
+  color: var(--blad);
+}

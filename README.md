@@ -26,6 +26,9 @@ pnpm db:env          # zapisuje adres i klucz anonimowy do .env
 pnpm dev             # Widget na :5173, Panel na :5174
 ```
 
+Widget potrzebuje wskazania Strzelnicy — bierze je z adresu, dopóki nie robi
+tego skrypt osadzający: <http://localhost:5173/?strzelnica=strzelnica-demo>.
+
 Playwright potrzebuje jednorazowo przeglądarki:
 
 ```bash

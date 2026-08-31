@@ -9,6 +9,83 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      block_schedules: {
+        Row: {
+          created_at: string
+          duration_minutes: number
+          facility_id: string
+          id: string
+          lane_id: string
+          start_minute: number
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes: number
+          facility_id: string
+          id?: string
+          lane_id: string
+          start_minute: number
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number
+          facility_id?: string
+          id?: string
+          lane_id?: string
+          start_minute?: number
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "block_schedules_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "block_schedules_lane_fkey"
+            columns: ["lane_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "lanes"
+            referencedColumns: ["id", "facility_id"]
+          },
+        ]
+      }
+      calendar_exceptions: {
+        Row: {
+          closed_on: string
+          created_at: string
+          facility_id: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          closed_on: string
+          created_at?: string
+          facility_id: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          closed_on?: string
+          created_at?: string
+          facility_id?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_exceptions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facilities: {
         Row: {
           created_at: string
@@ -32,6 +109,73 @@ export type Database = {
           timezone?: string
         }
         Relationships: []
+      }
+      lanes: {
+        Row: {
+          capacity: number
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+        }
+        Insert: {
+          capacity: number
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+        }
+        Update: {
+          capacity?: number
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lanes_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      opening_hours: {
+        Row: {
+          closes_minute: number
+          created_at: string
+          facility_id: string
+          id: string
+          opens_minute: number
+          weekday: number
+        }
+        Insert: {
+          closes_minute: number
+          created_at?: string
+          facility_id: string
+          id?: string
+          opens_minute: number
+          weekday: number
+        }
+        Update: {
+          closes_minute?: number
+          created_at?: string
+          facility_id?: string
+          id?: string
+          opens_minute?: number
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opening_hours_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
