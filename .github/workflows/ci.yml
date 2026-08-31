@@ -47,9 +47,12 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      # Wersja przypięta: `latest` pyta API GitHuba o wydania i zwraca 403,
+      # kiedy limit zapytań runnera jest wyczerpany.
       - uses: supabase/setup-cli@v1
+        id: supabase-cli
         with:
-          version: latest
+          version: 2.55.0
       - run: pnpm install --frozen-lockfile
       # `db reset` odtwarza bazę od zera z migracji i wykonuje seed.
       # Padnie, gdy migracja lub seed są niespójne.
@@ -60,7 +63,7 @@ jobs:
       - run: pnpm db:types
       - name: Typy odpowiadają schematowi
         run: git diff --exit-code -- packages/shared/src/database.types.ts
-      - if: always()
+      - if: always() && steps.supabase-cli.outcome == 'success'
         run: supabase stop --no-backup
 
   browser:
