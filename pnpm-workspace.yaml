@@ -3,5 +3,9 @@ packages:
   - 'packages/*'
   - 'e2e'
 
+# pnpm 10 nie wykonuje skryptów instalacyjnych bez zgody. `supabase` pobiera
+# w `postinstall` binarkę CLI właściwą dla systemu — bez tego wpisu pakiet
+# instaluje się pusty.
 onlyBuiltDependencies:
   - esbuild
+  - supabase
