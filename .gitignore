@@ -16,3 +16,6 @@ test-results/
 
 supabase/.branches/
 supabase/.temp/
+
+# tickety zyja jako GitHub Issues, nie w repo
+.scratch/
