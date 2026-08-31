@@ -25,4 +25,51 @@ describe('typy ze schematu bazy', () => {
 
     expect(nowa.timezone).toBeUndefined()
   })
+
+  it('Oś niesie identyfikator Strzelnicy i pojemność', () => {
+    const os: Tables<'lanes'> = {
+      id: '00000000-0000-0000-0000-0000000000a1',
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      name: 'Oś pistoletowa nr 1',
+      capacity: 4,
+      created_at: '2026-01-01T00:00:00Z',
+    }
+
+    expect(os.capacity).toBe(4)
+  })
+
+  it('pozycja rozkładu wiąże Oś z dniem tygodnia i minutą początku', () => {
+    const pozycja: TablesInsert<'block_schedules'> = {
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      lane_id: '00000000-0000-0000-0000-0000000000a1',
+      weekday: 1,
+      start_minute: 600,
+      duration_minutes: 120,
+    }
+
+    expect(pozycja.duration_minutes % 30).toBe(0)
+  })
+
+  it('wyjątek kalendarzowy niesie datę, a powód jest opcjonalny', () => {
+    const wyjatek: Tables<'calendar_exceptions'> = {
+      id: '00000000-0000-0000-0000-0000000000b1',
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      closed_on: '2026-06-20',
+      reason: null,
+      created_at: '2026-01-01T00:00:00Z',
+    }
+
+    expect(wyjatek.reason).toBeNull()
+  })
+
+  it('godziny otwarcia dopuszczają domknięcie po północy', () => {
+    const godziny: TablesInsert<'opening_hours'> = {
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      weekday: 6,
+      opens_minute: 540,
+      closes_minute: 1500,
+    }
+
+    expect(godziny.closes_minute).toBeGreaterThan(1440)
+  })
 })
