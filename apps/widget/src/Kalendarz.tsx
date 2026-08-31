@@ -1,5 +1,12 @@
 import type { Block } from '@strzelnica/shared'
-import { addDays, dayIn, formatDayLabel, formatTimeRange, scheduleForDay } from '@strzelnica/shared'
+import {
+  addDays,
+  bookingHorizon,
+  dayIn,
+  formatDayLabel,
+  formatTimeRange,
+  scheduleForDay,
+} from '@strzelnica/shared'
 import { useMemo, useState } from 'react'
 import type { Grafik } from './grafik.js'
 import { teksty } from './teksty.js'
@@ -22,26 +29,33 @@ function Blok({ block, timeZone }: { block: Block; timeZone: string }) {
 /**
  * Kalendarz wolnych Bloków. Komponent nie zna żadnej reguły dostępności —
  * pyta o nią `scheduleForDay` i rysuje odpowiedź, łącznie z tym, czy dzień
- * jest w ogóle otwarty. „Teraz" przychodzi z zewnątrz, żeby ta sama zasada
- * obowiązywała także tutaj.
+ * jest w ogóle otwarty. Koniec nawigacji bierze z `bookingHorizon`, więc ostatni
+ * dzień, do którego wolno dojść, jest ostatnim, w którym wolno rezerwować.
+ * „Teraz" przychodzi z zewnątrz, żeby ta sama zasada obowiązywała także tutaj.
  */
 export function Kalendarz({ grafik, now }: { grafik: Grafik; now: Date }) {
   const { facility, lanes } = grafik
   const [laneId, setLaneId] = useState(lanes[0]?.id ?? '')
-  const [day, setDay] = useState(() => dayIn(facility.timezone, now))
+  const [day, setDay] = useState(() => dayIn(facility.timeZone, now))
+
+  const ostatniDzien = useMemo(
+    () => bookingHorizon({ timeZone: facility.timeZone, timeRules: facility.timeRules, now }),
+    [facility, now],
+  )
 
   const grafikDnia = useMemo(
     () =>
       scheduleForDay({
         day,
-        timeZone: facility.timezone,
+        timeZone: facility.timeZone,
         laneId,
         schedules: grafik.schedules,
         openingHours: grafik.openingHours,
         closedDates: grafik.closedDates,
+        timeRules: facility.timeRules,
         now,
       }),
-    [day, laneId, grafik, facility.timezone, now],
+    [day, laneId, grafik, facility, now],
   )
 
   if (lanes.length === 0) return <p className="komunikat">{teksty.brakOsi}</p>
@@ -69,10 +83,16 @@ export function Kalendarz({ grafik, now }: { grafik: Grafik; now: Date }) {
           {teksty.poprzedniDzien}
         </button>
         <h2>{formatDayLabel(day)}</h2>
-        <button type="button" onClick={() => setDay(addDays(day, 1))}>
+        <button
+          type="button"
+          disabled={day >= ostatniDzien}
+          onClick={() => setDay(addDays(day, 1))}
+        >
           {teksty.nastepnyDzien}
         </button>
       </div>
+
+      <p className="reguly">{teksty.zasiegKalendarza(formatDayLabel(ostatniDzien))}</p>
 
       {!grafikDnia.open && <p className="komunikat">{teksty.dzienZamkniety}</p>}
       {grafikDnia.open && grafikDnia.blocks.length === 0 && (
@@ -81,7 +101,7 @@ export function Kalendarz({ grafik, now }: { grafik: Grafik; now: Date }) {
       {grafikDnia.open && grafikDnia.blocks.length > 0 && (
         <ul className="bloki">
           {grafikDnia.blocks.map((block) => (
-            <Blok key={block.scheduleId} block={block} timeZone={facility.timezone} />
+            <Blok key={block.scheduleId} block={block} timeZone={facility.timeZone} />
           ))}
         </ul>
       )}

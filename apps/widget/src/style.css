@@ -74,6 +74,17 @@ body {
   font: inherit;
 }
 
+.dzien button:disabled {
+  color: var(--przygaszony);
+  cursor: not-allowed;
+}
+
+.reguly {
+  color: var(--przygaszony);
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
 .bloki {
   list-style: none;
   margin: 0;

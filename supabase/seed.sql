@@ -3,11 +3,19 @@
 -- więc pokrywa 30 dni w przód i każde kolejne — bez przepisywania seeda.
 -- Katalogi broni, cennik i Rezerwacje dochodzą w kolejnych ticketach.
 
-insert into public.facilities (id, slug, name)
+-- Reguły czasowe wypisane wprost, choć równe wartościom domyślnym: grafik
+-- demo ma pokazywać, co robi horyzont i wyprzedzenie, więc muszą być widoczne
+-- w danych, a nie tylko w schemacie.
+insert into public.facilities (
+  id, slug, name, booking_horizon_days, min_lead_minutes, cancellation_window_hours
+)
 values (
   '00000000-0000-0000-0000-000000000001',
   'strzelnica-demo',
-  'Strzelnica Demo'
+  'Strzelnica Demo',
+  30,
+  120,
+  24
 )
 on conflict (id) do nothing;
 

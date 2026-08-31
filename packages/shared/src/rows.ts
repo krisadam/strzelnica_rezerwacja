@@ -4,7 +4,7 @@
  * w bazie, a tutaj typ. Wiersz, który mimo to wypada poza zakres, zatrzymuje
  * się na wejściu, zamiast wywracać kalendarz przy pierwszym renderze.
  */
-import type { BlockSchedule, OpeningHours } from './availability.js'
+import type { BlockSchedule, OpeningHours, TimeRules } from './availability.js'
 import type { CalendarDay, Weekday } from './calendar.js'
 import type { Tables } from './database.types.js'
 
@@ -40,6 +40,45 @@ export function openingHoursFromRow(row: Tables<'opening_hours'>): OpeningHours 
 
 export function closedDateFromRow(row: Tables<'calendar_exceptions'>): CalendarDay {
   return row.closed_on
+}
+
+/**
+ * Strzelnica w kształcie, w jakim potrzebuje jej grafik. Slug i data założenia
+ * zostają w bazie — kalendarza nie obchodzą.
+ */
+export type Facility = {
+  id: string
+  name: string
+  timeZone: string
+  timeRules: TimeRules
+}
+
+/**
+ * Kolumny, które Widget czyta kluczem anonimowym. Wypisane zamiast `select('*')`,
+ * żeby kolejny ticket dokładający pole do `facilities` nie wystawiał go
+ * publicznie przez samo dodanie migracji.
+ */
+export type FacilityRow = Pick<
+  Tables<'facilities'>,
+  | 'id'
+  | 'name'
+  | 'timezone'
+  | 'booking_horizon_days'
+  | 'min_lead_minutes'
+  | 'cancellation_window_hours'
+>
+
+export function facilityFromRow(row: FacilityRow): Facility {
+  return {
+    id: row.id,
+    name: row.name,
+    timeZone: row.timezone,
+    timeRules: {
+      horizonDays: row.booking_horizon_days,
+      minLeadMinutes: row.min_lead_minutes,
+      cancellationWindowHours: row.cancellation_window_hours,
+    },
+  }
 }
 
 /** Oś w kształcie, w jakim potrzebuje jej kalendarz. */

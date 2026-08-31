@@ -78,6 +78,25 @@ Osoba rezerwująca nie wybiera długości ani początku dowolnie — wybiera jed
 z opublikowanych Bloków. Przerwa techniczna między Rezerwacjami wynika
 z odstępu między Blokami w rozkładzie, a nie z osobnej reguły.
 
+## Horyzont rezerwacji
+
+Jak daleko w przód Strzelnica przyjmuje Rezerwacje: liczba dni jej kalendarza
+odmierzana od dzisiaj, gdzie horyzont zerowy znaczy „wyłącznie dzisiaj",
+a trzydziestodniowy sięga trzydziestego dnia po dzisiejszym. Dni za horyzontem
+nie mają Bloków do wzięcia i Osoba rezerwująca nie dochodzi do nich
+kalendarzem.
+
+## Minimalne wyprzedzenie
+
+Ile czasu przed początkiem Bloku zamyka się jego rezerwacja. Termin, do którego
+zostało mniej, pozostaje widoczny jako niedostępny — Strzelnica nie zdąży się
+na niego przygotować.
+
+## Okno anulowania
+
+Ile czasu przed terminem Osoba rezerwująca może anulować Rezerwację sama. Po
+jego upływie zostaje jej kontakt do Strzelnicy.
+
 ## Pula instruktorów
 
 Liczba Instruktorów, których Strzelnica jest w stanie zapewnić w danym czasie.

@@ -5,12 +5,15 @@ import type { Tables, TablesInsert } from './index.js'
 // że eksportowany kształt daje się użyć i nadąża za migracjami. Gdy kolumna
 // zniknie ze schematu, kontrola typów padnie tutaj, a nie u konsumenta.
 describe('typy ze schematu bazy', () => {
-  it('Strzelnica ma identyfikator, slug, nazwę i strefę', () => {
+  it('Strzelnica ma identyfikator, slug, nazwę, strefę i reguły czasowe', () => {
     const strzelnica: Tables<'facilities'> = {
       id: '00000000-0000-0000-0000-000000000001',
       slug: 'strzelnica-demo',
       name: 'Strzelnica Demo',
       timezone: 'Europe/Warsaw',
+      booking_horizon_days: 30,
+      min_lead_minutes: 120,
+      cancellation_window_hours: 24,
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -24,6 +27,11 @@ describe('typy ze schematu bazy', () => {
     }
 
     expect(nowa.timezone).toBeUndefined()
+    // Reguły czasowe mają wartości domyślne, więc nowa Strzelnica ma je
+    // sensowne, zanim ktokolwiek wejdzie do Panelu.
+    expect(nowa.booking_horizon_days).toBeUndefined()
+    expect(nowa.min_lead_minutes).toBeUndefined()
+    expect(nowa.cancellation_window_hours).toBeUndefined()
   })
 
   it('Oś niesie identyfikator Strzelnicy i pojemność', () => {

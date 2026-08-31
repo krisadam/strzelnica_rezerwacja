@@ -5,12 +5,13 @@
  * niż przyjmuje serwer.
  *
  * Na tym etapie Rezerwacje jeszcze nie istnieją, więc niedostępność wynika
- * wyłącznie z rozkładu, godzin otwarcia, wyjątków i upływu czasu. Kolejne
- * powody (zajęta Oś, Blokada, wyczerpana Pula instruktorów, brak sztuk broni)
- * dochodzą jako kolejne wartości `Unavailability`.
+ * z rozkładu, godzin otwarcia, wyjątków oraz reguł czasowych Strzelnicy —
+ * horyzontu i minimalnego wyprzedzenia. Kolejne powody (zajęta Oś, Blokada,
+ * wyczerpana Pula instruktorów, brak sztuk broni) dochodzą jako kolejne
+ * wartości `Unavailability`.
  */
 import type { CalendarDay, Weekday } from './calendar.js'
-import { weekdayOf, zonedMinuteToInstant } from './calendar.js'
+import { addDays, dayIn, weekdayOf, zonedMinuteToInstant } from './calendar.js'
 
 /** Pozycja rozkładu: jeden Blok Osi w jednym dniu tygodnia. */
 export type BlockSchedule = {
@@ -31,8 +32,29 @@ export type OpeningHours = {
   closesMinute: number
 }
 
+/**
+ * Reguły czasowe Strzelnicy — jak daleko w przód wolno rezerwować, jak blisko
+ * terminu jeszcze wolno i do kiedy wolno anulować. Strzelnica ustala je sama
+ * (spec, historia 55), więc są jej konfiguracją, nie stałą w kodzie.
+ */
+export type TimeRules = {
+  /** Ile dni w przód sięga rezerwacja, licząc od dzisiejszego dnia Strzelnicy. */
+  horizonDays: number
+  /** Ile minut przed początkiem Bloku zamyka się rezerwacja. */
+  minLeadMinutes: number
+  /**
+   * Do ilu godzin przed terminem Osoba rezerwująca może anulować sama.
+   * Dostępności nie dotyczy — czyta go anulowanie Rezerwacji.
+   */
+  cancellationWindowHours: number
+}
+
 /** Powód, dla którego Bloku nie da się zarezerwować. */
-export type Unavailability = 'poza-godzinami-otwarcia' | 'przeszlosc'
+export type Unavailability =
+  | 'poza-godzinami-otwarcia'
+  | 'poza-horyzontem'
+  | 'przeszlosc'
+  | 'ponizej-wyprzedzenia'
 
 export type Block = {
   scheduleId: string
@@ -44,30 +66,58 @@ export type Block = {
   unavailableBecause?: Unavailability
 }
 
-export type DayAvailabilityInput = {
-  day: CalendarDay
+export type BookingHorizonInput = {
   /** Strefa Strzelnicy; pole jej konfiguracji, nie stała w kodzie. */
   timeZone: string
+  timeRules: TimeRules
+  now: Date
+}
+
+/**
+ * Ostatni dzień, na który Strzelnica przyjmuje Rezerwacje; sam jeszcze mieści
+ * się w horyzoncie. Ta sama granica rozstrzyga o powodzie „poza-horyzontem"
+ * w `scheduleForDay`, żeby nawigacja kalendarza i dostępność nie mogły się
+ * rozjechać.
+ */
+export function bookingHorizon(input: BookingHorizonInput): CalendarDay {
+  return addDays(dayIn(input.timeZone, input.now), input.timeRules.horizonDays)
+}
+
+/** Rozszerza wejście horyzontu, więc `bookingHorizon` przyjmuje je wprost. */
+export type DayAvailabilityInput = BookingHorizonInput & {
+  day: CalendarDay
   laneId: string
   schedules: readonly BlockSchedule[]
   openingHours: readonly OpeningHours[]
   /** Daty objęte wyjątkiem kalendarzowym — Strzelnica jest wtedy zamknięta. */
   closedDates: readonly CalendarDay[]
+}
+
+/** Wszystko, czego trzeba, żeby orzec o jednym Bloku wybranego dnia. */
+type BlockContext = {
+  hours: OpeningHours
+  /** Wyznaczony raz dla całego dnia — horyzont nie zależy od Bloku. */
+  beyondHorizon: boolean
+  minLeadMinutes: number
   now: Date
 }
 
 function reasonFor(
   schedule: BlockSchedule,
-  hours: OpeningHours,
   startsAt: Date,
-  now: Date,
+  context: BlockContext,
 ): Unavailability | undefined {
   const endMinute = schedule.startMinute + schedule.durationMinutes
-  if (schedule.startMinute < hours.opensMinute || endMinute > hours.closesMinute) {
+  // Najpierw powód trwały: Blok poza godzinami otwarcia nie stanie się dostępny
+  // z upływem czasu, więc mówi o sobie prawdziwiej niż horyzont czy wyprzedzenie.
+  if (schedule.startMinute < context.hours.opensMinute || endMinute > context.hours.closesMinute) {
     return 'poza-godzinami-otwarcia'
   }
+  if (context.beyondHorizon) return 'poza-horyzontem'
   // Blok, który się zaczął, przestaje być do wzięcia — także w trakcie trwania.
-  if (startsAt.getTime() <= now.getTime()) return 'przeszlosc'
+  const leadMinutes = (startsAt.getTime() - context.now.getTime()) / 60_000
+  if (leadMinutes <= 0) return 'przeszlosc'
+  if (leadMinutes < context.minLeadMinutes) return 'ponizej-wyprzedzenia'
   return undefined
 }
 
@@ -94,6 +144,14 @@ export function scheduleForDay(input: DayAvailabilityInput): DaySchedule {
   const hours = input.openingHours.find((entry) => entry.weekday === weekday)
   if (!hours) return ZAMKNIETE
 
+  const context: BlockContext = {
+    hours,
+    // Zapis dnia jest sortowalny, więc porównanie tekstów porównuje daty.
+    beyondHorizon: input.day > bookingHorizon(input),
+    minLeadMinutes: input.timeRules.minLeadMinutes,
+    now: input.now,
+  }
+
   const blocks = input.schedules
     .filter((schedule) => schedule.laneId === input.laneId && schedule.weekday === weekday)
     .sort((a, b) => a.startMinute - b.startMinute)
@@ -104,7 +162,7 @@ export function scheduleForDay(input: DayAvailabilityInput): DaySchedule {
         schedule.startMinute + schedule.durationMinutes,
         input.timeZone,
       )
-      const unavailableBecause = reasonFor(schedule, hours, startsAt, input.now)
+      const unavailableBecause = reasonFor(schedule, startsAt, context)
 
       return {
         scheduleId: schedule.id,

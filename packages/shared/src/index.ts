@@ -11,21 +11,24 @@ export {
   zonedMinuteToInstant,
 } from './calendar.js'
 export type { CalendarDay, Weekday } from './calendar.js'
-export { scheduleForDay } from './availability.js'
+export { bookingHorizon, scheduleForDay } from './availability.js'
 export type {
   Block,
   BlockSchedule,
+  BookingHorizonInput,
   DayAvailabilityInput,
   DaySchedule,
   OpeningHours,
+  TimeRules,
   Unavailability,
 } from './availability.js'
 export {
   asWeekday,
   blockScheduleFromRow,
   closedDateFromRow,
+  facilityFromRow,
   InvalidWeekdayError,
   laneFromRow,
   openingHoursFromRow,
 } from './rows.js'
-export type { Lane } from './rows.js'
+export type { Facility, FacilityRow, Lane } from './rows.js'

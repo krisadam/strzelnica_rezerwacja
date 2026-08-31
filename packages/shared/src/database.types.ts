@@ -88,22 +88,31 @@ export type Database = {
       }
       facilities: {
         Row: {
+          booking_horizon_days: number
+          cancellation_window_hours: number
           created_at: string
           id: string
+          min_lead_minutes: number
           name: string
           slug: string
           timezone: string
         }
         Insert: {
+          booking_horizon_days?: number
+          cancellation_window_hours?: number
           created_at?: string
           id?: string
+          min_lead_minutes?: number
           name: string
           slug: string
           timezone?: string
         }
         Update: {
+          booking_horizon_days?: number
+          cancellation_window_hours?: number
           created_at?: string
           id?: string
+          min_lead_minutes?: number
           name?: string
           slug?: string
           timezone?: string

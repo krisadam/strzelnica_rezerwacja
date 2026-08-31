@@ -16,8 +16,15 @@ export const teksty = {
   niedostepny: 'niedostępny',
   powod: {
     'poza-godzinami-otwarcia': 'poza godzinami otwarcia',
+    'poza-horyzontem': 'poza horyzontem rezerwacji',
     przeszlosc: 'termin już minął',
+    'ponizej-wyprzedzenia': 'zbyt bliski termin',
   } satisfies Record<Unavailability, string>,
+  /**
+   * Powód, dla którego „Następny dzień" przestaje działać. Bez tego zdania
+   * wyłączony przycisk wygląda na usterkę.
+   */
+  zasiegKalendarza: (ostatniDzien: string) => `Ostatni dzień w kalendarzu: ${ostatniDzien}.`,
   dzienZamkniety: 'Tego dnia Strzelnica jest zamknięta.',
   osBezBlokow: 'Ta Oś nie ma tego dnia żadnych Bloków.',
   brakOsi: 'Ta Strzelnica nie ma jeszcze żadnej Osi.',

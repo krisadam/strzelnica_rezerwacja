@@ -4,20 +4,21 @@
  * w kilkudziesięciu wierszach. Wyliczaniem dostępności zajmuje się czysta
  * funkcja z `@strzelnica/shared`; tutaj tylko odczyt i przepisanie wierszy.
  */
-import type { BlockSchedule, CalendarDay, Lane, OpeningHours } from '@strzelnica/shared'
+import type {
+  BlockSchedule,
+  CalendarDay,
+  Facility,
+  Lane,
+  OpeningHours,
+} from '@strzelnica/shared'
 import {
   blockScheduleFromRow,
   closedDateFromRow,
+  facilityFromRow,
   laneFromRow,
   openingHoursFromRow,
 } from '@strzelnica/shared'
 import type { StrzelnicaClient } from './supabase.js'
-
-export type Facility = {
-  id: string
-  name: string
-  timezone: string
-}
 
 export type Grafik = {
   facility: Facility
@@ -41,14 +42,18 @@ function orThrow<T>(result: { data: T | null; error: { message: string } | null 
 }
 
 export async function loadGrafik(client: StrzelnicaClient, slug: string): Promise<Grafik> {
-  const { data: facility, error } = await client
+  const { data: row, error } = await client
     .from('facilities')
-    .select('id, name, timezone')
+    .select(
+      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours',
+    )
     .eq('slug', slug)
     .maybeSingle()
 
   if (error) throw new Error(error.message)
-  if (!facility) throw new UnknownFacilityError(slug)
+  if (!row) throw new UnknownFacilityError(slug)
+
+  const facility = facilityFromRow(row)
 
   const [lanes, schedules, openingHours, exceptions] = await Promise.all([
     client.from('lanes').select('*').eq('facility_id', facility.id).order('name'),

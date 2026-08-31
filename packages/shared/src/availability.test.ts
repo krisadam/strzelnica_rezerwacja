@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { BlockSchedule, DayAvailabilityInput, OpeningHours } from './index.js'
-import { scheduleForDay } from './index.js'
+import type { BlockSchedule, DayAvailabilityInput, OpeningHours, TimeRules } from './index.js'
+import { addDays, bookingHorizon, scheduleForDay } from './index.js'
 
 /** Same Bloki — dni zamknięte mają osobne asercje na `open`. */
 function blokiDnia(...args: Parameters<typeof scheduleForDay>) {
@@ -34,6 +34,11 @@ function blok(startMinute: number, extra: Partial<BlockSchedule> = {}): BlockSch
   }
 }
 
+/** Reguły czasowe na tyle luźne, że nie odbierają dostępności same z siebie. */
+function reguly(nadpisania: Partial<TimeRules> = {}): TimeRules {
+  return { horizonDays: 30, minLeadMinutes: 0, cancellationWindowHours: 24, ...nadpisania }
+}
+
 function pytanie(nadpisania: Partial<DayAvailabilityInput> = {}): DayAvailabilityInput {
   return {
     day: PONIEDZIALEK,
@@ -42,6 +47,7 @@ function pytanie(nadpisania: Partial<DayAvailabilityInput> = {}): DayAvailabilit
     schedules: [blok(600), blok(750)],
     openingHours: OTWARTE_10_22,
     closedDates: [],
+    timeRules: reguly(),
     now: new Date('2026-06-01T09:00:00Z'),
     ...nadpisania,
   }
@@ -183,5 +189,100 @@ describe('Blok, który już minął', () => {
     const bloki = blokiDnia(pytanie({ now: new Date('2026-06-15T08:00:00Z') }))
 
     expect(bloki[0]?.available).toBe(false)
+  })
+})
+
+describe('horyzont rezerwacji', () => {
+  // „Teraz" wypada 1 czerwca, więc poniedziałek 15 czerwca leży 14 dni dalej.
+  const PIERWSZY_CZERWCA = new Date('2026-06-01T09:00:00Z')
+
+  it('dopuszcza Blok dnia leżącego dokładnie na granicy horyzontu', () => {
+    const bloki = blokiDnia(
+      pytanie({ now: PIERWSZY_CZERWCA, timeRules: reguly({ horizonDays: 14 }) }),
+    )
+
+    expect(bloki.every((b) => b.available)).toBe(true)
+  })
+
+  it('odrzuca Blok dnia leżącego o jeden dzień za horyzontem', () => {
+    const bloki = blokiDnia(
+      pytanie({ now: PIERWSZY_CZERWCA, timeRules: reguly({ horizonDays: 13 }) }),
+    )
+
+    expect(bloki[0]?.available).toBe(false)
+    expect(bloki[0]?.unavailableBecause).toBe('poza-horyzontem')
+  })
+})
+
+describe('minimalne wyprzedzenie', () => {
+  // Pierwszy Blok poniedziałku zaczyna się o 10:00 czasu Warszawy, czyli 08:00 UTC.
+  const DWIE_GODZINY = reguly({ minLeadMinutes: 120 })
+
+  it('dopuszcza Blok oddalony dokładnie o minimalne wyprzedzenie', () => {
+    const bloki = blokiDnia(
+      pytanie({ now: new Date('2026-06-15T06:00:00Z'), timeRules: DWIE_GODZINY }),
+    )
+
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  it('odrzuca Blok oddalony o minutę mniej', () => {
+    const bloki = blokiDnia(
+      pytanie({ now: new Date('2026-06-15T06:01:00Z'), timeRules: DWIE_GODZINY }),
+    )
+
+    expect(bloki[0]?.available).toBe(false)
+    expect(bloki[0]?.unavailableBecause).toBe('ponizej-wyprzedzenia')
+  })
+
+  it('nie rusza dalszych Bloków tego samego dnia', () => {
+    const bloki = blokiDnia(
+      pytanie({ now: new Date('2026-06-15T06:01:00Z'), timeRules: DWIE_GODZINY }),
+    )
+
+    expect(bloki[1]?.available).toBe(true)
+  })
+
+  it('nazywa Blok, który już się zaczął, przeszłością — a nie zbyt bliskim terminem', () => {
+    const bloki = blokiDnia(
+      pytanie({ now: new Date('2026-06-15T08:30:00Z'), timeRules: DWIE_GODZINY }),
+    )
+
+    expect(bloki[0]?.unavailableBecause).toBe('przeszlosc')
+  })
+})
+
+describe('granica horyzontu dla kalendarza', () => {
+  function horyzont(now: Date, horizonDays: number) {
+    return bookingHorizon({ timeZone: 'Europe/Warsaw', timeRules: reguly({ horizonDays }), now })
+  }
+
+  it('leży tyle dni od dzisiaj, ile mówi konfiguracja', () => {
+    expect(horyzont(new Date('2026-06-15T06:00:00Z'), 30)).toBe('2026-07-15')
+  })
+
+  it('liczy „dzisiaj" zegarem Strzelnicy, nie zegarem czytającego', () => {
+    // 00:30 w Warszawie to wciąż poprzedni dzień w UTC.
+    expect(horyzont(new Date('2026-06-01T22:30:00Z'), 13)).toBe('2026-06-15')
+  })
+
+  it('zatrzymuje się na dzisiaj, gdy Strzelnica nie przyjmuje na jutro', () => {
+    expect(horyzont(new Date('2026-06-15T06:00:00Z'), 0)).toBe('2026-06-15')
+  })
+
+  // Kalendarz kończy nawigację tam, gdzie dostępność przestaje dopuszczać
+  // Bloki. Rozjazd między tymi dwiema granicami byłby dla Osoby rezerwującej
+  // dniem, na który wolno wejść i w którym nic nie da się kliknąć.
+  it('wypada tam, gdzie dostępność przestaje dopuszczać Bloki', () => {
+    const now = new Date('2026-06-01T09:00:00Z')
+    const timeRules = reguly({ horizonDays: 14 })
+    const ostatniDzien = bookingHorizon({ timeZone: 'Europe/Warsaw', timeRules, now })
+
+    expect(blokiDnia(pytanie({ day: ostatniDzien, now, timeRules }))[0]?.available).toBe(true)
+    // Tydzień dalej wypada ten sam dzień tygodnia, więc rozkład ma co pokazać.
+    expect(
+      blokiDnia(pytanie({ day: addDays(ostatniDzien, 7), now, timeRules }))[0]
+        ?.unavailableBecause,
+    ).toBe('poza-horyzontem')
   })
 })

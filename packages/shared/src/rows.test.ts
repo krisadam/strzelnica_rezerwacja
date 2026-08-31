@@ -3,6 +3,7 @@ import type { Tables } from './index.js'
 import {
   asWeekday,
   blockScheduleFromRow,
+  facilityFromRow,
   InvalidWeekdayError,
   laneFromRow,
   openingHoursFromRow,
@@ -55,6 +56,26 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       weekday: 1,
       opensMinute: 600,
       closesMinute: 1320,
+    })
+  })
+
+  it('Strzelnica niesie strefę i komplet reguł czasowych', () => {
+    const row: Tables<'facilities'> = {
+      id: 'strzelnica-1',
+      slug: 'strzelnica-demo',
+      name: 'Strzelnica Demo',
+      timezone: 'Europe/Warsaw',
+      booking_horizon_days: 30,
+      min_lead_minutes: 120,
+      cancellation_window_hours: 24,
+      created_at: '2026-01-01T00:00:00Z',
+    }
+
+    expect(facilityFromRow(row)).toEqual({
+      id: 'strzelnica-1',
+      name: 'Strzelnica Demo',
+      timeZone: 'Europe/Warsaw',
+      timeRules: { horizonDays: 30, minLeadMinutes: 120, cancellationWindowHours: 24 },
     })
   })
 
