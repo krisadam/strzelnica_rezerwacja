@@ -35,6 +35,32 @@ Playwright potrzebuje jednorazowo przeglądarki:
 pnpm --filter @strzelnica/e2e exec playwright install chromium
 ```
 
+### Windows: Rancher Desktop
+
+Rancher Desktop 1.24.0 ma błąd, przez który `docker` przestaje odpowiadać 1–3
+minuty po każdym starcie, z komunikatem `timed out dialing Hyper-V socket`.
+Przyczyną jest healthcheck usługi docker wołający `curl --url http://./_ping`,
+odrzucany przez curl 8.21.0 — szczegóły w
+[`tools/windows/fix-docker-healthcheck.start`](tools/windows/fix-docker-healthcheck.start).
+`pnpm db:start` bez tego nie ma szans dojść do końca.
+
+Skrypt trzeba skopiować tam, skąd Rancher wykonuje go przy każdym starcie:
+
+```powershell
+Copy-Item tools\windows\fix-docker-healthcheck.start "$env:LOCALAPPDATA\rancher-desktop\provisioning\" -Force
+```
+
+Potem pełny restart Rancher Desktop — wyjście przez ikonę w zasobniku, nie samo
+zamknięcie okna. Sprawdzenie, czy poprawka weszła:
+
+```bash
+wsl -d rancher-desktop grep _ping /etc/init.d/docker
+```
+
+Ma pokazać `http://localhost/_ping`. Wersja z `http://./_ping` znaczy, że skrypt
+nie zadziałał — najczęściej dlatego, że `rdctl reset --factory` usunął katalog
+`provisioning`.
+
 ## Struktura
 
 | Katalog | Zawartość |
