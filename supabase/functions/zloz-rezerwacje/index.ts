@@ -1,0 +1,215 @@
+/**
+ * Zapis Rezerwacji. Jedyna droga, którą Rezerwacja powstaje — klucz anonimowy
+ * nie ma do tabeli `bookings` żadnej polityki RLS (ADR 0003).
+ *
+ * Funkcja jest cienką skorupą wokół `packages/shared`: rozkłada żądanie,
+ * dokłada do niego dane Strzelnicy i pyta te same czyste funkcje, które
+ * odpowiadały kalendarzowi. Reguła policzona tutaj po swojemu byłaby drugą
+ * kopią — a rozjazd między tym, co pokazuje Widget, a tym, co przyjmuje
+ * serwer, jest klasą błędów, którą spec wyklucza z definicji.
+ *
+ * Import sięga wprost do źródeł `packages/shared`; Supabase CLI podmontowuje
+ * do kontenera dokładnie te pliki, które funkcja importuje.
+ */
+import { createClient } from 'npm:@supabase/supabase-js@2.112.4'
+import type {
+  BookingOutcome,
+  BookingRequest,
+  Database,
+} from '../../../packages/shared/src/index.ts'
+import {
+  blockScheduleFromRow,
+  bookingProblems,
+  closedDateFromRow,
+  facilityFromRow,
+  laneFromRow,
+  MalformedBookingRequestError,
+  occupancyFromRow,
+  occupancyWindow,
+  openingHoursFromRow,
+  readBookingRequest,
+  rowsOrThrow,
+  scheduleForDay,
+} from '../../../packages/shared/src/index.ts'
+
+/**
+ * Źródło, spod którego serwowany jest sam Widget. Nie jest domeną osadzenia —
+ * te wskazuje Strzelnica — tylko domeną naszą, jednakową dla wszystkich
+ * Strzelnic, więc mieszka w konfiguracji platformy, a nie w jej danych.
+ */
+const WIDGET_ORIGIN = Deno.env.get('WIDGET_ORIGIN')
+
+/** Naruszenie ograniczenia wyłączności Osi w Postgresie. */
+const EXCLUSION_VIOLATION = '23P01'
+
+/**
+ * Nagłówki CORS. Nie są tu żadnym zabezpieczeniem i nie należy ich za takie
+ * brać: brama Supabase i tak dokłada własne `Access-Control-Allow-Origin: *`,
+ * więc zawężanie ich tutaj niczego by nie zamknęło. Bramką jest sprawdzenie
+ * nagłówka `Origin` względem domen Strzelnicy — wykonane, zanim cokolwiek
+ * zostanie zapisane. CORS jest tu po to, żeby żądanie Widgetu w ogóle ruszyło.
+ */
+function corsHeaders(origin: string | null): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': origin ?? '*',
+    'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  }
+}
+
+function json(body: unknown, status: number, origin: string | null): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) },
+  })
+}
+
+/**
+ * Wynik dziedzinowy — przyjęto albo odmówiono z powodu, który Osoba
+ * rezerwująca może naprawić — jedzie zawsze z kodem 200. Kody spoza dwustu
+ * zostają dla sytuacji, w których w ogóle nie doszło do rozpatrzenia zgłoszenia.
+ */
+function outcome(value: BookingOutcome, origin: string | null): Response {
+  return json(value, 200, origin)
+}
+
+type Client = ReturnType<typeof createClient<Database>>
+
+function connect(): Client {
+  const url = Deno.env.get('SUPABASE_URL')
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!url || !serviceRoleKey) {
+    throw new Error('Brak SUPABASE_URL lub SUPABASE_SERVICE_ROLE_KEY w środowisku funkcji.')
+  }
+  return createClient<Database>(url, serviceRoleKey, { auth: { persistSession: false } })
+}
+
+async function handle(request: BookingRequest, origin: string | null): Promise<Response> {
+  const client = connect()
+
+  const { data: facilityRow, error } = await client
+    .from('facilities')
+    .select(
+      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, allowed_origins',
+    )
+    .eq('slug', request.facilitySlug)
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  if (!facilityRow) return json({ error: 'Nie ma takiej Strzelnicy.' }, 404, origin)
+
+  // Nagłówek `Origin` mówi, czyj dokument wysłał żądanie. Dla żądania z Widgetu
+  // jest nim nasza własna domena; dla żądania sklejonego na cudzej stronie —
+  // jej domena, i wtedy rozstrzyga lista Strzelnicy. Żądanie bez `Origin` nie
+  // przyszło z przeglądarki, więc żadna lista go nie opisuje.
+  const allowed = [...facilityRow.allowed_origins, ...(WIDGET_ORIGIN ? [WIDGET_ORIGIN] : [])]
+  if (!origin || !allowed.includes(origin)) {
+    return json({ error: 'Ta domena nie ma zgody na rezerwacje tej Strzelnicy.' }, 403, origin)
+  }
+
+  const facility = facilityFromRow(facilityRow)
+
+  const laneResult = await client
+    .from('lanes')
+    .select('*')
+    .eq('facility_id', facility.id)
+    .eq('id', request.laneId)
+    .maybeSingle()
+
+  if (laneResult.error) throw new Error(laneResult.error.message)
+  if (!laneResult.data) return json({ error: 'Ta Strzelnica nie ma takiej Osi.' }, 404, origin)
+  const lane = laneFromRow(laneResult.data)
+
+  // Zajętość idzie z tego samego widoku, co w Widgecie. To on — a nie zapytanie
+  // pisane tu jeszcze raz — wie, które Rezerwacje trzymają Oś; funkcja czytająca
+  // `bookings` wprost miałaby własną listę stanów do rozjechania się z widokiem.
+  const okno = occupancyWindow(request.day, facility.timeZone)
+
+  const [schedules, openingHours, exceptions, zajetosc] = await Promise.all([
+    client.from('block_schedules').select('*').eq('facility_id', facility.id),
+    client.from('opening_hours').select('*').eq('facility_id', facility.id),
+    client.from('calendar_exceptions').select('*').eq('facility_id', facility.id),
+    client
+      .from('lane_occupancy')
+      .select('*')
+      .eq('lane_id', lane.id)
+      .lt('starts_at', okno.to.toISOString())
+      .gt('ends_at', okno.from.toISOString()),
+  ])
+
+  const grafik = scheduleForDay({
+    day: request.day,
+    laneId: lane.id,
+    timeZone: facility.timeZone,
+    timeRules: facility.timeRules,
+    schedules: rowsOrThrow(schedules).map(blockScheduleFromRow),
+    openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),
+    closedDates: rowsOrThrow(exceptions).map(closedDateFromRow),
+    occupancies: rowsOrThrow(zajetosc).map(occupancyFromRow),
+    now: new Date(),
+  })
+
+  const block = grafik.blocks.find((candidate) => candidate.startMinute === request.startMinute)
+  const problems = bookingProblems({ draft: request, lane, block })
+  // Pierwsze zastrzeżenie wystarczy: formularz pokazał resztę, więc tutaj
+  // wychodzi już tylko to, czego klient nie mógł zobaczyć. Warunek na `block`
+  // powtarza to, co `bookingProblems` właśnie orzekło — bez niego kontrola
+  // typów nie wie, że dalej Blok na pewno jest.
+  if (problems[0] || !block) {
+    return outcome({ ok: false, problem: problems[0] ?? 'termin-niedostepny' }, origin)
+  }
+
+  const zapis = await client
+    .from('bookings')
+    .insert({
+      facility_id: facility.id,
+      lane_id: lane.id,
+      starts_at: block.startsAt.toISOString(),
+      ends_at: block.endsAt.toISOString(),
+      // Potwierdzenie adresu (ticket #10) przestawi to na „oczekująca".
+      status: 'potwierdzona',
+      participants: request.participants,
+      contact_name: request.contact.name,
+      contact_email: request.contact.email,
+      contact_phone: request.contact.phone,
+    })
+    .select('id')
+    .single()
+
+  // Dwa zgłoszenia na ten sam Blok w tej samej chwili widzą Blok wolny oba —
+  // rozstrzyga dopiero ograniczenie wyłączności Osi. Przegrany dostaje ten sam
+  // powód, co ktoś, kto zwlekał: termin jest zajęty.
+  if (zapis.error?.code === EXCLUSION_VIOLATION) {
+    return outcome({ ok: false, problem: 'termin-niedostepny' }, origin)
+  }
+  if (zapis.error) throw new Error(zapis.error.message)
+
+  return outcome({ ok: true, id: zapis.data.id }, origin)
+}
+
+Deno.serve(async (req: Request) => {
+  const origin = req.headers.get('Origin')
+
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders(origin) })
+  }
+  if (req.method !== 'POST') return json({ error: 'Metoda nieobsługiwana.' }, 405, origin)
+
+  let request: BookingRequest
+  try {
+    request = readBookingRequest(await req.json().catch(() => null))
+  } catch (powod) {
+    if (powod instanceof MalformedBookingRequestError) {
+      return json({ error: powod.message }, 400, origin)
+    }
+    throw powod
+  }
+
+  try {
+    return await handle(request, origin)
+  } catch (powod) {
+    console.error(powod)
+    return json({ error: 'Nie udało się zapisać Rezerwacji.' }, 500, origin)
+  }
+})

@@ -9,6 +9,7 @@ import type {
   CalendarDay,
   Facility,
   Lane,
+  Occupancy,
   OpeningHours,
 } from '@strzelnica/shared'
 import {
@@ -16,7 +17,9 @@ import {
   closedDateFromRow,
   facilityFromRow,
   laneFromRow,
+  occupancyFromRow,
   openingHoursFromRow,
+  rowsOrThrow,
 } from '@strzelnica/shared'
 import type { StrzelnicaClient } from './supabase.js'
 
@@ -35,10 +38,25 @@ export class UnknownFacilityError extends Error {
   }
 }
 
-function orThrow<T>(result: { data: T | null; error: { message: string } | null }): T {
-  if (result.error) throw new Error(result.error.message)
-  if (result.data === null) throw new Error('Zapytanie nie zwróciło danych.')
-  return result.data
+/**
+ * Zajętość Osi Strzelnicy od wskazanego momentu w przód. Idzie z widoku
+ * `lane_occupancy`, jedynego publicznego okna na Rezerwacje — bez kontaktu,
+ * bez liczby Uczestników, bez stanu. Czytana osobno od reszty grafiku, bo
+ * jako jedyna zmienia się w trakcie: po złożeniu Rezerwacji i po przegranym
+ * wyścigu o Blok trzeba ją pobrać jeszcze raz.
+ */
+export async function loadZajetosc(
+  client: StrzelnicaClient,
+  facilityId: string,
+  od: Date,
+): Promise<Occupancy[]> {
+  const wynik = await client
+    .from('lane_occupancy')
+    .select('*')
+    .eq('facility_id', facilityId)
+    .gt('ends_at', od.toISOString())
+
+  return rowsOrThrow(wynik).map(occupancyFromRow)
 }
 
 export async function loadGrafik(client: StrzelnicaClient, slug: string): Promise<Grafik> {
@@ -64,9 +82,9 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
 
   return {
     facility,
-    lanes: orThrow(lanes).map(laneFromRow),
-    schedules: orThrow(schedules).map(blockScheduleFromRow),
-    openingHours: orThrow(openingHours).map(openingHoursFromRow),
-    closedDates: orThrow(exceptions).map(closedDateFromRow),
+    lanes: rowsOrThrow(lanes).map(laneFromRow),
+    schedules: rowsOrThrow(schedules).map(blockScheduleFromRow),
+    openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),
+    closedDates: rowsOrThrow(exceptions).map(closedDateFromRow),
   }
 }

@@ -113,6 +113,11 @@ portu pokazuje, jak wygląda blokada osadzenia.
 
 Logika dostępności i wyliczanie Kwoty istnieją w **jednej kopii**
 w `packages/shared` i są używane przez Widget, Panel oraz Edge Functions.
+Edge Functions importują je wprost ze źródeł — dlatego wewnętrzne importy
+`packages/shared` mają rozszerzenie `.ts`, a nie `.js`: Deno rozwiązuje
+ścieżki lokalne dosłownie i sam nie podmieni jednego na drugie. Supabase CLI
+podmontowuje do środowiska brzegowego dokładnie te pliki, które funkcja
+importuje.
 
 ## Polecenia
 
@@ -143,6 +148,24 @@ wyścig o ten sam Blok, przejście całej ścieżki, izolacja Strzelnic, osadzen
 w ramce, potwierdzenie adresu. Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
+
+## Rezerwacje
+
+Rezerwację zapisuje wyłącznie Edge Function `zloz-rezerwacje` (ADR 0003).
+Klucz anonimowy nie ma do tabeli `bookings` żadnej polityki RLS: nie zapisze
+do niej niczego i nie odczyta z niej niczego. Kalendarz czyta zajętość
+z widoku `lane_occupancy` — Oś i zakres czasu, bez danych osobowych.
+
+Wyłączności Osi pilnuje ograniczenie `exclude` w schemacie, a nie sprawdzenie
+w kodzie: dwa równoczesne zgłoszenia na ten sam Blok przechodzą walidację oba,
+a rozstrzyga dopiero zapis. Sprawdzenie przed zapisem jest po to, żeby
+powiedzieć klientowi, co jest nie tak.
+
+Funkcja weryfikuje nagłówek `Origin` względem `facilities.allowed_origins`
+powiększonych o domenę samego Widgetu. Ta ostatnia jest jednakowa dla
+wszystkich Strzelnic, więc jest konfiguracją platformy: lokalnie stoi
+w `supabase/config.toml` jako `[edge_runtime.secrets] WIDGET_ORIGIN`, a na
+produkcji ustawia się ją przez `supabase secrets set WIDGET_ORIGIN=…`.
 
 ## Baza danych
 

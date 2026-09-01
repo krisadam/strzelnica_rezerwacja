@@ -37,3 +37,6 @@ enable_confirmations = false
 
 [edge_runtime]
 enabled = true
+
+[edge_runtime.secrets]
+WIDGET_ORIGIN = "http://localhost:5173"

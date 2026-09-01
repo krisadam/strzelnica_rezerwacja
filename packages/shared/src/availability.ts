@@ -4,14 +4,13 @@
  * Widget, Panel i Edge Function — kalendarz nie może pokazywać czegoś innego,
  * niż przyjmuje serwer.
  *
- * Na tym etapie Rezerwacje jeszcze nie istnieją, więc niedostępność wynika
- * z rozkładu, godzin otwarcia, wyjątków oraz reguł czasowych Strzelnicy —
- * horyzontu i minimalnego wyprzedzenia. Kolejne powody (zajęta Oś, Blokada,
- * wyczerpana Pula instruktorów, brak sztuk broni) dochodzą jako kolejne
- * wartości `Unavailability`.
+ * Niedostępność wynika z rozkładu, godzin otwarcia, wyjątków, reguł czasowych
+ * Strzelnicy — horyzontu i minimalnego wyprzedzenia — oraz z zajętości Osi.
+ * Kolejne powody (wyczerpana Pula instruktorów, brak sztuk broni) dochodzą
+ * jako kolejne wartości `Unavailability`.
  */
-import type { CalendarDay, Weekday } from './calendar.js'
-import { addDays, dayIn, weekdayOf, zonedMinuteToInstant } from './calendar.js'
+import type { CalendarDay, Weekday } from './calendar.ts'
+import { addDays, dayIn, weekdayOf, zonedMinuteToInstant } from './calendar.ts'
 
 /** Pozycja rozkładu: jeden Blok Osi w jednym dniu tygodnia. */
 export type BlockSchedule = {
@@ -49,12 +48,24 @@ export type TimeRules = {
   cancellationWindowHours: number
 }
 
+/**
+ * Zajęcie Osi na wyłączność w konkretnym czasie. Rezerwacja i Blokada
+ * (ticket #16) różnią się wszystkim poza tym jednym — dla dostępności są tym
+ * samym, więc dostają jeden kształt i jedną regułę kolizji.
+ */
+export type Occupancy = {
+  laneId: string
+  startsAt: Date
+  endsAt: Date
+}
+
 /** Powód, dla którego Bloku nie da się zarezerwować. */
 export type Unavailability =
   | 'poza-godzinami-otwarcia'
   | 'poza-horyzontem'
   | 'przeszlosc'
   | 'ponizej-wyprzedzenia'
+  | 'termin-zajety'
 
 export type Block = {
   scheduleId: string
@@ -83,6 +94,23 @@ export function bookingHorizon(input: BookingHorizonInput): CalendarDay {
   return addDays(dayIn(input.timeZone, input.now), input.timeRules.horizonDays)
 }
 
+/**
+ * Najwcześniejszy i najpóźniejszy moment, w jaki może sięgnąć Blok wskazanego
+ * dnia. Blok zaczyna się w obrębie doby i wolno mu trwać dalej, więc okno
+ * kończy się dobę po jej końcu. Zajętość spoza tego okna nie ma z czym
+ * kolidować — i tylko dlatego wolno jej nie pobierać.
+ *
+ * Reguła mieszka tutaj, a nie w zapytaniu Edge Function, bo wynika z tego
+ * samego kształtu Bloku, co `scheduleForDay`. Wyliczona osobno w zapytaniu
+ * byłaby drugą kopią, która milczkiem gubiłaby kolizje.
+ */
+export function occupancyWindow(day: CalendarDay, timeZone: string): { from: Date; to: Date } {
+  return {
+    from: zonedMinuteToInstant(day, 0, timeZone),
+    to: zonedMinuteToInstant(day, 2 * 1440, timeZone),
+  }
+}
+
 /** Rozszerza wejście horyzontu, więc `bookingHorizon` przyjmuje je wprost. */
 export type DayAvailabilityInput = BookingHorizonInput & {
   day: CalendarDay
@@ -91,6 +119,8 @@ export type DayAvailabilityInput = BookingHorizonInput & {
   openingHours: readonly OpeningHours[]
   /** Daty objęte wyjątkiem kalendarzowym — Strzelnica jest wtedy zamknięta. */
   closedDates: readonly CalendarDay[]
+  /** Rezerwacje i Blokady trzymające Osie; wolno podać także cudze Osie. */
+  occupancies: readonly Occupancy[]
 }
 
 /** Wszystko, czego trzeba, żeby orzec o jednym Bloku wybranego dnia. */
@@ -100,11 +130,23 @@ type BlockContext = {
   beyondHorizon: boolean
   minLeadMinutes: number
   now: Date
+  /** Zawężone do Osi, o którą pytamy — kolizja i tak sprawdza tylko ją. */
+  occupancies: readonly Occupancy[]
+}
+
+/**
+ * Przedziały są domknięte od początku i otwarte od końca: Rezerwacja kończąca
+ * się o 12:00 nie zajmuje Bloku zaczynającego się o 12:00. Inaczej rozkład ze
+ * stykającymi się Blokami sprzedawałby co drugi.
+ */
+function overlaps(occupancy: Occupancy, startsAt: Date, endsAt: Date): boolean {
+  return occupancy.startsAt < endsAt && occupancy.endsAt > startsAt
 }
 
 function reasonFor(
   schedule: BlockSchedule,
   startsAt: Date,
+  endsAt: Date,
   context: BlockContext,
 ): Unavailability | undefined {
   const endMinute = schedule.startMinute + schedule.durationMinutes
@@ -118,6 +160,12 @@ function reasonFor(
   const leadMinutes = (startsAt.getTime() - context.now.getTime()) / 60_000
   if (leadMinutes <= 0) return 'przeszlosc'
   if (leadMinutes < context.minLeadMinutes) return 'ponizej-wyprzedzenia'
+  // Powód ostatni, bo jedyny mówiący o kimś innym niż sam Blok. Blok, którego
+  // Strzelnica i tak nie sprzedaje, ma o tym powiedzieć wprost — a nie zwalać
+  // na Osobę rezerwującą, która akurat wpisała go ręcznie w Panelu.
+  if (context.occupancies.some((occupancy) => overlaps(occupancy, startsAt, endsAt))) {
+    return 'termin-zajety'
+  }
   return undefined
 }
 
@@ -150,6 +198,7 @@ export function scheduleForDay(input: DayAvailabilityInput): DaySchedule {
     beyondHorizon: input.day > bookingHorizon(input),
     minLeadMinutes: input.timeRules.minLeadMinutes,
     now: input.now,
+    occupancies: input.occupancies.filter((occupancy) => occupancy.laneId === input.laneId),
   }
 
   const blocks = input.schedules
@@ -162,7 +211,7 @@ export function scheduleForDay(input: DayAvailabilityInput): DaySchedule {
         schedule.startMinute + schedule.durationMinutes,
         input.timeZone,
       )
-      const unavailableBecause = reasonFor(schedule, startsAt, context)
+      const unavailableBecause = reasonFor(schedule, startsAt, endsAt, context)
 
       return {
         scheduleId: schedule.id,

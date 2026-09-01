@@ -105,6 +105,13 @@ Puli czyni termin niedostępnym **wyłącznie** dla Rezerwacji wymagających
 Instruktora — ta sama Oś w tym samym czasie pozostaje dostępna dla Osoby
 rezerwującej deklarującej Pozwolenie na broń.
 
+## Zajętość
+
+Czas, w którym Oś jest już czyjaś. Składają się na nią Rezerwacje i Blokady —
+dla dostępności nierozróżnialne, bo obie zajmują Oś na wyłączność. Zajętość
+jest tym, co Osoba rezerwująca widzi o cudzych Rezerwacjach: Oś i przedział
+czasu, nigdy kto ani ilu.
+
 ## Wypożyczenie
 
 Pozycja Rezerwacji wskazująca Typ broni i liczbę sztuk. Jedna Rezerwacja może

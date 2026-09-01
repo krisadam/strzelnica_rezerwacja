@@ -1,6 +1,6 @@
-export type { Database, Json, Tables, TablesInsert, TablesUpdate } from './database.types.js'
-export { MissingSupabaseConfigError, readSupabaseConfig } from './config.js'
-export type { Environment, SupabaseConfig } from './config.js'
+export type { Database, Json, Tables, TablesInsert, TablesUpdate } from './database.types.ts'
+export { MissingSupabaseConfigError, readSupabaseConfig } from './config.ts'
+export type { Environment, SupabaseConfig } from './config.ts'
 export {
   addDays,
   dayIn,
@@ -9,29 +9,46 @@ export {
   InvalidCalendarDayError,
   weekdayOf,
   zonedMinuteToInstant,
-} from './calendar.js'
-export type { CalendarDay, Weekday } from './calendar.js'
-export { bookingHorizon, scheduleForDay } from './availability.js'
+} from './calendar.ts'
+export type { CalendarDay, Weekday } from './calendar.ts'
+export { bookingHorizon, occupancyWindow, scheduleForDay } from './availability.ts'
 export type {
   Block,
   BlockSchedule,
   BookingHorizonInput,
   DayAvailabilityInput,
   DaySchedule,
+  Occupancy,
   OpeningHours,
   TimeRules,
   Unavailability,
-} from './availability.js'
+} from './availability.ts'
+export {
+  bookingProblems,
+  MalformedBookingRequestError,
+  readBookingRequest,
+} from './booking.ts'
+export type {
+  BookingCheck,
+  BookingContact,
+  BookingDraft,
+  BookingOutcome,
+  BookingProblem,
+  BookingRequest,
+} from './booking.ts'
 export {
   asWeekday,
   blockScheduleFromRow,
   closedDateFromRow,
   facilityFromRow,
+  IncompleteOccupancyError,
   InvalidWeekdayError,
   laneFromRow,
+  occupancyFromRow,
   openingHoursFromRow,
-} from './rows.js'
-export type { Facility, FacilityRow, Lane } from './rows.js'
+  rowsOrThrow,
+} from './rows.ts'
+export type { Facility, FacilityRow, Lane, QueryResult } from './rows.ts'
 export {
   frameAncestors,
   heightMessage,
@@ -42,9 +59,9 @@ export {
   TYTUL_RAMKI,
   WIDGET_MESSAGE_SOURCE,
   widgetFrameUrl,
-} from './embedding.js'
+} from './embedding.ts'
 export type {
   EnvelopedWidgetMessage,
   WidgetFrameUrlInput,
   WidgetMessage,
-} from './embedding.js'
+} from './embedding.ts'

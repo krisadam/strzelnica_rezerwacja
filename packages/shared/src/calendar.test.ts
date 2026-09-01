@@ -7,7 +7,7 @@ import {
   InvalidCalendarDayError,
   weekdayOf,
   zonedMinuteToInstant,
-} from './index.js'
+} from './index.ts'
 
 const WARSZAWA = 'Europe/Warsaw'
 

@@ -7,7 +7,7 @@ import {
   readWidgetMessage,
   scrollToTopMessage,
   widgetFrameUrl,
-} from './index.js'
+} from './index.ts'
 
 describe('adres ramki Widgetu', () => {
   it('bierze katalog ze skryptu osadzającego i dokłada Strzelnicę', () => {

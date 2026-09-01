@@ -7,6 +7,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
+    // `packages/shared` jest czytane wprost ze źródeł — także przez Deno
+    // w Edge Functions, które rozwiązuje ścieżki lokalne dosłownie i nie
+    // podmienia `.js` na `.ts`. Stąd import z prawdziwym rozszerzeniem.
+    // Nic tu nie jest kompilowane do JS, więc rozszerzenie w źródle jest
+    // rozszerzeniem docelowym.
+    "allowImportingTsExtensions": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,

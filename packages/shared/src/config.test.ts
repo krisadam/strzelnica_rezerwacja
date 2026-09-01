@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MissingSupabaseConfigError, readSupabaseConfig } from './index.js'
+import { MissingSupabaseConfigError, readSupabaseConfig } from './index.ts'
 
 const kompletne = {
   VITE_SUPABASE_URL: 'http://127.0.0.1:54321',

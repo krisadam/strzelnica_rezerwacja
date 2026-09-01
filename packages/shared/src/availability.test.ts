@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { BlockSchedule, DayAvailabilityInput, OpeningHours, TimeRules } from './index.js'
-import { addDays, bookingHorizon, scheduleForDay } from './index.js'
+import type {
+  BlockSchedule,
+  DayAvailabilityInput,
+  Occupancy,
+  OpeningHours,
+  TimeRules,
+} from './index.ts'
+import { addDays, bookingHorizon, occupancyWindow, scheduleForDay } from './index.ts'
 
 /** Same Bloki — dni zamknięte mają osobne asercje na `open`. */
 function blokiDnia(...args: Parameters<typeof scheduleForDay>) {
@@ -47,6 +53,7 @@ function pytanie(nadpisania: Partial<DayAvailabilityInput> = {}): DayAvailabilit
     schedules: [blok(600), blok(750)],
     openingHours: OTWARTE_10_22,
     closedDates: [],
+    occupancies: [],
     timeRules: reguly(),
     now: new Date('2026-06-01T09:00:00Z'),
     ...nadpisania,
@@ -284,5 +291,141 @@ describe('granica horyzontu dla kalendarza', () => {
       blokiDnia(pytanie({ day: addDays(ostatniDzien, 7), now, timeRules }))[0]
         ?.unavailableBecause,
     ).toBe('poza-horyzontem')
+  })
+})
+
+/**
+ * Zajęcie Osi na wyłączność. Dzisiaj bierze się wyłącznie z Rezerwacji;
+ * Blokada (ticket #16) wejdzie tą samą drogą i musi dać ten sam wynik.
+ */
+describe('zajętość Osi', () => {
+  // Pierwszy Blok poniedziałku: 10:00–12:00 czasu Warszawy, czyli 08:00–10:00 UTC.
+  function zajecie(od: string, do_: string, laneId = OS_PISTOLETOWA): Occupancy {
+    return { laneId, startsAt: new Date(od), endsAt: new Date(do_) }
+  }
+
+  it('zdejmuje Blok pokryty Rezerwacją co do minuty', () => {
+    const bloki = blokiDnia(
+      pytanie({ occupancies: [zajecie('2026-06-15T08:00:00Z', '2026-06-15T10:00:00Z')] }),
+    )
+
+    expect(bloki[0]?.available).toBe(false)
+    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+    expect(bloki[1]?.available).toBe(true)
+  })
+
+  it('zdejmuje Blok, którego Rezerwacja dotyka choćby kawałkiem', () => {
+    const bloki = blokiDnia(
+      pytanie({ occupancies: [zajecie('2026-06-15T09:30:00Z', '2026-06-15T09:45:00Z')] }),
+    )
+
+    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+  })
+
+  // Rezerwacja 08:00–10:00 i Blok 10:00–12:00 nie nakładają się: koniec jednej
+  // jest początkiem drugiej. Bez tego rozkład ze stykającymi się Blokami
+  // sprzedałby tylko co drugi.
+  it('nie zdejmuje Bloku stykającego się początkiem z końcem Rezerwacji', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        schedules: [blok(600), blok(720)],
+        occupancies: [zajecie('2026-06-15T08:00:00Z', '2026-06-15T10:00:00Z')],
+      }),
+    )
+
+    expect(bloki[1]?.startsAt.toISOString()).toBe('2026-06-15T10:00:00.000Z')
+    expect(bloki[1]?.available).toBe(true)
+  })
+
+  it('nie zdejmuje Bloku stykającego się końcem z początkiem Rezerwacji', () => {
+    const bloki = blokiDnia(
+      pytanie({ occupancies: [zajecie('2026-06-15T10:00:00Z', '2026-06-15T12:00:00Z')] }),
+    )
+
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  it('nie rusza Bloków innej Osi', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        occupancies: [
+          zajecie('2026-06-15T08:00:00Z', '2026-06-15T10:00:00Z', OS_KARABINOWA),
+        ],
+      }),
+    )
+
+    expect(bloki.every((b) => b.available)).toBe(true)
+  })
+
+  it('zdejmuje Blok przecinający granicę doby, zajęty po północy', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        day: SOBOTA,
+        schedules: [blok(1380, { weekday: 6, id: 'noc' })],
+        // Blok trwa 21:00–23:00 UTC; Rezerwacja zahacza o jego drugą godzinę.
+        occupancies: [zajecie('2026-06-20T22:00:00Z', '2026-06-20T23:00:00Z')],
+        now: new Date('2026-06-01T09:00:00Z'),
+      }),
+    )
+
+    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+  })
+
+  // Rezerwacja wpisana ręcznie w Panelu (ticket #17) wolno, żeby naruszała
+  // limity Strzelnicy. Dostępność ma to znieść bez wyjątku i bez naprawiania:
+  // Blok zajęty poza godzinami otwarcia zostaje przy powodzie, który mówi
+  // o nim samym.
+  it('nie przykrywa powodu mówiącego o samym Bloku', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        schedules: [blok(480)],
+        occupancies: [zajecie('2026-06-15T06:00:00Z', '2026-06-15T08:00:00Z')],
+      }),
+    )
+
+    expect(bloki[0]?.unavailableBecause).toBe('poza-godzinami-otwarcia')
+  })
+})
+
+/**
+ * Okno, w którym w ogóle warto szukać zajętości. Zbyt wąskie gubi kolizje po
+ * cichu — Rezerwacja spoza okna nie zdejmie Bloku i termin sprzeda się dwa razy.
+ */
+describe('okno zajętości dnia', () => {
+  it('zaczyna się o północy dnia Strzelnicy', () => {
+    expect(occupancyWindow(PONIEDZIALEK, 'Europe/Warsaw').from.toISOString()).toBe(
+      '2026-06-14T22:00:00.000Z',
+    )
+  })
+
+  // Blok wolno zacząć o 23:30 i ciągnąć przez noc, więc ostatni moment, jaki
+  // może zająć Blok poniedziałku, wypada dobę po końcu poniedziałku.
+  it('kończy się dobę po końcu dnia, żeby zmieścić Blok przez granicę doby', () => {
+    expect(occupancyWindow(PONIEDZIALEK, 'Europe/Warsaw').to.toISOString()).toBe(
+      '2026-06-16T22:00:00.000Z',
+    )
+  })
+
+  it('obejmuje każdy Blok, jaki rozkład może wystawić tego dnia', () => {
+    const okno = occupancyWindow(SOBOTA, 'Europe/Warsaw')
+    const bloki = blokiDnia(
+      pytanie({
+        day: SOBOTA,
+        // Najwcześniejszy i najpóźniejszy Blok, jakie schemat dopuszcza:
+        // początek na 00:00 i na 23:30, każdy o skrajnej długości.
+        schedules: [
+          blok(0, { weekday: 6, id: 'swit', durationMinutes: 120 }),
+          blok(1410, { weekday: 6, id: 'noc', durationMinutes: 1470 }),
+        ],
+        openingHours: [{ weekday: 6, opensMinute: 0, closesMinute: 2880 }],
+        now: new Date('2026-06-01T09:00:00Z'),
+      }),
+    )
+
+    expect(bloki).toHaveLength(2)
+    for (const b of bloki) {
+      expect(b.startsAt.getTime()).toBeGreaterThanOrEqual(okno.from.getTime())
+      expect(b.endsAt.getTime()).toBeLessThanOrEqual(okno.to.getTime())
+    }
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Tables, TablesInsert } from './index.js'
+import type { Tables, TablesInsert } from './index.ts'
 
 // Typy pochodzą z `pnpm db:types`. Ten test nie sprawdza logiki — pilnuje,
 // że eksportowany kształt daje się użyć i nadąża za migracjami. Gdy kolumna
@@ -80,5 +80,41 @@ describe('typy ze schematu bazy', () => {
     }
 
     expect(godziny.closes_minute).toBeGreaterThan(1440)
+  })
+
+  it('Rezerwacja niesie stan, kontakt i liczbę Uczestników', () => {
+    const rezerwacja: TablesInsert<'bookings'> = {
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      lane_id: '00000000-0000-0000-0000-0000000000a1',
+      starts_at: '2026-06-15T08:00:00Z',
+      ends_at: '2026-06-15T10:00:00Z',
+      status: 'potwierdzona',
+      participants: 2,
+      contact_name: 'Anna Kowalska',
+      contact_email: 'anna@example.pl',
+      contact_phone: '600100200',
+    }
+
+    expect(rezerwacja.status).toBe('potwierdzona')
+    // Moment akceptacji regulaminu uzupełnia baza, tak jak datę utworzenia.
+    expect(rezerwacja.consented_at).toBeUndefined()
+  })
+
+  // Publiczny odczyt Rezerwacji idzie wyłącznie tędy: bez kontaktu, bez liczby
+  // Uczestników, bez stanu. Kolumna, która by się tu pojawiła, byłaby wyciekiem.
+  it('zajętość Osi nie zna nikogo z nazwiska', () => {
+    const zajetosc: Tables<'lane_occupancy'> = {
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      lane_id: '00000000-0000-0000-0000-0000000000a1',
+      starts_at: '2026-06-15T08:00:00Z',
+      ends_at: '2026-06-15T10:00:00Z',
+    }
+
+    expect(Object.keys(zajetosc)).toEqual([
+      'facility_id',
+      'lane_id',
+      'starts_at',
+      'ends_at',
+    ])
   })
 })

@@ -54,6 +54,66 @@ export type Database = {
           },
         ]
       }
+      bookings: {
+        Row: {
+          consented_at: string
+          contact_email: string
+          contact_name: string
+          contact_phone: string
+          created_at: string
+          ends_at: string
+          facility_id: string
+          id: string
+          lane_id: string
+          participants: number
+          starts_at: string
+          status: Database["public"]["Enums"]["booking_status"]
+        }
+        Insert: {
+          consented_at?: string
+          contact_email: string
+          contact_name: string
+          contact_phone: string
+          created_at?: string
+          ends_at: string
+          facility_id: string
+          id?: string
+          lane_id: string
+          participants: number
+          starts_at: string
+          status: Database["public"]["Enums"]["booking_status"]
+        }
+        Update: {
+          consented_at?: string
+          contact_email?: string
+          contact_name?: string
+          contact_phone?: string
+          created_at?: string
+          ends_at?: string
+          facility_id?: string
+          id?: string
+          lane_id?: string
+          participants?: number
+          starts_at?: string
+          status?: Database["public"]["Enums"]["booking_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_lane_fkey"
+            columns: ["lane_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "lanes"
+            referencedColumns: ["id", "facility_id"]
+          },
+        ]
+      }
       calendar_exceptions: {
         Row: {
           closed_on: string
@@ -191,13 +251,53 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      lane_occupancy: {
+        Row: {
+          ends_at: string | null
+          facility_id: string | null
+          lane_id: string | null
+          starts_at: string | null
+        }
+        Insert: {
+          ends_at?: string | null
+          facility_id?: string | null
+          lane_id?: string | null
+          starts_at?: string | null
+        }
+        Update: {
+          ends_at?: string | null
+          facility_id?: string | null
+          lane_id?: string | null
+          starts_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_lane_fkey"
+            columns: ["lane_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "lanes"
+            referencedColumns: ["id", "facility_id"]
+          },
+        ]
+      }
     }
     Functions: {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      booking_status:
+        | "oczekujaca"
+        | "potwierdzona"
+        | "anulowana-przez-klienta"
+        | "odwolana-przez-strzelnice"
+        | "wygasla"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -324,7 +424,15 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      booking_status: [
+        "oczekujaca",
+        "potwierdzona",
+        "anulowana-przez-klienta",
+        "odwolana-przez-strzelnice",
+        "wygasla",
+      ],
+    },
   },
 } as const
 

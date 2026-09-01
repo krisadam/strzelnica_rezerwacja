@@ -114,3 +114,34 @@ values (
   'Zawody klubowe'
 )
 on conflict (facility_id, closed_on) do nothing;
+
+-- Jedna Rezerwacja, żeby kalendarz demo pokazywał także termin zajęty, a nie
+-- wyłącznie wolne. Celuje w pierwszy Blok Osi pistoletowej (10:00, dwie
+-- godziny) najbliższego poniedziałku oddalonego o co najmniej 14 dni: dzień
+-- roboczy ma ten Blok w rozkładzie, a odległość trzyma go z dala od terminów,
+-- w które celują testy przeglądarkowe. Moment liczony jest w strefie
+-- Strzelnicy, bo rozkład mówi o jej zegarze, a kolumna trzyma UTC.
+insert into public.bookings (
+  id, facility_id, lane_id, starts_at, ends_at, status, participants,
+  contact_name, contact_email, contact_phone
+)
+select
+  '00000000-0000-0000-0000-0000000000b1',
+  f.id,
+  '00000000-0000-0000-0000-0000000000a1',
+  poczatek,
+  poczatek + interval '120 minutes',
+  'potwierdzona',
+  2,
+  'Jan Przykładowy',
+  'jan@example.pl',
+  '600100200'
+from public.facilities f
+cross join lateral (
+  select (
+    (current_date + 14 + ((8 - extract(isodow from current_date + 14)::int) % 7))::timestamp
+      + interval '600 minutes'
+  ) at time zone f.timezone as poczatek
+) t
+where f.id = '00000000-0000-0000-0000-000000000001'
+on conflict (id) do nothing;

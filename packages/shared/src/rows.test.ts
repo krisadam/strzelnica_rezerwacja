@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import type { Tables } from './index.js'
+import type { Tables } from './index.ts'
 import {
   asWeekday,
   blockScheduleFromRow,
   facilityFromRow,
+  IncompleteOccupancyError,
   InvalidWeekdayError,
   laneFromRow,
+  occupancyFromRow,
   openingHoursFromRow,
-} from './index.js'
+  rowsOrThrow,
+} from './index.ts'
 
 describe('dzień tygodnia z wiersza bazy', () => {
   it('przepuszcza wartości ISO', () => {
@@ -94,5 +97,47 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       name: 'Oś pistoletowa nr 1',
       capacity: 4,
     })
+  })
+})
+
+describe('zajętość Osi z wiersza widoku', () => {
+  const WIERSZ: Tables<'lane_occupancy'> = {
+    facility_id: '00000000-0000-0000-0000-000000000001',
+    lane_id: '00000000-0000-0000-0000-0000000000a1',
+    starts_at: '2026-06-15T08:00:00+00:00',
+    ends_at: '2026-06-15T10:00:00+00:00',
+  }
+
+  it('przenosi Oś i zakres czasu', () => {
+    expect(occupancyFromRow(WIERSZ)).toEqual({
+      laneId: '00000000-0000-0000-0000-0000000000a1',
+      startsAt: new Date('2026-06-15T08:00:00Z'),
+      endsAt: new Date('2026-06-15T10:00:00Z'),
+    })
+  })
+
+  it.each(['lane_id', 'starts_at', 'ends_at'] as const)(
+    'zatrzymuje wiersz bez kolumny %s',
+    (kolumna) => {
+      expect(() => occupancyFromRow({ ...WIERSZ, [kolumna]: null })).toThrow(
+        IncompleteOccupancyError,
+      )
+    },
+  )
+})
+
+describe('rozpakowanie odpowiedzi zapytania', () => {
+  it('oddaje wiersze, gdy zapytanie się powiodło', () => {
+    expect(rowsOrThrow({ data: [{ id: 'a' }], error: null })).toEqual([{ id: 'a' }])
+  })
+
+  it('oddaje pustą listę, bo brak wierszy nie jest błędem', () => {
+    expect(rowsOrThrow({ data: [], error: null })).toEqual([])
+  })
+
+  it('rzuca komunikatem bazy, zamiast zwracać pustkę', () => {
+    expect(() => rowsOrThrow({ data: null, error: { message: 'brak uprawnień' } })).toThrow(
+      'brak uprawnień',
+    )
   })
 })

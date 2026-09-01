@@ -1,10 +1,12 @@
-import { MissingSupabaseConfigError } from '@strzelnica/shared'
+import type { SupabaseConfig } from '@strzelnica/shared'
+import { MissingSupabaseConfigError, readSupabaseConfig } from '@strzelnica/shared'
 import { useCallback, useEffect, useState } from 'react'
 import type { Gospodarz } from './gospodarz.js'
 import { polaczZGospodarzem } from './gospodarz.js'
 import type { Grafik } from './grafik.js'
 import { loadGrafik, UnknownFacilityError } from './grafik.js'
-import { Kalendarz } from './Kalendarz.js'
+import { Rezerwacja } from './Rezerwacja.js'
+import type { StrzelnicaClient } from './supabase.js'
 import { createStrzelnicaClient } from './supabase.js'
 import { teksty } from './teksty.js'
 
@@ -33,9 +35,11 @@ function komunikatBledu(powod: unknown): string {
 /** Odświeżanie „teraz", żeby Blok mijający przy otwartej stronie zgasł sam. */
 const ODSWIEZANIE_MS = 60_000
 
+type Polaczenie = { client: StrzelnicaClient; config: SupabaseConfig }
+
 type Stan =
   | { faza: 'wczytywanie' }
-  | { faza: 'gotowe'; grafik: Grafik }
+  | { faza: 'gotowe'; polaczenie: Polaczenie; grafik: Grafik }
   | { faza: 'blad'; powod: string }
 
 export function App() {
@@ -54,9 +58,13 @@ export function App() {
     const env = import.meta.env as unknown as Record<string, string | undefined>
 
     Promise.resolve()
-      .then(() => loadGrafik(createStrzelnicaClient(env), slug))
-      .then((grafik) => {
-        if (aktualne) setStan({ faza: 'gotowe', grafik })
+      .then(async () => {
+        const config = readSupabaseConfig(env)
+        const client = createStrzelnicaClient(config)
+        return { polaczenie: { client, config }, grafik: await loadGrafik(client, slug) }
+      })
+      .then(({ polaczenie, grafik }) => {
+        if (aktualne) setStan({ faza: 'gotowe', polaczenie, grafik })
       })
       .catch((powod: unknown) => {
         if (aktualne) setStan({ faza: 'blad', powod: komunikatBledu(powod) })
@@ -89,8 +97,15 @@ export function App() {
           {stan.powod}
         </p>
       )}
-      {stan.faza === 'gotowe' && (
-        <Kalendarz grafik={stan.grafik} now={now} onZmianaWidoku={zmianaWidoku} />
+      {stan.faza === 'gotowe' && slug && (
+        <Rezerwacja
+          client={stan.polaczenie.client}
+          config={stan.polaczenie.config}
+          slug={slug}
+          grafik={stan.grafik}
+          now={now}
+          onZmianaWidoku={zmianaWidoku}
+        />
       )}
     </main>
   )

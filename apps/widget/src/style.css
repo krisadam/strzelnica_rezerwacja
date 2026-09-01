@@ -102,6 +102,32 @@ body {
   padding: 0.7rem 0.9rem;
 }
 
+/* Wolny Blok jest przyciskiem na całą szerokość pozycji, żeby cel kliknięcia
+   pokrywał się z tym, co widać. */
+.blok--wolny {
+  padding: 0;
+}
+
+.blok__wybor {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  padding: 0.7rem 0.9rem;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.blok__wybor:hover,
+.blok__wybor:focus-visible {
+  background: #f2f8f4;
+}
+
 .blok__czas {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -122,4 +148,111 @@ body {
 
 .komunikat--blad {
   color: var(--blad);
+}
+
+.krok > h2 {
+  font-size: 1.05rem;
+  margin: 0 0 1rem;
+}
+
+.wybrany {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0 0 1.25rem;
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.wybrany dt {
+  color: var(--przygaszony);
+  font-size: 0.85rem;
+}
+
+.wybrany dd {
+  margin: 0;
+}
+
+.pole {
+  display: block;
+  margin: 0 0 1rem;
+}
+
+.pole > span {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.pole input {
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--ramka);
+  border-radius: 0.4rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pole small {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--przygaszony);
+}
+
+.pole--zgoda {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.pole--zgoda input {
+  width: auto;
+  margin-top: 0.2rem;
+}
+
+.pole--zgoda > span {
+  font-weight: 400;
+  margin: 0;
+}
+
+.zastrzezenia {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.9rem 0.7rem 2rem;
+  border: 1px solid var(--blad);
+  border-radius: 0.5rem;
+  color: var(--blad);
+}
+
+.przyciski {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.przycisk {
+  font: inherit;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--ramka);
+  border-radius: 0.4rem;
+  background: none;
+  cursor: pointer;
+}
+
+.przycisk--glowny {
+  border-color: var(--wolny);
+  background: var(--wolny);
+  color: #ffffff;
+}
+
+.przycisk:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.numer {
+  font-variant-numeric: tabular-nums;
+  color: var(--przygaszony);
+  font-size: 0.85rem;
 }

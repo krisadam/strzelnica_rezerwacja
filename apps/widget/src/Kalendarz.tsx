@@ -1,27 +1,43 @@
-import type { Block } from '@strzelnica/shared'
+import type { Block, CalendarDay, Lane, Occupancy } from '@strzelnica/shared'
 import {
   addDays,
   bookingHorizon,
-  dayIn,
   formatDayLabel,
   formatTimeRange,
   scheduleForDay,
 } from '@strzelnica/shared'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import type { Grafik } from './grafik.js'
 import { teksty } from './teksty.js'
 
-function Blok({ block, timeZone }: { block: Block; timeZone: string }) {
-  const stan = block.available
-    ? teksty.wolny
-    : `${teksty.niedostepny} — ${teksty.powod[block.unavailableBecause ?? 'przeszlosc']}`
+function Blok({
+  block,
+  timeZone,
+  onWybierz,
+}: {
+  block: Block
+  timeZone: string
+  onWybierz: (block: Block) => void
+}) {
+  const czas = formatTimeRange(block.startsAt, block.endsAt, timeZone)
 
+  // Wolny Blok jest przyciskiem, niedostępny — samym opisem. Przycisk, który
+  // wygląda na wyłączony, i tak zbiera kliknięcia; brak przycisku nie zbiera.
   return (
     <li className={block.available ? 'blok blok--wolny' : 'blok blok--niedostepny'}>
-      <span className="blok__czas">
-        {formatTimeRange(block.startsAt, block.endsAt, timeZone)}
-      </span>
-      <span className="blok__stan">{stan}</span>
+      {block.available ? (
+        <button type="button" className="blok__wybor" onClick={() => onWybierz(block)}>
+          <span className="blok__czas">{czas}</span>
+          <span className="blok__stan">{teksty.wolny}</span>
+        </button>
+      ) : (
+        <>
+          <span className="blok__czas">{czas}</span>
+          <span className="blok__stan">
+            {teksty.niedostepny} — {teksty.powod[block.unavailableBecause ?? 'przeszlosc']}
+          </span>
+        </>
+      )}
     </li>
   )
 }
@@ -32,37 +48,30 @@ function Blok({ block, timeZone }: { block: Block; timeZone: string }) {
  * jest w ogóle otwarty. Koniec nawigacji bierze z `bookingHorizon`, więc ostatni
  * dzień, do którego wolno dojść, jest ostatnim, w którym wolno rezerwować.
  * „Teraz" przychodzi z zewnątrz, żeby ta sama zasada obowiązywała także tutaj.
+ *
+ * Wybrana Oś i dzień mieszkają wyżej: Osoba rezerwująca, która wróci z formularza
+ * po zajętym terminie, ma zastać kalendarz tam, gdzie go zostawiła.
  */
 export function Kalendarz({
   grafik,
+  occupancies,
   now,
-  onZmianaWidoku,
+  lane,
+  day,
+  onLane,
+  onDay,
+  onWybierz,
 }: {
   grafik: Grafik
+  occupancies: readonly Occupancy[]
   now: Date
-  /**
-   * Widok zmieniony kliknięciem. Osadzony Widget prosi wtedy stronę gospodarza
-   * o przewinięcie do góry ramki, żeby nowa treść nie pojawiła się poza
-   * ekranem. Tą samą drogą pójdą kolejne kroki formularza.
-   */
-  onZmianaWidoku: () => void
+  lane: Lane
+  day: CalendarDay
+  onLane: (lane: Lane) => void
+  onDay: (day: CalendarDay) => void
+  onWybierz: (block: Block) => void
 }) {
   const { facility, lanes } = grafik
-  const [laneId, setLaneId] = useState(lanes[0]?.id ?? '')
-  const [day, setDay] = useState(() => dayIn(facility.timeZone, now))
-
-  // Widok to wybrana Oś i wybrany dzień; zgłaszamy jego zmianę w jednym
-  // miejscu, a nie w każdym przycisku z osobna — kolejny sposób na zmianę
-  // widoku nie może wtedy zapomnieć o zgłoszeniu. Pierwsze wejście zmianą
-  // nie jest.
-  const pierwszyWidok = useRef(true)
-  useEffect(() => {
-    if (pierwszyWidok.current) {
-      pierwszyWidok.current = false
-      return
-    }
-    onZmianaWidoku()
-  }, [day, laneId, onZmianaWidoku])
 
   const ostatniDzien = useMemo(
     () => bookingHorizon({ timeZone: facility.timeZone, timeRules: facility.timeRules, now }),
@@ -74,45 +83,45 @@ export function Kalendarz({
       scheduleForDay({
         day,
         timeZone: facility.timeZone,
-        laneId,
+        laneId: lane.id,
         schedules: grafik.schedules,
         openingHours: grafik.openingHours,
         closedDates: grafik.closedDates,
+        occupancies,
         timeRules: facility.timeRules,
         now,
       }),
-    [day, laneId, grafik, facility, now],
+    [day, lane, grafik, occupancies, facility, now],
   )
-
-  if (lanes.length === 0) return <p className="komunikat">{teksty.brakOsi}</p>
 
   return (
     <div className="kalendarz">
       <fieldset className="osie">
         <legend>{teksty.wybierzOs}</legend>
-        {lanes.map((lane) => (
-          <label key={lane.id} className="osie__pozycja">
+        {lanes.map((pozycja) => (
+          <label key={pozycja.id} className="osie__pozycja">
             <input
               type="radio"
               name="os"
-              value={lane.id}
-              checked={lane.id === laneId}
-              onChange={() => setLaneId(lane.id)}
+              value={pozycja.id}
+              checked={pozycja.id === lane.id}
+              onChange={() => onLane(pozycja)}
             />
-            {lane.name} <span className="osie__pojemnosc">{teksty.pojemnosc(lane.capacity)}</span>
+            {pozycja.name}{' '}
+            <span className="osie__pojemnosc">{teksty.pojemnosc(pozycja.capacity)}</span>
           </label>
         ))}
       </fieldset>
 
       <div className="dzien">
-        <button type="button" onClick={() => setDay(addDays(day, -1))}>
+        <button type="button" onClick={() => onDay(addDays(day, -1))}>
           {teksty.poprzedniDzien}
         </button>
         <h2>{formatDayLabel(day)}</h2>
         <button
           type="button"
           disabled={day >= ostatniDzien}
-          onClick={() => setDay(addDays(day, 1))}
+          onClick={() => onDay(addDays(day, 1))}
         >
           {teksty.nastepnyDzien}
         </button>
@@ -127,7 +136,12 @@ export function Kalendarz({
       {grafikDnia.open && grafikDnia.blocks.length > 0 && (
         <ul className="bloki">
           {grafikDnia.blocks.map((block) => (
-            <Blok key={block.scheduleId} block={block} timeZone={facility.timeZone} />
+            <Blok
+              key={block.scheduleId}
+              block={block}
+              timeZone={facility.timeZone}
+              onWybierz={onWybierz}
+            />
           ))}
         </ul>
       )}
