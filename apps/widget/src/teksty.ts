@@ -3,7 +3,7 @@
  * zamiast wplecione w komponenty". Jeden wygląd i jeden język dla wszystkich
  * Strzelnic, więc słownik jest stały, a nie ładowany.
  */
-import type { BookingProblem, Unavailability } from '@strzelnica/shared'
+import type { BookingDraft, BookingProblem, Unavailability } from '@strzelnica/shared'
 import { TYTUL_RAMKI } from '@strzelnica/shared'
 
 export const teksty = {
@@ -22,12 +22,37 @@ export const teksty = {
     przeszlosc: 'termin już minął',
     'ponizej-wyprzedzenia': 'zbyt bliski termin',
     'termin-zajety': 'termin już zajęty',
+    'brak-instruktora': 'brak wolnego Instruktora',
   } satisfies Record<Unavailability, string>,
   /**
    * Powód, dla którego „Następny dzień" przestaje działać. Bez tego zdania
    * wyłączony przycisk wygląda na usterkę.
    */
   zasiegKalendarza: (ostatniDzien: string) => `Ostatni dzień w kalendarzu: ${ostatniDzien}.`,
+  /**
+   * Deklaracje rozstrzygające, które terminy są wolne. Stoją przy kalendarzu,
+   * a nie dopiero w formularzu, bo kalendarz odpowiada na nie od razu — ten sam
+   * Blok bywa wolny dla Osoby rezerwującej z Pozwoleniem i niedostępny dla tej
+   * bez niego.
+   */
+  deklaracje: {
+    legenda: 'Twoje deklaracje',
+    pozwolenie: 'Mam pozwolenie na broń',
+    chceInstruktora: 'Chcę Instruktora',
+    instruktorWymagany: 'Bez Pozwolenia Instruktor jest wymagany — dodajemy go do Rezerwacji.',
+    wplyw: 'Terminy w kalendarzu uwzględniają te deklaracje.',
+  },
+  instruktor: {
+    etykieta: 'Instruktor',
+    wymagany: 'tak — wymagany, bo nie deklarujesz Pozwolenia',
+    zamowiony: 'tak — zamówiony dobrowolnie',
+    brak: 'nie',
+  },
+  pozwolenie: {
+    etykieta: 'Pozwolenie na broń',
+    mam: 'deklaruję, że posiadam',
+    nieMam: 'nie posiadam',
+  },
   dzienZamkniety: 'Tego dnia Strzelnica jest zamknięta.',
   osBezBlokow: 'Ta Oś nie ma tego dnia żadnych Bloków.',
   brakOsi: 'Ta Strzelnica nie ma jeszcze żadnej Osi.',
@@ -71,6 +96,11 @@ export const teksty = {
     // przy każdym Bloku powód z osobna.
     'termin-niedostepny':
       'Ten termin nie jest już dostępny. Wybierz inny — kalendarz ma świeże dane.',
+    // Jedyne zastrzeżenie, które Osoba rezerwująca naprawia nie zmianą terminu,
+    // tylko zmianą własnej deklaracji — więc mówi jej o obu drogach.
+    'brak-instruktora':
+      'W tym terminie Strzelnica nie ma już wolnego Instruktora. Wybierz inny termin ' +
+      'albo zaznacz Pozwolenie na broń, jeśli je posiadasz.',
     'liczba-uczestnikow-poza-zakresem': 'Podaj liczbę Uczestników — co najmniej jednego.',
     'ponad-pojemnosc-osi': 'Tylu Uczestników nie zmieści się na tej Osi.',
     'brak-imienia': 'Podaj imię i nazwisko.',
@@ -80,3 +110,14 @@ export const teksty = {
   } satisfies Record<BookingProblem, string>,
   bladZapisu: 'Nie udało się wysłać zgłoszenia. Spróbuj jeszcze raz.',
 } as const
+
+/**
+ * Zdanie o Instruktorze dla wybranych deklaracji. Powtarzane na formularzu,
+ * podsumowaniu i potwierdzeniu — Osoba rezerwująca bez Pozwolenia ma widzieć
+ * Instruktora w Rezerwacji wszędzie tam, gdzie widzi jej resztę, a nie
+ * dowiadywać się o nim dopiero z rachunku.
+ */
+export function opisInstruktora(draft: BookingDraft): string {
+  if (!draft.hasPermit) return teksty.instruktor.wymagany
+  return draft.wantsInstructor ? teksty.instruktor.zamowiony : teksty.instruktor.brak
+}

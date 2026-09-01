@@ -54,6 +54,10 @@ function pytanie(nadpisania: Partial<DayAvailabilityInput> = {}): DayAvailabilit
     openingHours: OTWARTE_10_22,
     closedDates: [],
     occupancies: [],
+    instructorPool: 1,
+    // Domyślnie pytamy jako Osoba rezerwująca z Pozwoleniem, która Instruktora
+    // nie zamawia — jedyne zamierzenie, przy którym Pula w ogóle nie gra roli.
+    intent: { hasPermit: true, wantsInstructor: false },
     timeRules: reguly(),
     now: new Date('2026-06-01T09:00:00Z'),
     ...nadpisania,
@@ -301,7 +305,7 @@ describe('granica horyzontu dla kalendarza', () => {
 describe('zajętość Osi', () => {
   // Pierwszy Blok poniedziałku: 10:00–12:00 czasu Warszawy, czyli 08:00–10:00 UTC.
   function zajecie(od: string, do_: string, laneId = OS_PISTOLETOWA): Occupancy {
-    return { laneId, startsAt: new Date(od), endsAt: new Date(do_) }
+    return { laneId, startsAt: new Date(od), endsAt: new Date(do_), withInstructor: false }
   }
 
   it('zdejmuje Blok pokryty Rezerwacją co do minuty', () => {
@@ -427,5 +431,155 @@ describe('okno zajętości dnia', () => {
       expect(b.startsAt.getTime()).toBeGreaterThanOrEqual(okno.from.getTime())
       expect(b.endsAt.getTime()).toBeLessThanOrEqual(okno.to.getTime())
     }
+  })
+})
+
+/**
+ * Pula instruktorów. Jedyna reguła dostępności, która nie mówi o Osi: liczy
+ * się po całej Strzelnicy i rozstrzyga inaczej dla dwóch Osób rezerwujących
+ * patrzących w ten sam Blok w tej samej chwili.
+ */
+describe('Pula instruktorów', () => {
+  const BEZ_POZWOLENIA = { hasPermit: false, wantsInstructor: false }
+  const Z_POZWOLENIEM = { hasPermit: true, wantsInstructor: false }
+  const Z_POZWOLENIEM_I_INSTRUKTOREM = { hasPermit: true, wantsInstructor: true }
+
+  /** Cudza Rezerwacja trzymająca Instruktora w godzinach pierwszego Bloku. */
+  function zInstruktorem(laneId = OS_KARABINOWA): Occupancy {
+    return {
+      laneId,
+      startsAt: new Date('2026-06-15T08:00:00Z'),
+      endsAt: new Date('2026-06-15T10:00:00Z'),
+      withInstructor: true,
+    }
+  }
+
+  it('nie dotyczy Osoby rezerwującej z Pozwoleniem, która Instruktora nie zamawia', () => {
+    const bloki = blokiDnia(
+      pytanie({ intent: Z_POZWOLENIEM, instructorPool: 0, occupancies: [zInstruktorem()] }),
+    )
+
+    expect(bloki.every((b) => b.available)).toBe(true)
+  })
+
+  it('dopuszcza Rezerwację bez Pozwolenia, dopóki w Puli zostało miejsce', () => {
+    const bloki = blokiDnia(pytanie({ intent: BEZ_POZWOLENIA, instructorPool: 1 }))
+
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  // Ostatnie wolne miejsce: Pula na dwóch, jeden Instruktor już zajęty.
+  it('dopuszcza Rezerwację zajmującą ostatnie wolne miejsce w Puli', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        intent: BEZ_POZWOLENIA,
+        instructorPool: 2,
+        occupancies: [zInstruktorem()],
+      }),
+    )
+
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  it('odrzuca Rezerwację, dla której w Puli nie ma już miejsca', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        intent: BEZ_POZWOLENIA,
+        instructorPool: 1,
+        occupancies: [zInstruktorem()],
+      }),
+    )
+
+    expect(bloki[0]?.available).toBe(false)
+    expect(bloki[0]?.unavailableBecause).toBe('brak-instruktora')
+  })
+
+  // To jest owa różnica ze specyfikacji: ta sama Oś, ten sam Blok, ta sama
+  // chwila — a odpowiedź zależy od tego, kto pyta.
+  it('czyni ten sam Blok niedostępnym bez Pozwolenia i wolnym z Pozwoleniem', () => {
+    const wyczerpana = { instructorPool: 1, occupancies: [zInstruktorem()] }
+
+    expect(blokiDnia(pytanie({ ...wyczerpana, intent: BEZ_POZWOLENIA }))[0]?.available).toBe(
+      false,
+    )
+    expect(blokiDnia(pytanie({ ...wyczerpana, intent: Z_POZWOLENIEM }))[0]?.available).toBe(true)
+  })
+
+  it('odrzuca Instruktora zamówionego dobrowolnie tak samo jak wymaganego', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        intent: Z_POZWOLENIEM_I_INSTRUKTOREM,
+        instructorPool: 1,
+        occupancies: [zInstruktorem()],
+      }),
+    )
+
+    expect(bloki[0]?.unavailableBecause).toBe('brak-instruktora')
+  })
+
+  // Instruktor nadzoruje ludzi, nie stanowisko: Rezerwacja z innej Osi zabiera
+  // to samo miejsce w Puli, co Rezerwacja z tej samej.
+  it('liczy Instruktorów po całej Strzelnicy, nie po Osi', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        intent: BEZ_POZWOLENIA,
+        instructorPool: 1,
+        occupancies: [zInstruktorem(OS_KARABINOWA)],
+      }),
+    )
+
+    expect(bloki[0]?.unavailableBecause).toBe('brak-instruktora')
+  })
+
+  it('nie liczy do Puli Rezerwacji, przy której Instruktora nie ma', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        intent: BEZ_POZWOLENIA,
+        instructorPool: 1,
+        occupancies: [{ ...zInstruktorem(), withInstructor: false }],
+      }),
+    )
+
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  it('nie liczy do Puli Rezerwacji, która się z Blokiem nie styka', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        intent: BEZ_POZWOLENIA,
+        instructorPool: 1,
+        occupancies: [
+          {
+            ...zInstruktorem(),
+            startsAt: new Date('2026-06-15T10:00:00Z'),
+            endsAt: new Date('2026-06-15T12:00:00Z'),
+          },
+        ],
+      }),
+    )
+
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  it('zamyka Strzelnicę bez Instruktorów dla każdego, kto go potrzebuje', () => {
+    const bloki = blokiDnia(pytanie({ intent: BEZ_POZWOLENIA, instructorPool: 0 }))
+
+    expect(bloki[0]?.unavailableBecause).toBe('brak-instruktora')
+  })
+
+  // Zajęta Oś mówi o samym Bloku, brak Instruktora — o zamierzeniach pytającego.
+  // Osoba rezerwująca ma wiedzieć, czy zmiana deklaracji cokolwiek tu da.
+  it('nie przykrywa zajętej Osi brakiem Instruktora', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        intent: BEZ_POZWOLENIA,
+        instructorPool: 0,
+        occupancies: [
+          { ...zInstruktorem(OS_PISTOLETOWA), withInstructor: false },
+        ],
+      }),
+    )
+
+    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
   })
 })

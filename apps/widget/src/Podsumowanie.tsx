@@ -1,6 +1,6 @@
 import type { BookingDraft, BookingProblem } from '@strzelnica/shared'
 import type { Wybor } from './krok.js'
-import { teksty } from './teksty.js'
+import { opisInstruktora, teksty } from './teksty.js'
 import { Wybrany } from './Wybrany.js'
 import { Zastrzezenia } from './Zastrzezenia.js'
 
@@ -37,6 +37,10 @@ export function Podsumowanie({
       <dl className="wybrany">
         <dt>{teksty.formularz.liczbaUczestnikow}</dt>
         <dd>{teksty.podsumowanie.uczestnicy(draft.participants)}</dd>
+        <dt>{teksty.pozwolenie.etykieta}</dt>
+        <dd>{draft.hasPermit ? teksty.pozwolenie.mam : teksty.pozwolenie.nieMam}</dd>
+        <dt>{teksty.instruktor.etykieta}</dt>
+        <dd>{opisInstruktora(draft)}</dd>
         <dt>{teksty.formularz.imie}</dt>
         <dd>{draft.contact.name}</dd>
         <dt>{teksty.formularz.email}</dt>

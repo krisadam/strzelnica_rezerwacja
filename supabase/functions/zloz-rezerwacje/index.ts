@@ -22,6 +22,7 @@ import {
   bookingProblems,
   closedDateFromRow,
   facilityFromRow,
+  instructorAttends,
   laneFromRow,
   MalformedBookingRequestError,
   occupancyFromRow,
@@ -91,7 +92,7 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   const { data: facilityRow, error } = await client
     .from('facilities')
     .select(
-      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, allowed_origins',
+      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, instructor_pool, allowed_origins',
     )
     .eq('slug', request.facilitySlug)
     .maybeSingle()
@@ -130,10 +131,14 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     client.from('block_schedules').select('*').eq('facility_id', facility.id),
     client.from('opening_hours').select('*').eq('facility_id', facility.id),
     client.from('calendar_exceptions').select('*').eq('facility_id', facility.id),
+    // Zajętość całej Strzelnicy, nie tylko wybranej Osi: kolizję rozstrzyga
+    // Oś, ale Pulę instruktorów liczy się po wszystkich Osiach naraz. Zapytanie
+    // zawężone do jednej zaniżałoby ją po cichu i sprzedawało Instruktora,
+    // którego nie ma.
     client
       .from('lane_occupancy')
       .select('*')
-      .eq('lane_id', lane.id)
+      .eq('facility_id', facility.id)
       .lt('starts_at', okno.to.toISOString())
       .gt('ends_at', okno.from.toISOString()),
   ])
@@ -143,6 +148,11 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     laneId: lane.id,
     timeZone: facility.timeZone,
     timeRules: facility.timeRules,
+    instructorPool: facility.instructorPool,
+    // Zamierzenia biorą się ze zgłoszenia, bo dostępność zależy od nich tak
+    // samo, jak od zajętości: Blok wolny dla Osoby rezerwującej z Pozwoleniem
+    // bywa niedostępny dla tej bez niego.
+    intent: request,
     schedules: rowsOrThrow(schedules).map(blockScheduleFromRow),
     openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),
     closedDates: rowsOrThrow(exceptions).map(closedDateFromRow),
@@ -173,6 +183,11 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
       contact_name: request.contact.name,
       contact_email: request.contact.email,
       contact_phone: request.contact.phone,
+      has_permit: request.hasPermit,
+      // Powód obecności Instruktora nie zmienia niczego poza uzasadnieniem,
+      // więc do bazy idzie sam fakt. `instructorAttends` liczy to tak samo, jak
+      // policzyła to dostępność chwilę wcześniej.
+      with_instructor: instructorAttends(request),
     })
     .select('id')
     .single()

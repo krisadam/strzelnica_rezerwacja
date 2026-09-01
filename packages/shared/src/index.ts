@@ -11,13 +11,19 @@ export {
   zonedMinuteToInstant,
 } from './calendar.ts'
 export type { CalendarDay, Weekday } from './calendar.ts'
-export { bookingHorizon, occupancyWindow, scheduleForDay } from './availability.ts'
+export {
+  bookingHorizon,
+  instructorAttends,
+  occupancyWindow,
+  scheduleForDay,
+} from './availability.ts'
 export type {
   Block,
   BlockSchedule,
   BookingHorizonInput,
   DayAvailabilityInput,
   DaySchedule,
+  Intent,
   Occupancy,
   OpeningHours,
   TimeRules,
@@ -25,6 +31,7 @@ export type {
 } from './availability.ts'
 export {
   bookingProblems,
+  concernsTheTerm,
   MalformedBookingRequestError,
   readBookingRequest,
 } from './booking.ts'

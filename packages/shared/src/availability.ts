@@ -5,9 +5,13 @@
  * niż przyjmuje serwer.
  *
  * Niedostępność wynika z rozkładu, godzin otwarcia, wyjątków, reguł czasowych
- * Strzelnicy — horyzontu i minimalnego wyprzedzenia — oraz z zajętości Osi.
- * Kolejne powody (wyczerpana Pula instruktorów, brak sztuk broni) dochodzą
- * jako kolejne wartości `Unavailability`.
+ * Strzelnicy — horyzontu i minimalnego wyprzedzenia — z zajętości Osi oraz
+ * z Puli instruktorów. Kolejne powody (brak sztuk broni) dochodzą jako kolejne
+ * wartości `Unavailability`.
+ *
+ * Termin jest dostępny dla konkretnego kształtu Rezerwacji, nie bezwzględnie:
+ * ten sam Blok bywa wolny dla Osoby rezerwującej z Pozwoleniem na broń
+ * i niedostępny dla tej bez niego. Dlatego wejściem są także jej zamierzenia.
  */
 import type { CalendarDay, Weekday } from './calendar.ts'
 import { addDays, dayIn, weekdayOf, zonedMinuteToInstant } from './calendar.ts'
@@ -57,6 +61,32 @@ export type Occupancy = {
   laneId: string
   startsAt: Date
   endsAt: Date
+  /**
+   * Czy zajmuje miejsce w Puli instruktorów. Blokada (ticket #16) nie zajmuje
+   * go nigdy — nie ma przy niej nikogo do nadzorowania.
+   */
+  withInstructor: boolean
+}
+
+/**
+ * Zamierzenia Osoby rezerwującej, od których zależy dostępność terminu. Dziś
+ * mówią o Instruktorze; zamawiane Typy broni (ticket #8) dojdą tutaj, bo pytają
+ * o dokładnie to samo — czy Strzelnica ma czym obsłużyć właśnie tę Rezerwację.
+ */
+export type Intent = {
+  /** Deklaracja Pozwolenia na broń; jej brak wymusza obecność Instruktora. */
+  hasPermit: boolean
+  /** Instruktor zamówiony dobrowolnie mimo Pozwolenia. */
+  wantsInstructor: boolean
+}
+
+/**
+ * Czy przy Rezerwacji o takich zamierzeniach będzie Instruktor. Powód —
+ * wymagany czy zamówiony — nie zmienia niczego ani dla Puli, ani dla Kwoty
+ * do zapłaty (ticket #7), więc jedna funkcja odpowiada obu.
+ */
+export function instructorAttends(intent: Intent): boolean {
+  return !intent.hasPermit || intent.wantsInstructor
 }
 
 /** Powód, dla którego Bloku nie da się zarezerwować. */
@@ -66,6 +96,7 @@ export type Unavailability =
   | 'przeszlosc'
   | 'ponizej-wyprzedzenia'
   | 'termin-zajety'
+  | 'brak-instruktora'
 
 export type Block = {
   scheduleId: string
@@ -119,8 +150,15 @@ export type DayAvailabilityInput = BookingHorizonInput & {
   openingHours: readonly OpeningHours[]
   /** Daty objęte wyjątkiem kalendarzowym — Strzelnica jest wtedy zamknięta. */
   closedDates: readonly CalendarDay[]
-  /** Rezerwacje i Blokady trzymające Osie; wolno podać także cudze Osie. */
+  /**
+   * Rezerwacje i Blokady trzymające Osie. Cudze Osie są tu potrzebne, a nie
+   * tylko dopuszczalne: Pula instruktorów liczy się po całej Strzelnicy, więc
+   * lista zawężona do jednej Osi zaniżałaby ją po cichu.
+   */
   occupancies: readonly Occupancy[]
+  /** Ilu Instruktorów Strzelnica zapewnia w tym samym czasie. */
+  instructorPool: number
+  intent: Intent
 }
 
 /** Wszystko, czego trzeba, żeby orzec o jednym Bloku wybranego dnia. */
@@ -132,6 +170,11 @@ type BlockContext = {
   now: Date
   /** Zawężone do Osi, o którą pytamy — kolizja i tak sprawdza tylko ją. */
   occupancies: readonly Occupancy[]
+  /** Czy pytający potrzebuje Instruktora; jeśli nie, Pula go nie dotyczy. */
+  needsInstructor: boolean
+  instructorPool: number
+  /** Wszystkie Rezerwacje Strzelnicy trzymające Instruktora, z każdej Osi. */
+  instructorOccupancies: readonly Occupancy[]
 }
 
 /**
@@ -166,6 +209,15 @@ function reasonFor(
   if (context.occupancies.some((occupancy) => overlaps(occupancy, startsAt, endsAt))) {
     return 'termin-zajety'
   }
+  // Powód wychodzący poza sam termin: mówi nie o Bloku, tylko o tym, kto pyta.
+  // Stoi po zajętej Osi, bo Osoby rezerwującej nie ma po co zachęcać do zmiany
+  // deklaracji, skoro Blok i tak jest czyjś.
+  if (context.needsInstructor) {
+    const zajete = context.instructorOccupancies.filter((occupancy) =>
+      overlaps(occupancy, startsAt, endsAt),
+    ).length
+    if (zajete >= context.instructorPool) return 'brak-instruktora'
+  }
   return undefined
 }
 
@@ -199,6 +251,9 @@ export function scheduleForDay(input: DayAvailabilityInput): DaySchedule {
     minLeadMinutes: input.timeRules.minLeadMinutes,
     now: input.now,
     occupancies: input.occupancies.filter((occupancy) => occupancy.laneId === input.laneId),
+    needsInstructor: instructorAttends(input.intent),
+    instructorPool: input.instructorPool,
+    instructorOccupancies: input.occupancies.filter((occupancy) => occupancy.withInstructor),
   }
 
   const blocks = input.schedules

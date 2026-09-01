@@ -1,8 +1,9 @@
 import type { BookingDraft } from '@strzelnica/shared'
-import { bookingProblems } from '@strzelnica/shared'
+import { bookingProblems, concernsTheTerm } from '@strzelnica/shared'
 import { useState } from 'react'
+import { Deklaracje } from './Deklaracje.js'
 import type { Wybor } from './krok.js'
-import { teksty } from './teksty.js'
+import { opisInstruktora, teksty } from './teksty.js'
 import { Wybrany } from './Wybrany.js'
 import { Zastrzezenia } from './Zastrzezenia.js'
 
@@ -12,8 +13,11 @@ import { Zastrzezenia } from './Zastrzezenia.js'
  * reguły „co jest poprawne": miałby wtedy szansę przepuścić coś, co serwer
  * odrzuci, albo zatrzymać coś, co serwer by przyjął.
  *
- * Zastrzeżenia pokazują się dopiero po pierwszej próbie przejścia dalej —
- * pole, którego jeszcze nikt nie tknął, nie jest wypełnione błędnie.
+ * Zastrzeżenia do pól pokazują się dopiero po pierwszej próbie przejścia dalej
+ * — pole, którego jeszcze nikt nie tknął, nie jest wypełnione błędnie.
+ * Zastrzeżenie do samego terminu jest widoczne od razu: nie mówi o niczym, co
+ * Osoba rezerwująca dopiero wypełni, a mówi o czymś, co właśnie zmieniła
+ * deklaracją albo co zajął ktoś inny.
  */
 export function Formularz({
   wybor,
@@ -32,6 +36,7 @@ export function Formularz({
 }) {
   const [pokaz, setPokaz] = useState(false)
   const zastrzezenia = bookingProblems({ draft, lane: wybor.lane, block: wybor.block })
+  const widoczne = pokaz ? zastrzezenia : zastrzezenia.filter(concernsTheTerm)
 
   const zmien = (czesc: Partial<BookingDraft>) => onDraft({ ...draft, ...czesc })
   const kontakt = (czesc: Partial<BookingDraft['contact']>) =>
@@ -49,6 +54,12 @@ export function Formularz({
     >
       <h2>{teksty.formularz.naglowek}</h2>
       <Wybrany wybor={wybor} timeZone={timeZone} />
+
+      <Deklaracje intent={draft} onIntent={(intent) => zmien(intent)} />
+      <dl className="wybrany">
+        <dt>{teksty.instruktor.etykieta}</dt>
+        <dd>{opisInstruktora(draft)}</dd>
+      </dl>
 
       <label className="pole">
         <span>{teksty.formularz.liczbaUczestnikow}</span>
@@ -101,7 +112,7 @@ export function Formularz({
         <span>{teksty.formularz.zgoda}</span>
       </label>
 
-      {pokaz && <Zastrzezenia problems={zastrzezenia} />}
+      <Zastrzezenia problems={widoczne} />
 
       <div className="przyciski">
         <button type="button" className="przycisk" onClick={onZmienTermin}>

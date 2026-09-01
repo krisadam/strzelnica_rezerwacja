@@ -23,9 +23,17 @@ export type Krok =
   | { nazwa: 'podsumowanie'; wybor: Wybor }
   | { nazwa: 'potwierdzenie'; wybor: Wybor; draft: BookingDraft; id: string }
 
-/** Puste zgłoszenie: jeden Uczestnik, bo Osoba rezerwująca zwykle jest nim sama. */
+/**
+ * Puste zgłoszenie: jeden Uczestnik, bo Osoba rezerwująca zwykle jest nim sama.
+ *
+ * Pozwolenie na broń zaczyna się na „nie": jest oświadczeniem, a oświadczenia
+ * nie zaznacza się za kogoś. Kalendarz pokazuje wtedy mniej terminów, niż
+ * mógłby — i to jest właściwa strona pomyłki.
+ */
 export const PUSTY_DRAFT: BookingDraft = {
   participants: 1,
   contact: { name: '', email: '', phone: '' },
   consent: false,
+  hasPermit: false,
+  wantsInstructor: false,
 }
