@@ -28,6 +28,7 @@ export function Deklaracje({
           checked={intent.hasPermit}
           onChange={(zdarzenie) =>
             onIntent({
+              ...intent,
               hasPermit: zdarzenie.target.checked,
               wantsInstructor: zdarzenie.target.checked ? intent.wantsInstructor : false,
             })

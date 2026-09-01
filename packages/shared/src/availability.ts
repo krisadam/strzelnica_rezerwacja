@@ -5,9 +5,9 @@
  * niż przyjmuje serwer.
  *
  * Niedostępność wynika z rozkładu, godzin otwarcia, wyjątków, reguł czasowych
- * Strzelnicy — horyzontu i minimalnego wyprzedzenia — z zajętości Osi oraz
- * z Puli instruktorów. Kolejne powody (brak sztuk broni) dochodzą jako kolejne
- * wartości `Unavailability`.
+ * Strzelnicy — horyzontu i minimalnego wyprzedzenia — z zajętości Osi, z Puli
+ * instruktorów oraz z pul sztuk Typów broni. Kolejne powody dochodzą jako
+ * kolejne wartości `Unavailability`.
  *
  * Termin jest dostępny dla konkretnego kształtu Rezerwacji, nie bezwzględnie:
  * ten sam Blok bywa wolny dla Osoby rezerwującej z Pozwoleniem na broń
@@ -68,22 +68,52 @@ export type Occupancy = {
   withInstructor: boolean
 }
 
+/** Pozycja katalogu Strzelnicy wraz z pulą sztuk do wypożyczenia. */
+export type WeaponType = {
+  id: string
+  name: string
+  /** Ile sztuk tego Typu Strzelnica ma w ogóle do wydania. */
+  pool: number
+}
+
+/** Zamówienie sztuk jednego Typu: pozycja Rezerwacji, a zarazem zamierzenie. */
+export type WeaponRental = {
+  weaponTypeId: string
+  quantity: number
+}
+
 /**
- * Zamierzenia Osoby rezerwującej, od których zależy dostępność terminu. Dziś
- * mówią o Instruktorze; zamawiane Typy broni (ticket #8) dojdą tutaj, bo pytają
- * o dokładnie to samo — czy Strzelnica ma czym obsłużyć właśnie tę Rezerwację.
+ * Sztuki jednego Typu trzymane przez cudzą Rezerwację w konkretnym czasie.
+ * Siostrzana wobec `Occupancy`, ale rozstrzyga się inaczej: Oś jest czyjaś
+ * albo niczyja, a katalog dzieli się po sztukach.
+ */
+export type WeaponOccupancy = WeaponRental & {
+  startsAt: Date
+  endsAt: Date
+}
+
+/**
+ * Zamierzenia Osoby rezerwującej, od których zależy dostępność terminu:
+ * Instruktor i zamawiane Typy broni. Oba pytają o to samo — czy Strzelnica ma
+ * czym obsłużyć właśnie tę Rezerwację — więc oba mieszkają tutaj, a nie wśród
+ * zwykłych pól formularza.
  */
 export type Intent = {
   /** Deklaracja Pozwolenia na broń; jej brak wymusza obecność Instruktora. */
   hasPermit: boolean
   /** Instruktor zamówiony dobrowolnie mimo Pozwolenia. */
   wantsInstructor: boolean
+  /**
+   * Zamawiane Wypożyczenia. Pusta lista znaczy Osobę rezerwującą z własną
+   * bronią — i wtedy pule sztuk nie odbierają jej żadnego terminu.
+   */
+  rentals: readonly WeaponRental[]
 }
 
 /**
  * Czy przy Rezerwacji o takich zamierzeniach będzie Instruktor. Powód —
  * wymagany czy zamówiony — nie zmienia niczego ani dla Puli, ani dla Kwoty
- * do zapłaty (ticket #7), więc jedna funkcja odpowiada obu.
+ * do zapłaty (ticket #9), więc jedna funkcja odpowiada obu.
  */
 export function instructorAttends(intent: Intent): boolean {
   return !intent.hasPermit || intent.wantsInstructor
@@ -97,6 +127,7 @@ export type Unavailability =
   | 'ponizej-wyprzedzenia'
   | 'termin-zajety'
   | 'brak-instruktora'
+  | 'brak-sztuk-broni'
 
 export type Block = {
   scheduleId: string
@@ -142,6 +173,50 @@ export function occupancyWindow(day: CalendarDay, timeZone: string): { from: Dat
   }
 }
 
+/** Ile sztuk jednego Typu zostaje do wzięcia w konkretnym terminie. */
+export type WeaponAvailability = {
+  type: WeaponType
+  /** Nigdy poniżej zera — patrz `remainingWeapons`. */
+  remaining: number
+}
+
+export type RemainingWeaponsInput = {
+  weaponTypes: readonly WeaponType[]
+  weaponOccupancies: readonly WeaponOccupancy[]
+  startsAt: Date
+  endsAt: Date
+}
+
+/**
+ * Pozostałe sztuki każdego Typu w podanym terminie, w kolejności katalogu.
+ * Widget pyta o to wprost, żeby ograniczyć wybór do liczby faktycznie
+ * dostępnej, a `scheduleForDay` — żeby orzec o Bloku. Jedna funkcja odpowiada
+ * obu, bo inaczej lista w formularzu i powód przy Bloku mogłyby się rozjechać.
+ *
+ * Wynik nie schodzi poniżej zera. Rezerwacja wpisana ręcznie w Panelu wolno
+ * naruszyć limity Strzelnicy (ticket #17), więc suma wydanych sztuk bywa
+ * większa od Puli — dostępność ma to znieść, a nie „naprawiać".
+ *
+ * Sztuki sumują się po wszystkich Rezerwacjach nachodzących na pytany termin,
+ * także wtedy, gdy nie nachodzą na siebie nawzajem: Rezerwacje 8–10 i 10–12
+ * obie liczą się do terminu 9–11. To zachowawcze — broń trzyma się przez cały
+ * Blok, więc pozycja policzona z chwilowego szczytu obiecywałaby wydanie tej
+ * samej sztuki dwóm grupom w środku Bloku. Odmowa bywa przez to o jedną sztukę
+ * za wczesna przy Osiach o różnym rozkładzie; to właściwa strona pomyłki.
+ */
+export function remainingWeapons(input: RemainingWeaponsInput): WeaponAvailability[] {
+  const wydane = new Map<string, number>()
+  for (const zajete of input.weaponOccupancies) {
+    if (!overlaps(zajete, input.startsAt, input.endsAt)) continue
+    wydane.set(zajete.weaponTypeId, (wydane.get(zajete.weaponTypeId) ?? 0) + zajete.quantity)
+  }
+
+  return input.weaponTypes.map((type) => ({
+    type,
+    remaining: Math.max(0, type.pool - (wydane.get(type.id) ?? 0)),
+  }))
+}
+
 /** Rozszerza wejście horyzontu, więc `bookingHorizon` przyjmuje je wprost. */
 export type DayAvailabilityInput = BookingHorizonInput & {
   day: CalendarDay
@@ -158,6 +233,14 @@ export type DayAvailabilityInput = BookingHorizonInput & {
   occupancies: readonly Occupancy[]
   /** Ilu Instruktorów Strzelnica zapewnia w tym samym czasie. */
   instructorPool: number
+  /** Katalog Typów broni Strzelnicy wraz z pulami sztuk. */
+  weaponTypes: readonly WeaponType[]
+  /**
+   * Sztuki trzymane przez cudze Rezerwacje. Tak jak przy Puli instruktorów,
+   * potrzebne są tu Wypożyczenia z całej Strzelnicy — katalog jest wspólny dla
+   * wszystkich Osi, więc lista zawężona do jednej zawyżałaby to, co zostało.
+   */
+  weaponOccupancies: readonly WeaponOccupancy[]
   intent: Intent
 }
 
@@ -175,15 +258,23 @@ type BlockContext = {
   instructorPool: number
   /** Wszystkie Rezerwacje Strzelnicy trzymające Instruktora, z każdej Osi. */
   instructorOccupancies: readonly Occupancy[]
+  /** Zamawiane Wypożyczenia; pusta lista zwalnia z liczenia pul sztuk. */
+  rentals: readonly WeaponRental[]
+  weaponTypes: readonly WeaponType[]
+  weaponOccupancies: readonly WeaponOccupancy[]
 }
 
 /**
  * Przedziały są domknięte od początku i otwarte od końca: Rezerwacja kończąca
  * się o 12:00 nie zajmuje Bloku zaczynającego się o 12:00. Inaczej rozkład ze
  * stykającymi się Blokami sprzedawałby co drugi.
+ *
+ * Jedna reguła dla zajętości Osi i dla sztuk broni: obie mówią o tym samym
+ * zachodzeniu w czasie, a druga jej kopia rozjechałaby się na granicy — dokładnie
+ * tam, gdzie boli.
  */
-function overlaps(occupancy: Occupancy, startsAt: Date, endsAt: Date): boolean {
-  return occupancy.startsAt < endsAt && occupancy.endsAt > startsAt
+function overlaps(zakres: { startsAt: Date; endsAt: Date }, startsAt: Date, endsAt: Date): boolean {
+  return zakres.startsAt < endsAt && zakres.endsAt > startsAt
 }
 
 function reasonFor(
@@ -217,6 +308,25 @@ function reasonFor(
       overlaps(occupancy, startsAt, endsAt),
     ).length
     if (zajete >= context.instructorPool) return 'brak-instruktora'
+  }
+  // Powód ostatni z zależnych od pytającego, bo najłatwiejszy do obejścia:
+  // Osoba rezerwująca zdejmuje go, zamawiając mniej sztuk, a Instruktora bez
+  // Pozwolenia zdjąć nie może wcale.
+  if (context.rentals.length > 0) {
+    const pozostale = remainingWeapons({
+      weaponTypes: context.weaponTypes,
+      weaponOccupancies: context.weaponOccupancies,
+      startsAt,
+      endsAt,
+    })
+    // Typ spoza katalogu nie ma ani jednej sztuki do wydania: odmowa jest ta
+    // sama, co przy Puli wyczerpanej, bo obie znaczą „nie ma czym".
+    const brakuje = context.rentals.some(
+      (zamowione) =>
+        zamowione.quantity >
+        (pozostale.find((pozycja) => pozycja.type.id === zamowione.weaponTypeId)?.remaining ?? 0),
+    )
+    if (brakuje) return 'brak-sztuk-broni'
   }
   return undefined
 }
@@ -254,6 +364,9 @@ export function scheduleForDay(input: DayAvailabilityInput): DaySchedule {
     needsInstructor: instructorAttends(input.intent),
     instructorPool: input.instructorPool,
     instructorOccupancies: input.occupancies.filter((occupancy) => occupancy.withInstructor),
+    rentals: input.intent.rentals,
+    weaponTypes: input.weaponTypes,
+    weaponOccupancies: input.weaponOccupancies,
   }
 
   const blocks = input.schedules

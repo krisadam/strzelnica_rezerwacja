@@ -5,8 +5,17 @@ import type {
   Occupancy,
   OpeningHours,
   TimeRules,
+  WeaponOccupancy,
+  WeaponRental,
+  WeaponType,
 } from './index.ts'
-import { addDays, bookingHorizon, occupancyWindow, scheduleForDay } from './index.ts'
+import {
+  addDays,
+  bookingHorizon,
+  occupancyWindow,
+  remainingWeapons,
+  scheduleForDay,
+} from './index.ts'
 
 /** Same Bloki — dni zamknięte mają osobne asercje na `open`. */
 function blokiDnia(...args: Parameters<typeof scheduleForDay>) {
@@ -55,9 +64,12 @@ function pytanie(nadpisania: Partial<DayAvailabilityInput> = {}): DayAvailabilit
     closedDates: [],
     occupancies: [],
     instructorPool: 1,
+    weaponTypes: [],
+    weaponOccupancies: [],
     // Domyślnie pytamy jako Osoba rezerwująca z Pozwoleniem, która Instruktora
-    // nie zamawia — jedyne zamierzenie, przy którym Pula w ogóle nie gra roli.
-    intent: { hasPermit: true, wantsInstructor: false },
+    // nie zamawia i broni nie wypożycza — jedyne zamierzenie, przy którym ani
+    // Pula instruktorów, ani pule sztuk w ogóle nie grają roli.
+    intent: { hasPermit: true, wantsInstructor: false, rentals: [] },
     timeRules: reguly(),
     now: new Date('2026-06-01T09:00:00Z'),
     ...nadpisania,
@@ -440,9 +452,9 @@ describe('okno zajętości dnia', () => {
  * patrzących w ten sam Blok w tej samej chwili.
  */
 describe('Pula instruktorów', () => {
-  const BEZ_POZWOLENIA = { hasPermit: false, wantsInstructor: false }
-  const Z_POZWOLENIEM = { hasPermit: true, wantsInstructor: false }
-  const Z_POZWOLENIEM_I_INSTRUKTOREM = { hasPermit: true, wantsInstructor: true }
+  const BEZ_POZWOLENIA = { hasPermit: false, wantsInstructor: false, rentals: [] }
+  const Z_POZWOLENIEM = { hasPermit: true, wantsInstructor: false, rentals: [] }
+  const Z_POZWOLENIEM_I_INSTRUKTOREM = { hasPermit: true, wantsInstructor: true, rentals: [] }
 
   /** Cudza Rezerwacja trzymająca Instruktora w godzinach pierwszego Bloku. */
   function zInstruktorem(laneId = OS_KARABINOWA): Occupancy {
@@ -581,5 +593,192 @@ describe('Pula instruktorów', () => {
     )
 
     expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+  })
+})
+
+/**
+ * Pula sztuk Typu broni. Druga — po Puli instruktorów — reguła zależna od
+ * zamierzeń pytającego, ale rozstrzygana inaczej: nie „zajęte / wolne", tylko
+ * po sztukach, bo katalog dzieli się między Rezerwacje nakładające się w czasie.
+ */
+describe('Pula sztuk Typu broni', () => {
+  const GLOCK: WeaponType = { id: 'glock', name: 'Glock 17', pool: 3 }
+  const SHADOW: WeaponType = { id: 'shadow', name: 'CZ Shadow 2', pool: 1 }
+  const KATALOG = [GLOCK, SHADOW]
+
+  /** Cudze Wypożyczenie w godzinach pierwszego Bloku poniedziałku. */
+  function wypozyczone(weaponTypeId: string, quantity: number): WeaponOccupancy {
+    return {
+      weaponTypeId,
+      quantity,
+      startsAt: new Date('2026-06-15T08:00:00Z'),
+      endsAt: new Date('2026-06-15T10:00:00Z'),
+    }
+  }
+
+  function zamawiajac(rentals: WeaponRental[], nadpisania: Partial<DayAvailabilityInput> = {}) {
+    return blokiDnia(
+      pytanie({
+        weaponTypes: KATALOG,
+        intent: { hasPermit: true, wantsInstructor: false, rentals },
+        ...nadpisania,
+      }),
+    )
+  }
+
+  it('nie dotyczy Rezerwacji, która nie wypożycza niczego', () => {
+    const bloki = zamawiajac([], { weaponOccupancies: [wypozyczone('shadow', 1)] })
+
+    expect(bloki.every((b) => b.available)).toBe(true)
+  })
+
+  it('dopuszcza zamówienie, dopóki sztuk starcza', () => {
+    const bloki = zamawiajac([{ weaponTypeId: 'glock', quantity: 2 }])
+
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  it('dopuszcza zamówienie ostatniej wolnej sztuki Typu', () => {
+    const bloki = zamawiajac([{ weaponTypeId: 'shadow', quantity: 1 }])
+
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  it('odrzuca zamówienie o jedną sztukę większe niż Pula', () => {
+    const bloki = zamawiajac([{ weaponTypeId: 'glock', quantity: 4 }])
+
+    expect(bloki[0]?.available).toBe(false)
+    expect(bloki[0]?.unavailableBecause).toBe('brak-sztuk-broni')
+  })
+
+  // Sedno reguły: katalog dzieli się między Rezerwacje, które nakładają się
+  // w czasie, więc sztuki liczy się sumą po nich wszystkich.
+  it('sumuje sztuki po nakładających się Rezerwacjach', () => {
+    const zajete = { weaponOccupancies: [wypozyczone('glock', 1), wypozyczone('glock', 1)] }
+
+    expect(zamawiajac([{ weaponTypeId: 'glock', quantity: 1 }], zajete)[0]?.available).toBe(true)
+    expect(zamawiajac([{ weaponTypeId: 'glock', quantity: 2 }], zajete)[0]?.available).toBe(false)
+  })
+
+  it('dopuszcza ostatnią sztukę pozostałą po cudzych Rezerwacjach', () => {
+    const bloki = zamawiajac([{ weaponTypeId: 'glock', quantity: 1 }], {
+      weaponOccupancies: [wypozyczone('glock', 2)],
+    })
+
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  it('nie liczy Wypożyczenia, które się z Blokiem nie styka', () => {
+    const bloki = zamawiajac([{ weaponTypeId: 'shadow', quantity: 1 }], {
+      weaponOccupancies: [
+        {
+          ...wypozyczone('shadow', 1),
+          startsAt: new Date('2026-06-15T10:00:00Z'),
+          endsAt: new Date('2026-06-15T12:00:00Z'),
+        },
+      ],
+    })
+
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  it('nie odejmuje sztuk jednego Typu od Puli drugiego', () => {
+    const bloki = zamawiajac([{ weaponTypeId: 'shadow', quantity: 1 }], {
+      weaponOccupancies: [wypozyczone('glock', 3)],
+    })
+
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  // Typ spoza katalogu Strzelnicy nie ma ani jednej sztuki do wydania. Odmowa
+  // jest ta sama, co przy Puli wyczerpanej — obie znaczą „nie ma czym".
+  it('odrzuca zamówienie Typu, którego katalog nie zna', () => {
+    const bloki = zamawiajac([{ weaponTypeId: 'nieznany', quantity: 1 }])
+
+    expect(bloki[0]?.unavailableBecause).toBe('brak-sztuk-broni')
+  })
+
+  // Ta sama różnica, co przy Puli instruktorów: ten sam Blok, ta sama chwila,
+  // a odpowiedź zależy od tego, o co pyta Osoba rezerwująca.
+  it('czyni ten sam Blok wolnym bez zamówienia i niedostępnym z zamówieniem', () => {
+    const wyczerpany = { weaponOccupancies: [wypozyczone('shadow', 1)] }
+
+    expect(zamawiajac([], wyczerpany)[0]?.available).toBe(true)
+    expect(zamawiajac([{ weaponTypeId: 'shadow', quantity: 1 }], wyczerpany)[0]?.available).toBe(
+      false,
+    )
+  })
+
+  it('nie przykrywa zajętej Osi brakiem sztuk', () => {
+    const bloki = zamawiajac([{ weaponTypeId: 'glock', quantity: 4 }], {
+      occupancies: [
+        {
+          laneId: OS_PISTOLETOWA,
+          startsAt: new Date('2026-06-15T08:00:00Z'),
+          endsAt: new Date('2026-06-15T10:00:00Z'),
+          withInstructor: false,
+        },
+      ],
+    })
+
+    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+  })
+})
+
+/**
+ * Pozostałe sztuki każdego Typu w konkretnym terminie. Widget pyta o to wprost,
+ * żeby ograniczyć wybór do liczby faktycznie dostępnej — a nie pozwolić zamówić
+ * i dopiero potem odmówić.
+ */
+describe('pozostałe sztuki Typu broni', () => {
+  const KATALOG: WeaponType[] = [
+    { id: 'glock', name: 'Glock 17', pool: 3 },
+    { id: 'shadow', name: 'CZ Shadow 2', pool: 1 },
+  ]
+
+  const OD = new Date('2026-06-15T08:00:00Z')
+  const DO = new Date('2026-06-15T10:00:00Z')
+
+  function pozostale(weaponOccupancies: WeaponOccupancy[] = []) {
+    return remainingWeapons({ weaponTypes: KATALOG, weaponOccupancies, startsAt: OD, endsAt: DO })
+  }
+
+  function wypozyczone(weaponTypeId: string, quantity: number): WeaponOccupancy {
+    return { weaponTypeId, quantity, startsAt: OD, endsAt: DO }
+  }
+
+  it('zwraca całą Pulę, gdy nikt nic nie wypożycza', () => {
+    expect(pozostale()).toEqual([
+      { type: KATALOG[0], remaining: 3 },
+      { type: KATALOG[1], remaining: 1 },
+    ])
+  })
+
+  it('odejmuje sztuki z nakładających się Rezerwacji', () => {
+    expect(pozostale([wypozyczone('glock', 1), wypozyczone('glock', 1)])[0]?.remaining).toBe(1)
+  })
+
+  it('pomija Wypożyczenia spoza terminu', () => {
+    const poza = {
+      ...wypozyczone('glock', 3),
+      startsAt: new Date('2026-06-15T10:00:00Z'),
+      endsAt: new Date('2026-06-15T12:00:00Z'),
+    }
+
+    expect(pozostale([poza])[0]?.remaining).toBe(3)
+  })
+
+  // Rezerwacja wpisana ręcznie w Panelu (ticket #17) wolno naruszyć limity
+  // Strzelnicy. Dostępność ma to znieść bez wyjątku i bez „naprawiania" —
+  // pozostało zero sztuk, a nie minus jedna.
+  it('nie schodzi poniżej zera, gdy Strzelnica wydała więcej, niż ma', () => {
+    expect(pozostale([wypozyczone('shadow', 3)])[1]?.remaining).toBe(0)
+  })
+
+  it('zachowuje kolejność katalogu, żeby lista nie skakała przy przeliczeniu', () => {
+    expect(pozostale([wypozyczone('glock', 1)]).map((pozycja) => pozycja.type.id)).toEqual([
+      'glock',
+      'shadow',
+    ])
   })
 })

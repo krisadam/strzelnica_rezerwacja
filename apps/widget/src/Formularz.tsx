@@ -1,10 +1,11 @@
-import type { BookingDraft } from '@strzelnica/shared'
-import { bookingProblems, concernsTheTerm } from '@strzelnica/shared'
-import { useState } from 'react'
+import type { BookingDraft, WeaponOccupancy, WeaponType } from '@strzelnica/shared'
+import { bookingProblems, concernsTheTerm, remainingWeapons } from '@strzelnica/shared'
+import { useMemo, useState } from 'react'
 import { Deklaracje } from './Deklaracje.js'
 import type { Wybor } from './krok.js'
 import { opisInstruktora, teksty } from './teksty.js'
 import { Wybrany } from './Wybrany.js'
+import { Wypozyczenia } from './Wypozyczenia.js'
 import { Zastrzezenia } from './Zastrzezenia.js'
 
 /**
@@ -22,6 +23,8 @@ import { Zastrzezenia } from './Zastrzezenia.js'
 export function Formularz({
   wybor,
   timeZone,
+  weaponTypes,
+  weaponOccupancies,
   draft,
   onDraft,
   onDalej,
@@ -29,12 +32,26 @@ export function Formularz({
 }: {
   wybor: Wybor
   timeZone: string
+  weaponTypes: readonly WeaponType[]
+  weaponOccupancies: readonly WeaponOccupancy[]
   draft: BookingDraft
   onDraft: (draft: BookingDraft) => void
   onDalej: () => void
   onZmienTermin: () => void
 }) {
   const [pokaz, setPokaz] = useState(false)
+  // Ile sztuk zostało, jest własnością terminu — więc przelicza się razem
+  // z wybranym Blokiem, a nie raz przy wejściu do formularza.
+  const dostepne = useMemo(
+    () =>
+      remainingWeapons({
+        weaponTypes,
+        weaponOccupancies,
+        startsAt: wybor.block.startsAt,
+        endsAt: wybor.block.endsAt,
+      }),
+    [weaponTypes, weaponOccupancies, wybor.block.startsAt, wybor.block.endsAt],
+  )
   const zastrzezenia = bookingProblems({ draft, lane: wybor.lane, block: wybor.block })
   const widoczne = pokaz ? zastrzezenia : zastrzezenia.filter(concernsTheTerm)
 
@@ -72,6 +89,12 @@ export function Formularz({
         />
         <small>{teksty.formularz.limitUczestnikow(wybor.lane.capacity)}</small>
       </label>
+
+      <Wypozyczenia
+        dostepne={dostepne}
+        rentals={draft.rentals}
+        onRentals={(rentals) => zmien({ rentals })}
+      />
 
       <label className="pole">
         <span>{teksty.formularz.imie}</span>

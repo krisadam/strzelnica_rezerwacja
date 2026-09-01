@@ -107,6 +107,49 @@ describe('typy ze schematu bazy', () => {
     expect(rezerwacja.consented_at).toBeUndefined()
   })
 
+  it('Typ broni niesie pulę sztuk', () => {
+    const typ: Tables<'weapon_types'> = {
+      id: '00000000-0000-0000-0000-0000000000c1',
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      name: 'Glock 17',
+      pool: 3,
+      created_at: '2026-01-01T00:00:00Z',
+    }
+
+    expect(typ.pool).toBe(3)
+  })
+
+  it('Wypożyczenie wiąże Rezerwację z Typem broni i liczbą sztuk', () => {
+    const wypozyczenie: TablesInsert<'weapon_rentals'> = {
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      booking_id: '00000000-0000-0000-0000-0000000000b1',
+      weapon_type_id: '00000000-0000-0000-0000-0000000000c1',
+      quantity: 2,
+    }
+
+    expect(wypozyczenie.quantity).toBe(2)
+  })
+
+  // Publiczny odczyt Wypożyczeń idzie wyłącznie tędy: ile sztuk którego Typu
+  // jest czyichś i kiedy — nigdy czyich.
+  it('zajętość sztuk broni nie zna nikogo z nazwiska', () => {
+    const zajetosc: Tables<'weapon_occupancy'> = {
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      weapon_type_id: '00000000-0000-0000-0000-0000000000c1',
+      quantity: 2,
+      starts_at: '2026-06-15T08:00:00Z',
+      ends_at: '2026-06-15T10:00:00Z',
+    }
+
+    expect(Object.keys(zajetosc)).toEqual([
+      'facility_id',
+      'weapon_type_id',
+      'quantity',
+      'starts_at',
+      'ends_at',
+    ])
+  })
+
   // Publiczny odczyt Rezerwacji idzie wyłącznie tędy: bez kontaktu, bez liczby
   // Uczestników, bez stanu. Kolumna, która by się tu pojawiła, byłaby wyciekiem.
   it('zajętość Osi nie zna nikogo z nazwiska', () => {

@@ -1,8 +1,8 @@
-import type { Block, CalendarDay, Intent, Lane, Occupancy } from '@strzelnica/shared'
+import type { Block, CalendarDay, Intent, Lane } from '@strzelnica/shared'
 import { addDays, bookingHorizon, formatDayLabel, formatTimeRange } from '@strzelnica/shared'
 import { useMemo } from 'react'
 import { Deklaracje } from './Deklaracje.js'
-import type { Grafik } from './grafik.js'
+import type { Grafik, Zajetosc } from './grafik.js'
 import { grafikDnia } from './grafik.js'
 import { teksty } from './teksty.js'
 
@@ -54,7 +54,7 @@ function Blok({
  */
 export function Kalendarz({
   grafik,
-  occupancies,
+  zajetosc,
   now,
   lane,
   day,
@@ -65,7 +65,7 @@ export function Kalendarz({
   onWybierz,
 }: {
   grafik: Grafik
-  occupancies: readonly Occupancy[]
+  zajetosc: Zajetosc
   now: Date
   lane: Lane
   day: CalendarDay
@@ -83,8 +83,8 @@ export function Kalendarz({
   )
 
   const dzien = useMemo(
-    () => grafikDnia(grafik, occupancies, intent, lane, day, now),
-    [grafik, occupancies, intent, lane, day, now],
+    () => grafikDnia(grafik, zajetosc, intent, lane, day, now),
+    [grafik, zajetosc, intent, lane, day, now],
   )
 
   return (

@@ -1,16 +1,16 @@
 import type {
   Block,
+  BookingDraft,
   BookingProblem,
   Intent,
   Lane,
-  Occupancy,
   SupabaseConfig,
 } from '@strzelnica/shared'
 import { dayIn } from '@strzelnica/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Formularz } from './Formularz.js'
 import type { Grafik } from './grafik.js'
-import { grafikDnia, loadZajetosc } from './grafik.js'
+import { grafikDnia, loadZajetosc, PUSTA_ZAJETOSC } from './grafik.js'
 import { Kalendarz } from './Kalendarz.js'
 import type { Krok, Wybor } from './krok.js'
 import { PUSTY_DRAFT } from './krok.js'
@@ -53,7 +53,7 @@ export function Rezerwacja({
 }) {
   const { facility, lanes } = grafik
 
-  const [occupancies, setOccupancies] = useState<readonly Occupancy[]>([])
+  const [zajetosc, setZajetosc] = useState(PUSTA_ZAJETOSC)
   const [lane, setLane] = useState<Lane | undefined>(lanes[0])
   const [day, setDay] = useState(() => dayIn(facility.timeZone, now))
   const [krok, setKrok] = useState<Krok>({ nazwa: 'kalendarz' })
@@ -75,9 +75,9 @@ export function Rezerwacja({
   useEffect(() => {
     let aktualne = true
     pobierzZajetosc()
-      .then((zajetosc) => {
+      .then((swieza) => {
         if (!aktualne) return
-        setOccupancies(zajetosc)
+        setZajetosc(swieza)
         setBladZajetosci(null)
       })
       // Kalendarz bez zajętości pokazywałby zajęte terminy jako wolne. Lepiej
@@ -117,7 +117,7 @@ export function Rezerwacja({
    * Osi nie zna.
    */
   const odswiezony = (wybor: Wybor): Wybor => {
-    const dzien = grafikDnia(grafik, occupancies, draft, wybor.lane, wybor.day, now)
+    const dzien = grafikDnia(grafik, zajetosc, draft, wybor.lane, wybor.day, now)
     const block = dzien.blocks.find((kandydat) => kandydat.scheduleId === wybor.block.scheduleId)
     return { ...wybor, block: block ?? { ...wybor.block, available: false } }
   }
@@ -129,12 +129,19 @@ export function Rezerwacja({
     setKrok({ nazwa: 'formularz', wybor: { lane, day, block } })
   }
 
-  // Deklaracje zmieniają dostępność, więc zastrzeżenie sprzed zmiany przestaje
-  // opisywać cokolwiek — zdejmujemy je razem z nimi.
-  const zmienDeklaracje = (intent: Intent) => {
+  /**
+   * Każda zmiana zgłoszenia zdejmuje zastrzeżenie zgłoszone przez serwer:
+   * deklaracje i zamawiany sprzęt zmieniają dostępność, a liczba Uczestników
+   * i kontakt — osąd o samym formularzu. Zastrzeżenie sprzed zmiany przestaje
+   * więc opisywać cokolwiek. Jedno miejsce, a nie jedno pole po drugim: pole
+   * dopisane do formularza nie ma jak o tym zapomnieć.
+   */
+  const zmienZgloszenie = (zgloszenie: BookingDraft) => {
     setZastrzezenie(null)
-    setDraft({ ...draft, ...intent })
+    setDraft(zgloszenie)
   }
+
+  const zmienDeklaracje = (intent: Intent) => zmienZgloszenie({ ...draft, ...intent })
 
   async function wyslij(wybor: Wybor) {
     setWysylanie(true)
@@ -149,7 +156,7 @@ export function Rezerwacja({
         ...draft,
       })
 
-      setOccupancies(await pobierzZajetosc())
+      setZajetosc(await pobierzZajetosc())
 
       if (wynik.ok) {
         setKrok({ nazwa: 'potwierdzenie', wybor, draft, id: wynik.id })
@@ -175,8 +182,10 @@ export function Rezerwacja({
       <Formularz
         wybor={odswiezony(krok.wybor)}
         timeZone={facility.timeZone}
+        weaponTypes={grafik.weaponTypes}
+        weaponOccupancies={zajetosc.weapons}
         draft={draft}
-        onDraft={setDraft}
+        onDraft={zmienZgloszenie}
         onDalej={() => setKrok({ nazwa: 'podsumowanie', wybor: krok.wybor })}
         onZmienTermin={() => doKalendarza()}
       />
@@ -188,6 +197,7 @@ export function Rezerwacja({
       <Podsumowanie
         wybor={odswiezony(krok.wybor)}
         timeZone={facility.timeZone}
+        weaponTypes={grafik.weaponTypes}
         draft={draft}
         wysylanie={wysylanie}
         zastrzezenie={zastrzezenie}
@@ -203,6 +213,7 @@ export function Rezerwacja({
       <Potwierdzenie
         wybor={krok.wybor}
         timeZone={facility.timeZone}
+        weaponTypes={grafik.weaponTypes}
         draft={krok.draft}
         id={krok.id}
         onWroc={() => {
@@ -224,7 +235,7 @@ export function Rezerwacja({
       )}
       <Kalendarz
         grafik={grafik}
-        occupancies={occupancies}
+        zajetosc={zajetosc}
         now={now}
         lane={lane}
         day={day}

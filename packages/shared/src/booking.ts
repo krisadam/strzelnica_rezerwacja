@@ -9,7 +9,7 @@
  * jest wygodą, a nie zabezpieczeniem — dlatego serwer liczy to samo od nowa,
  * a nie ufa temu, co przyszło.
  */
-import type { Block, Intent } from './availability.ts'
+import type { Block, Intent, Unavailability, WeaponRental } from './availability.ts'
 import type { CalendarDay } from './calendar.ts'
 import type { Lane } from './rows.ts'
 
@@ -24,8 +24,9 @@ export type BookingContact = {
  * To, co Osoba rezerwująca wypełnia sama. Termin przychodzi osobno.
  *
  * Rozszerza `Intent`, więc zgłoszenie wolno podać wprost tam, gdzie pyta się
- * o dostępność. Deklaracja Pozwolenia nie jest bowiem zwykłym polem formularza
- * — rozstrzyga, które terminy Osoba rezerwująca w ogóle widzi jako wolne.
+ * o dostępność. Deklaracja Pozwolenia i zamawiane Wypożyczenia nie są bowiem
+ * zwykłymi polami formularza — rozstrzygają, które terminy Osoba rezerwująca
+ * w ogóle widzi jako wolne.
  */
 export type BookingDraft = Intent & {
   participants: number
@@ -49,22 +50,43 @@ export type BookingRequest = BookingDraft & {
 export type BookingProblem =
   | 'termin-niedostepny'
   | 'brak-instruktora'
+  | 'brak-sztuk-broni'
   | 'liczba-uczestnikow-poza-zakresem'
   | 'ponad-pojemnosc-osi'
+  | 'niepoprawne-wypozyczenie'
   | 'brak-imienia'
   | 'niepoprawny-email'
   | 'brak-telefonu'
   | 'brak-zgody'
 
 /**
+ * Jak nazwać odmowę wobec Osoby rezerwującej. Powody mówiące o samym Bloku
+ * schodzą do jednego zdania — dla niej wszystkie znaczą „wybierz inny termin".
+ * Powody mówiące o jej zamierzeniach zachowują nazwę, bo każdy z nich naprawia
+ * się inaczej: jeden zmianą deklaracji, drugi mniejszym zamówieniem.
+ */
+const TERM_PROBLEMS: Record<Unavailability, BookingProblem> = {
+  'poza-godzinami-otwarcia': 'termin-niedostepny',
+  'poza-horyzontem': 'termin-niedostepny',
+  przeszlosc: 'termin-niedostepny',
+  'ponizej-wyprzedzenia': 'termin-niedostepny',
+  'termin-zajety': 'termin-niedostepny',
+  'brak-instruktora': 'brak-instruktora',
+  'brak-sztuk-broni': 'brak-sztuk-broni',
+}
+
+/**
  * Czy zastrzeżenie mówi o samym terminie, a nie o wypełnieniu formularza.
  * Te dwa rodzaje pokazuje się w różnych chwilach: pustego pola nie wytyka się
  * Osobie rezerwującej, zanim go tknie, ale o terminie, który właśnie przestał
- * być wolny, mówi się od razu. Rozróżnienie mieszka przy definicji zastrzeżeń,
- * żeby kolejne dopisane tutaj nie mogło o nim zapomnieć.
+ * być wolny, mówi się od razu.
+ *
+ * Odpowiedź czyta się z `TERM_PROBLEMS`, a nie z osobnej listy nazw: powód
+ * dopisany do dostępności trafia tu wtedy sam, zamiast czekać, aż ktoś sobie
+ * o nim przypomni.
  */
 export function concernsTheTerm(problem: BookingProblem): boolean {
-  return problem === 'termin-niedostepny' || problem === 'brak-instruktora'
+  return Object.values(TERM_PROBLEMS).includes(problem)
 }
 
 /** Odpowiedź Edge Function w kształcie znanym obu stronom. */
@@ -92,6 +114,23 @@ function empty(value: string): boolean {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
+ * Czy zamówienie sztuk w ogóle da się przyjąć — niezależnie od tego, ile sztuk
+ * Strzelnica ma. O pulach orzeka dostępność Bloku; tutaj zatrzymuje się to,
+ * czego żadna Pula by nie naprawiła: pozycja na zero sztuk, ułamek sztuki,
+ * pozycja bez Typu i dwie pozycje tego samego Typu.
+ */
+function malformedRentals(rentals: readonly WeaponRental[]): boolean {
+  const typy = new Set<string>()
+  for (const pozycja of rentals) {
+    if (empty(pozycja.weaponTypeId)) return true
+    if (!Number.isInteger(pozycja.quantity) || pozycja.quantity < 1) return true
+    if (typy.has(pozycja.weaponTypeId)) return true
+    typy.add(pozycja.weaponTypeId)
+  }
+  return false
+}
+
+/**
  * Wszystkie zastrzeżenia naraz, w kolejności czytania formularza. Nie pierwsze
  * z brzegu: Osoba rezerwująca ma zobaczyć całą listę poprawek za jednym razem,
  * a nie odkrywać je pojedynczo przy każdym kliknięciu.
@@ -99,11 +138,13 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export function bookingProblems({ draft, lane, block }: BookingCheck): BookingProblem[] {
   const problems: BookingProblem[] = []
 
-  // Odmowa z powodu Puli instruktorów dostaje własną nazwę: jest jedyną,
-  // którą Osoba rezerwująca naprawia zmianą deklaracji, a nie zmianą terminu.
+  // Odmowy z powodu pul dostają własne nazwy: są jedynymi, które Osoba
+  // rezerwująca naprawia zmianą zamierzeń, a nie zmianą terminu.
+  // Blok bez powodu niedostępności to Blok, którego rozkład Osi nie zna —
+  // termin nigdy niewystawiony, a więc nie „zajęty" ani żaden inny z powodów.
   if (!block?.available) {
     problems.push(
-      block?.unavailableBecause === 'brak-instruktora' ? 'brak-instruktora' : 'termin-niedostepny',
+      block?.unavailableBecause ? TERM_PROBLEMS[block.unavailableBecause] : 'termin-niedostepny',
     )
   }
 
@@ -112,6 +153,8 @@ export function bookingProblems({ draft, lane, block }: BookingCheck): BookingPr
   } else if (draft.participants > lane.capacity) {
     problems.push('ponad-pojemnosc-osi')
   }
+
+  if (malformedRentals(draft.rentals)) problems.push('niepoprawne-wypozyczenie')
 
   if (empty(draft.contact.name)) problems.push('brak-imienia')
   if (!EMAIL_PATTERN.test(draft.contact.email.trim())) problems.push('niepoprawny-email')
@@ -170,6 +213,29 @@ function flag(source: Record<string, unknown>, key: string): boolean {
   return value
 }
 
+/**
+ * Wypożyczenia ze zgłoszenia. Brak pola jest błędem kształtu, a nie pustą
+ * listą: Rezerwacja z własną bronią mówi o tym wprost pustą tablicą, żeby
+ * zgubione po drodze zamówienie nie zamieniło się w ciszę.
+ *
+ * Liczba sztuk poza zakresem przechodzi tędy i zatrzymuje się dopiero na
+ * `bookingProblems` — tak samo jak liczba Uczestników.
+ */
+function readRentals(value: unknown): WeaponRental[] {
+  if (!Array.isArray(value)) {
+    throw new MalformedBookingRequestError('pole rentals nie jest listą')
+  }
+
+  return value.map((pozycja) => {
+    const wiersz = record(pozycja, 'pozycja Wypożyczenia')
+    const quantity = wiersz.quantity
+    if (typeof quantity !== 'number' || !Number.isFinite(quantity)) {
+      throw new MalformedBookingRequestError('pole quantity nie jest liczbą')
+    }
+    return { weaponTypeId: identifier(wiersz, 'weaponTypeId'), quantity }
+  })
+}
+
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 /**
@@ -196,6 +262,8 @@ export function readBookingRequest(value: unknown): BookingRequest {
     throw new MalformedBookingRequestError('pole participants nie jest liczbą')
   }
 
+  const rentals = readRentals(source.rentals)
+
   const consent = flag(source, 'consent')
   const hasPermit = flag(source, 'hasPermit')
   const wantsInstructor = flag(source, 'wantsInstructor')
@@ -219,5 +287,6 @@ export function readBookingRequest(value: unknown): BookingRequest {
     consent,
     hasPermit,
     wantsInstructor,
+    rentals,
   }
 }

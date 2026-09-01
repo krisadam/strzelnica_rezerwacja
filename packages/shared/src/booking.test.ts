@@ -28,6 +28,7 @@ function zgloszenie(nadpisania: Partial<BookingDraft> = {}): BookingDraft {
     consent: true,
     hasPermit: true,
     wantsInstructor: false,
+    rentals: [],
     ...nadpisania,
   }
 }
@@ -85,10 +86,79 @@ describe('Instruktor', () => {
   })
 })
 
-describe('zastrzeżenia mówiące o samym terminie', () => {
-  it.each(['termin-niedostepny', 'brak-instruktora'] as const)('rozpoznaje %s', (problem) => {
-    expect(concernsTheTerm(problem)).toBe(true)
+/**
+ * Wypożyczenie broni. Ile sztuk zostało w tym terminie, orzeka dostępność
+ * Bloku — ta sama dla kalendarza i dla serwera. Tutaj rozstrzyga się kształt
+ * samego zamówienia i nazwa odmowy.
+ */
+describe('Wypożyczenie broni', () => {
+  it('nie ma zastrzeżeń do Rezerwacji bez Wypożyczeń — z własną bronią', () => {
+    expect(zastrzezenia(zgloszenie({ rentals: [] }))).toEqual([])
   })
+
+  it('nie ma zastrzeżeń do kilku Typów naraz w jednej Rezerwacji', () => {
+    expect(
+      zastrzezenia(
+        zgloszenie({
+          rentals: [
+            { weaponTypeId: 'glock', quantity: 2 },
+            { weaponTypeId: 'shadow', quantity: 1 },
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('nazywa odmowę brakiem sztuk, a nie zajętym terminem', () => {
+    expect(
+      zastrzezenia(
+        zgloszenie({ rentals: [{ weaponTypeId: 'glock', quantity: 4 }] }),
+        blok({ available: false, unavailableBecause: 'brak-sztuk-broni' }),
+      ),
+    ).toEqual(['brak-sztuk-broni'])
+  })
+
+  it('odrzuca pozycję na zero sztuk — Wypożyczeniem nie jest', () => {
+    expect(zastrzezenia(zgloszenie({ rentals: [{ weaponTypeId: 'glock', quantity: 0 }] }))).toEqual(
+      ['niepoprawne-wypozyczenie'],
+    )
+  })
+
+  it('odrzuca liczbę sztuk, która nie jest liczbą całkowitą', () => {
+    expect(
+      zastrzezenia(zgloszenie({ rentals: [{ weaponTypeId: 'glock', quantity: 1.5 }] })),
+    ).toEqual(['niepoprawne-wypozyczenie'])
+  })
+
+  // Dwie pozycje tego samego Typu byłyby dwiema odpowiedziami na pytanie
+  // „ile sztuk" — i sumowałyby się inaczej u klienta niż w bazie.
+  it('odrzuca dwie pozycje tego samego Typu', () => {
+    expect(
+      zastrzezenia(
+        zgloszenie({
+          rentals: [
+            { weaponTypeId: 'glock', quantity: 1 },
+            { weaponTypeId: 'glock', quantity: 1 },
+          ],
+        }),
+      ),
+    ).toEqual(['niepoprawne-wypozyczenie'])
+  })
+
+  it('odrzuca pozycję bez wskazanego Typu', () => {
+    expect(zastrzezenia(zgloszenie({ rentals: [{ weaponTypeId: '  ', quantity: 1 }] }))).toEqual([
+      'niepoprawne-wypozyczenie',
+    ])
+  })
+})
+
+describe('zastrzeżenia mówiące o samym terminie', () => {
+  it.each(['termin-niedostepny', 'brak-instruktora', 'brak-sztuk-broni'] as const)(
+    'rozpoznaje %s',
+    (problem) => {
+      expect(concernsTheTerm(problem)).toBe(true)
+    },
+  )
 
   // Puste pole formularza mówi o tym, czego Osoba rezerwująca jeszcze nie
   // wypełniła — i dlatego wolno je pokazać dopiero po próbie przejścia dalej.
@@ -99,6 +169,7 @@ describe('zastrzeżenia mówiące o samym terminie', () => {
     'niepoprawny-email',
     'brak-telefonu',
     'brak-zgody',
+    'niepoprawne-wypozyczenie',
   ] as const)('nie bierze za nie zastrzeżenia do pola: %s', (problem) => {
     expect(concernsTheTerm(problem)).toBe(false)
   })
@@ -184,6 +255,7 @@ describe('odczyt żądania', () => {
     consent: true,
     hasPermit: false,
     wantsInstructor: false,
+    rentals: [{ weaponTypeId: '00000000-0000-0000-0000-0000000000c1', quantity: 2 }],
   } satisfies BookingRequest
 
   it('czyta poprawne żądanie', () => {
@@ -204,6 +276,23 @@ describe('odczyt żądania', () => {
   // a klient omijający formularz dostawałby nieczytelny błąd kształtu.
   // Minuta spoza rozkładu Osi nie jest błędem kształtu — jest terminem, którego
   // Strzelnica nie wystawiła, i tak ma o niej usłyszeć Osoba rezerwująca.
+  it('czyta Rezerwację bez Wypożyczeń jako pustą listę, a nie brak pola', () => {
+    expect(readBookingRequest({ ...ZADANIE, rentals: [] }).rentals).toEqual([])
+  })
+
+  // Liczba sztuk poza zakresem przechodzi odczyt i zatrzymuje się dopiero na
+  // zastrzeżeniach — tak samo jak liczba Uczestników.
+  it('przepuszcza liczbę sztuk poza zakresem, zostawiając osąd zastrzeżeniom', () => {
+    const odczytane = readBookingRequest({
+      ...ZADANIE,
+      rentals: [{ weaponTypeId: 'glock', quantity: 0 }],
+    })
+
+    expect(bookingProblems({ draft: odczytane, lane: OS, block: blok() })).toEqual([
+      'niepoprawne-wypozyczenie',
+    ])
+  })
+
   it('przepuszcza minutę spoza siatki Slotów', () => {
     expect(readBookingRequest({ ...ZADANIE, startMinute: 605 }).startMinute).toBe(605)
   })
@@ -240,6 +329,11 @@ describe('odczyt żądania', () => {
     ['brak deklaracji Pozwolenia', { ...ZADANIE, hasPermit: undefined }],
     ['chęć Instruktora jako napis', { ...ZADANIE, wantsInstructor: 'tak' }],
     ['kontakt nie będący obiektem', { ...ZADANIE, contact: 'Anna' }],
+    ['brak Wypożyczeń', { ...ZADANIE, rentals: undefined }],
+    ['Wypożyczenia nie będące listą', { ...ZADANIE, rentals: { glock: 1 } }],
+    ['pozycja nie będąca obiektem', { ...ZADANIE, rentals: ['glock'] }],
+    ['pozycja bez Typu broni', { ...ZADANIE, rentals: [{ quantity: 1 }] }],
+    ['liczba sztuk jako napis', { ...ZADANIE, rentals: [{ weaponTypeId: 'glock', quantity: '1' }] }],
     ['treść nie będąca obiektem', 'Anna'],
     ['brak treści', null],
   ])('odrzuca żądanie: %s', (_opis, zadanie) => {

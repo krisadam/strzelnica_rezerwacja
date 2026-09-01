@@ -25,6 +25,27 @@ Konsekwencja: obietnicy wyłączności nie wolno przenieść do kodu funkcji „
 czytelności". Sprawdzenie przed zapisem jest po to, żeby powiedzieć Osobie
 rezerwującej, co jest nie tak — nie po to, żeby chronić dane.
 
+## Zapis idzie przez funkcję bazodanową `place_booking`
+
+Rezerwacja przestała być jednym `insert`, odkąd niesie Wypożyczenia: to osobne
+wiersze, a dwa zapisy z Edge Function to dwie transakcje. Rezerwacja bez swoich
+Wypożyczeń jest gorsza niż żadna — Strzelnica przygotowałaby stanowisko bez
+broni. Dlatego oba wstawienia wykonuje jedna funkcja w bazie, wołana przez RPC.
+
+Ta sama funkcja pilnuje Puli sztuk Typu broni. Sumy sztuk po nakładających się
+Rezerwacjach nie da się wyrazić ograniczeniem tabeli, tak jak wyłączności Osi,
+a sprawdzenie wykonane w Edge Function czyta dane w innej transakcji, niż
+zapisuje — między odczytem a zapisem mieści się cudza Rezerwacja. Funkcja bierze
+więc blokadę doradczą na Strzelnicę, zapisuje, a potem liczy sumę, w której
+widzi już własny wiersz. Naruszenie wraca jako SQLSTATE `WP001` i zamienia się
+w zastrzeżenie „brak sztuk broni".
+
+Konsekwencja: warunek nakładania się przedziałów jest w tej funkcji drugim
+wyrażeniem reguły z `packages/shared` — świadomie, tak samo jak w ograniczeniu
+wyłączności Osi. Reguła, która wystarczy raz, zostaje w `packages/shared`;
+w schemacie powtarza się wyłącznie to, co ma być dotrzymane także wtedy, gdy
+sprawdzenie sprzed zapisu okaże się nieaktualne.
+
 ## Nagłówek `Origin` a domeny osadzenia
 
 Widget serwowany jest z naszej domeny, więc `Origin` jego żądania jest naszą

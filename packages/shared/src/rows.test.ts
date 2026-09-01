@@ -10,6 +10,8 @@ import {
   occupancyFromRow,
   openingHoursFromRow,
   rowsOrThrow,
+  weaponOccupancyFromRow,
+  weaponTypeFromRow,
 } from './index.ts'
 
 describe('dzień tygodnia z wiersza bazy', () => {
@@ -130,6 +132,50 @@ describe('zajętość Osi z wiersza widoku', () => {
     'zatrzymuje wiersz bez kolumny %s',
     (kolumna) => {
       expect(() => occupancyFromRow({ ...WIERSZ, [kolumna]: null })).toThrow(
+        IncompleteOccupancyError,
+      )
+    },
+  )
+})
+
+describe('Typ broni z wiersza katalogu', () => {
+  it('bierze z wiersza nazwę i pulę sztuk', () => {
+    expect(
+      weaponTypeFromRow({
+        id: '00000000-0000-0000-0000-0000000000c1',
+        facility_id: '00000000-0000-0000-0000-000000000001',
+        name: 'Glock 17',
+        pool: 3,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    ).toEqual({ id: '00000000-0000-0000-0000-0000000000c1', name: 'Glock 17', pool: 3 })
+  })
+})
+
+describe('zajętość sztuk broni z wiersza widoku', () => {
+  const WIERSZ = {
+    facility_id: '00000000-0000-0000-0000-000000000001',
+    weapon_type_id: '00000000-0000-0000-0000-0000000000c1',
+    quantity: 2,
+    starts_at: '2026-06-15T08:00:00Z',
+    ends_at: '2026-06-15T10:00:00Z',
+  }
+
+  it('przepisuje momenty na daty', () => {
+    const zajetosc = weaponOccupancyFromRow(WIERSZ)
+
+    expect(zajetosc.weaponTypeId).toBe('00000000-0000-0000-0000-0000000000c1')
+    expect(zajetosc.quantity).toBe(2)
+    expect(zajetosc.startsAt.toISOString()).toBe('2026-06-15T08:00:00.000Z')
+  })
+
+  // Kolumny widoku są w wygenerowanych typach dopuszczalnie puste. Wiersz
+  // niepełny zatrzymuje się tutaj — zliczony jako zero sztuk zwolniłby broń,
+  // której nie ma.
+  it.each(['weapon_type_id', 'quantity', 'starts_at', 'ends_at'] as const)(
+    'zatrzymuje wiersz bez kolumny %s',
+    (kolumna) => {
+      expect(() => weaponOccupancyFromRow({ ...WIERSZ, [kolumna]: null })).toThrow(
         IncompleteOccupancyError,
       )
     },

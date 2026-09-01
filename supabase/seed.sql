@@ -155,3 +155,41 @@ cross join lateral (
 ) t
 where f.id = '00000000-0000-0000-0000-000000000001'
 on conflict (id) do nothing;
+
+-- Katalog Typów broni. Pule celowo różne: „Glock 17" starcza na kilka
+-- Rezerwacji naraz, a „CZ Shadow 2" jest jeden — więc Rezerwacja poniżej
+-- wyczerpuje go w swoim terminie i grafik demo pokazuje Typ niedostępny.
+insert into public.weapon_types (id, facility_id, name, pool)
+values
+  (
+    '00000000-0000-0000-0000-0000000000c1',
+    '00000000-0000-0000-0000-000000000001',
+    'Glock 17',
+    3
+  ),
+  (
+    '00000000-0000-0000-0000-0000000000c2',
+    '00000000-0000-0000-0000-000000000001',
+    'CZ Shadow 2',
+    1
+  ),
+  (
+    '00000000-0000-0000-0000-0000000000c3',
+    '00000000-0000-0000-0000-000000000001',
+    'Karabinek AR-15',
+    2
+  )
+on conflict (id) do nothing;
+
+-- Wypożyczenie przy Rezerwacji z seeda: jedyna sztuka „CZ Shadow 2". Ten sam
+-- termin na drugiej Osi zostaje więc wolny, ale bez tego Typu — dokładnie ta
+-- różnica, o której mówi spec: dostępność zależy od kształtu Rezerwacji.
+insert into public.weapon_rentals (id, facility_id, booking_id, weapon_type_id, quantity)
+values (
+  '00000000-0000-0000-0000-0000000000d1',
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-0000000000b1',
+  '00000000-0000-0000-0000-0000000000c2',
+  1
+)
+on conflict (id) do nothing;

@@ -31,6 +31,8 @@ import {
   readBookingRequest,
   rowsOrThrow,
   scheduleForDay,
+  weaponOccupancyFromRow,
+  weaponTypeFromRow,
 } from '../../../packages/shared/src/index.ts'
 
 /**
@@ -42,6 +44,9 @@ const WIDGET_ORIGIN = Deno.env.get('WIDGET_ORIGIN')
 
 /** Naruszenie ograniczenia wyłączności Osi w Postgresie. */
 const EXCLUSION_VIOLATION = '23P01'
+
+/** Naruszenie Puli sztuk Typu broni; własny SQLSTATE `place_booking`. */
+const WEAPON_POOL_VIOLATION = 'WP001'
 
 /**
  * Nagłówki CORS. Nie są tu żadnym zabezpieczeniem i nie należy ich za takie
@@ -127,21 +132,31 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   // `bookings` wprost miałaby własną listę stanów do rozjechania się z widokiem.
   const okno = occupancyWindow(request.day, facility.timeZone)
 
-  const [schedules, openingHours, exceptions, zajetosc] = await Promise.all([
-    client.from('block_schedules').select('*').eq('facility_id', facility.id),
-    client.from('opening_hours').select('*').eq('facility_id', facility.id),
-    client.from('calendar_exceptions').select('*').eq('facility_id', facility.id),
-    // Zajętość całej Strzelnicy, nie tylko wybranej Osi: kolizję rozstrzyga
-    // Oś, ale Pulę instruktorów liczy się po wszystkich Osiach naraz. Zapytanie
-    // zawężone do jednej zaniżałoby ją po cichu i sprzedawało Instruktora,
-    // którego nie ma.
-    client
-      .from('lane_occupancy')
-      .select('*')
-      .eq('facility_id', facility.id)
-      .lt('starts_at', okno.to.toISOString())
-      .gt('ends_at', okno.from.toISOString()),
-  ])
+  const [schedules, openingHours, exceptions, zajetosc, katalog, wypozyczone] =
+    await Promise.all([
+      client.from('block_schedules').select('*').eq('facility_id', facility.id),
+      client.from('opening_hours').select('*').eq('facility_id', facility.id),
+      client.from('calendar_exceptions').select('*').eq('facility_id', facility.id),
+      // Zajętość całej Strzelnicy, nie tylko wybranej Osi: kolizję rozstrzyga
+      // Oś, ale Pulę instruktorów liczy się po wszystkich Osiach naraz. Zapytanie
+      // zawężone do jednej zaniżałoby ją po cichu i sprzedawało Instruktora,
+      // którego nie ma.
+      client
+        .from('lane_occupancy')
+        .select('*')
+        .eq('facility_id', facility.id)
+        .lt('starts_at', okno.to.toISOString())
+        .gt('ends_at', okno.from.toISOString()),
+      client.from('weapon_types').select('*').eq('facility_id', facility.id),
+      // Sztuki trzymane przez cudze Rezerwacje — z całej Strzelnicy, bo katalog
+      // jest wspólny dla wszystkich Osi. To samo okno, co dla zajętości Osi.
+      client
+        .from('weapon_occupancy')
+        .select('*')
+        .eq('facility_id', facility.id)
+        .lt('starts_at', okno.to.toISOString())
+        .gt('ends_at', okno.from.toISOString()),
+    ])
 
   const grafik = scheduleForDay({
     day: request.day,
@@ -157,6 +172,8 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),
     closedDates: rowsOrThrow(exceptions).map(closedDateFromRow),
     occupancies: rowsOrThrow(zajetosc).map(occupancyFromRow),
+    weaponTypes: rowsOrThrow(katalog).map(weaponTypeFromRow),
+    weaponOccupancies: rowsOrThrow(wypozyczone).map(weaponOccupancyFromRow),
     now: new Date(),
   })
 
@@ -170,27 +187,29 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     return outcome({ ok: false, problem: problems[0] ?? 'termin-niedostepny' }, origin)
   }
 
-  const zapis = await client
-    .from('bookings')
-    .insert({
-      facility_id: facility.id,
-      lane_id: lane.id,
-      starts_at: block.startsAt.toISOString(),
-      ends_at: block.endsAt.toISOString(),
-      // Potwierdzenie adresu (ticket #10) przestawi to na „oczekująca".
-      status: 'potwierdzona',
-      participants: request.participants,
-      contact_name: request.contact.name,
-      contact_email: request.contact.email,
-      contact_phone: request.contact.phone,
-      has_permit: request.hasPermit,
-      // Powód obecności Instruktora nie zmienia niczego poza uzasadnieniem,
-      // więc do bazy idzie sam fakt. `instructorAttends` liczy to tak samo, jak
-      // policzyła to dostępność chwilę wcześniej.
-      with_instructor: instructorAttends(request),
-    })
-    .select('id')
-    .single()
+  // Rezerwacja i jej Wypożyczenia powstają jednym wywołaniem, bo powstają albo
+  // razem, albo wcale: Rezerwacja bez zamówionej broni kazałaby Strzelnicy
+  // przygotować puste stanowisko. Funkcja pilnuje przy tym Puli sztuk, której
+  // sprawdzenie wykonane tutaj — w innej transakcji niż zapis — bywa
+  // nieaktualne, zanim zdąży się zapisać.
+  const zapis = await client.rpc('place_booking', {
+    p_facility_id: facility.id,
+    p_lane_id: lane.id,
+    p_starts_at: block.startsAt.toISOString(),
+    p_ends_at: block.endsAt.toISOString(),
+    // Potwierdzenie adresu (ticket #10) przestawi to na „oczekująca".
+    p_status: 'potwierdzona',
+    p_participants: request.participants,
+    p_contact_name: request.contact.name,
+    p_contact_email: request.contact.email,
+    p_contact_phone: request.contact.phone,
+    p_has_permit: request.hasPermit,
+    // Powód obecności Instruktora nie zmienia niczego poza uzasadnieniem,
+    // więc do bazy idzie sam fakt. `instructorAttends` liczy to tak samo, jak
+    // policzyła to dostępność chwilę wcześniej.
+    p_with_instructor: instructorAttends(request),
+    p_rentals: request.rentals,
+  })
 
   // Dwa zgłoszenia na ten sam Blok w tej samej chwili widzą Blok wolny oba —
   // rozstrzyga dopiero ograniczenie wyłączności Osi. Przegrany dostaje ten sam
@@ -198,9 +217,15 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   if (zapis.error?.code === EXCLUSION_VIOLATION) {
     return outcome({ ok: false, problem: 'termin-niedostepny' }, origin)
   }
+  // Wyścig o ostatnią sztukę broni kończy się inaczej niż wyścig o Oś: termin
+  // zostaje wolny, tylko nie dla tego zamówienia. Osoba rezerwująca ma o tym
+  // usłyszeć wprost, bo naprawia to mniejszym zamówieniem, a nie innym dniem.
+  if (zapis.error?.code === WEAPON_POOL_VIOLATION) {
+    return outcome({ ok: false, problem: 'brak-sztuk-broni' }, origin)
+  }
   if (zapis.error) throw new Error(zapis.error.message)
 
-  return outcome({ ok: true, id: zapis.data.id }, origin)
+  return outcome({ ok: true, id: zapis.data }, origin)
 }
 
 Deno.serve(async (req: Request) => {

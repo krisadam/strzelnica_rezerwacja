@@ -13,6 +13,8 @@ import type {
   Lane,
   Occupancy,
   OpeningHours,
+  WeaponOccupancy,
+  WeaponType,
 } from '@strzelnica/shared'
 import {
   blockScheduleFromRow,
@@ -23,6 +25,8 @@ import {
   openingHoursFromRow,
   rowsOrThrow,
   scheduleForDay,
+  weaponOccupancyFromRow,
+  weaponTypeFromRow,
 } from '@strzelnica/shared'
 import type { StrzelnicaClient } from './supabase.js'
 
@@ -32,7 +36,22 @@ export type Grafik = {
   schedules: BlockSchedule[]
   openingHours: OpeningHours[]
   closedDates: CalendarDay[]
+  weaponTypes: WeaponType[]
 }
+
+/**
+ * To, co w grafiku zmienia się w trakcie: zajętość Osi i sztuki broni trzymane
+ * przez cudze Rezerwacje. Jedno pojęcie, bo bierze się z jednego zdarzenia —
+ * czyjejś Rezerwacji — i odświeża się razem, jednym pobraniem. Rozdzielone
+ * dałyby się odświeżyć osobno, a kalendarz pokazałby wtedy wolną Oś z bronią,
+ * której już nie ma.
+ */
+export type Zajetosc = {
+  lanes: readonly Occupancy[]
+  weapons: readonly WeaponOccupancy[]
+}
+
+export const PUSTA_ZAJETOSC: Zajetosc = { lanes: [], weapons: [] }
 
 /**
  * Grafik jednej Osi w jednym dniu, złożony z tego, co Widget ma pod ręką.
@@ -44,7 +63,7 @@ export type Grafik = {
  */
 export function grafikDnia(
   grafik: Grafik,
-  occupancies: readonly Occupancy[],
+  zajetosc: Zajetosc,
   intent: Intent,
   lane: Lane,
   day: CalendarDay,
@@ -60,7 +79,9 @@ export function grafikDnia(
     schedules: grafik.schedules,
     openingHours: grafik.openingHours,
     closedDates: grafik.closedDates,
-    occupancies,
+    weaponTypes: grafik.weaponTypes,
+    occupancies: zajetosc.lanes,
+    weaponOccupancies: zajetosc.weapons,
     now,
   })
 }
@@ -73,24 +94,35 @@ export class UnknownFacilityError extends Error {
 }
 
 /**
- * Zajętość Osi Strzelnicy od wskazanego momentu w przód. Idzie z widoku
- * `lane_occupancy`, jedynego publicznego okna na Rezerwacje — bez kontaktu,
- * bez liczby Uczestników, bez stanu. Czytana osobno od reszty grafiku, bo
- * jako jedyna zmienia się w trakcie: po złożeniu Rezerwacji i po przegranym
- * wyścigu o Blok trzeba ją pobrać jeszcze raz.
+ * Zajętość Strzelnicy od wskazanego momentu w przód: Osie z widoku
+ * `lane_occupancy` i sztuki broni z `weapon_occupancy` — jedynych publicznych
+ * okien na Rezerwacje, bez kontaktu, bez liczby Uczestników, bez stanu.
+ *
+ * Czytana osobno od reszty grafiku, bo jako jedyna zmienia się w trakcie: po
+ * złożeniu Rezerwacji i po przegranym wyścigu o Blok trzeba ją pobrać jeszcze raz.
  */
 export async function loadZajetosc(
   client: StrzelnicaClient,
   facilityId: string,
   od: Date,
-): Promise<Occupancy[]> {
-  const wynik = await client
-    .from('lane_occupancy')
-    .select('*')
-    .eq('facility_id', facilityId)
-    .gt('ends_at', od.toISOString())
+): Promise<Zajetosc> {
+  const [osie, bron] = await Promise.all([
+    client
+      .from('lane_occupancy')
+      .select('*')
+      .eq('facility_id', facilityId)
+      .gt('ends_at', od.toISOString()),
+    client
+      .from('weapon_occupancy')
+      .select('*')
+      .eq('facility_id', facilityId)
+      .gt('ends_at', od.toISOString()),
+  ])
 
-  return rowsOrThrow(wynik).map(occupancyFromRow)
+  return {
+    lanes: rowsOrThrow(osie).map(occupancyFromRow),
+    weapons: rowsOrThrow(bron).map(weaponOccupancyFromRow),
+  }
 }
 
 export async function loadGrafik(client: StrzelnicaClient, slug: string): Promise<Grafik> {
@@ -107,11 +139,12 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
 
   const facility = facilityFromRow(row)
 
-  const [lanes, schedules, openingHours, exceptions] = await Promise.all([
+  const [lanes, schedules, openingHours, exceptions, weaponTypes] = await Promise.all([
     client.from('lanes').select('*').eq('facility_id', facility.id).order('name'),
     client.from('block_schedules').select('*').eq('facility_id', facility.id),
     client.from('opening_hours').select('*').eq('facility_id', facility.id),
     client.from('calendar_exceptions').select('*').eq('facility_id', facility.id),
+    client.from('weapon_types').select('*').eq('facility_id', facility.id).order('name'),
   ])
 
   return {
@@ -120,5 +153,6 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
     schedules: rowsOrThrow(schedules).map(blockScheduleFromRow),
     openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),
     closedDates: rowsOrThrow(exceptions).map(closedDateFromRow),
+    weaponTypes: rowsOrThrow(weaponTypes).map(weaponTypeFromRow),
   }
 }
