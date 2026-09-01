@@ -1,6 +1,11 @@
-import type { BookingDraft, BookingProblem, WeaponType } from '@strzelnica/shared'
+import type {
+  AmmunitionKind,
+  BookingDraft,
+  BookingProblem,
+  WeaponType,
+} from '@strzelnica/shared'
 import type { Wybor } from './krok.js'
-import { opisInstruktora, opisWypozyczen, teksty } from './teksty.js'
+import { opisInstruktora, opisWypozyczen, opisZapotrzebowania, teksty } from './teksty.js'
 import { Wybrany } from './Wybrany.js'
 import { Zastrzezenia } from './Zastrzezenia.js'
 
@@ -13,6 +18,7 @@ export function Podsumowanie({
   wybor,
   timeZone,
   weaponTypes,
+  ammunitionKinds,
   draft,
   wysylanie,
   zastrzezenie,
@@ -23,6 +29,7 @@ export function Podsumowanie({
   wybor: Wybor
   timeZone: string
   weaponTypes: readonly WeaponType[]
+  ammunitionKinds: readonly AmmunitionKind[]
   draft: BookingDraft
   wysylanie: boolean
   /** Zastrzeżenie zgłoszone przez serwer, gdy formularz go nie przewidział. */
@@ -45,6 +52,8 @@ export function Podsumowanie({
         <dd>{opisInstruktora(draft)}</dd>
         <dt>{teksty.wypozyczenie.etykieta}</dt>
         <dd>{opisWypozyczen(draft.rentals, weaponTypes)}</dd>
+        <dt>{teksty.amunicja.etykieta}</dt>
+        <dd>{opisZapotrzebowania(draft.ammunition, ammunitionKinds)}</dd>
         <dt>{teksty.formularz.imie}</dt>
         <dd>{draft.contact.name}</dd>
         <dt>{teksty.formularz.email}</dt>

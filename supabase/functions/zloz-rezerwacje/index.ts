@@ -18,6 +18,7 @@ import type {
   Database,
 } from '../../../packages/shared/src/index.ts'
 import {
+  ammunitionKindFromRow,
   blockScheduleFromRow,
   bookingProblems,
   closedDateFromRow,
@@ -132,7 +133,7 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   // `bookings` wprost miałaby własną listę stanów do rozjechania się z widokiem.
   const okno = occupancyWindow(request.day, facility.timeZone)
 
-  const [schedules, openingHours, exceptions, zajetosc, katalog, wypozyczone] =
+  const [schedules, openingHours, exceptions, zajetosc, katalog, wypozyczone, rodzaje] =
     await Promise.all([
       client.from('block_schedules').select('*').eq('facility_id', facility.id),
       client.from('opening_hours').select('*').eq('facility_id', facility.id),
@@ -156,6 +157,10 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
         .eq('facility_id', facility.id)
         .lt('starts_at', okno.to.toISOString())
         .gt('ends_at', okno.from.toISOString()),
+      // Katalog amunicji bez żadnej zajętości obok: Rodzaj nie ma puli
+      // (ADR 0004), więc czyta się go tylko po to, żeby odsiać Rodzaj, którego
+      // ta Strzelnica nie zna.
+      client.from('ammunition_kinds').select('*').eq('facility_id', facility.id),
     ])
 
   const grafik = scheduleForDay({
@@ -178,7 +183,12 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   })
 
   const block = grafik.blocks.find((candidate) => candidate.startMinute === request.startMinute)
-  const problems = bookingProblems({ draft: request, lane, block })
+  const problems = bookingProblems({
+    draft: request,
+    lane,
+    block,
+    ammunitionKinds: rowsOrThrow(rodzaje).map(ammunitionKindFromRow),
+  })
   // Pierwsze zastrzeżenie wystarczy: formularz pokazał resztę, więc tutaj
   // wychodzi już tylko to, czego klient nie mógł zobaczyć. Warunek na `block`
   // powtarza to, co `bookingProblems` właśnie orzekło — bez niego kontrola
@@ -209,6 +219,11 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     // policzyła to dostępność chwilę wcześniej.
     p_with_instructor: instructorAttends(request),
     p_rentals: request.rentals,
+    // Zapotrzebowanie jedzie tą samą drogą i z tego samego powodu — pozycje
+    // Rezerwacji powstają razem z nią. Niczego przy tym nie pilnuje: Rodzaj
+    // amunicji nie ma puli (ADR 0004), więc nie ma warunku do naruszenia
+    // i nie ma odmowy, którą trzeba by tu rozpoznać.
+    p_ammunition: request.ammunition,
   })
 
   // Dwa zgłoszenia na ten sam Blok w tej samej chwili widzą Blok wolny oba —

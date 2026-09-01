@@ -184,6 +184,7 @@ export function Rezerwacja({
         timeZone={facility.timeZone}
         weaponTypes={grafik.weaponTypes}
         weaponOccupancies={zajetosc.weapons}
+        ammunitionKinds={grafik.ammunitionKinds}
         draft={draft}
         onDraft={zmienZgloszenie}
         onDalej={() => setKrok({ nazwa: 'podsumowanie', wybor: krok.wybor })}
@@ -198,6 +199,7 @@ export function Rezerwacja({
         wybor={odswiezony(krok.wybor)}
         timeZone={facility.timeZone}
         weaponTypes={grafik.weaponTypes}
+        ammunitionKinds={grafik.ammunitionKinds}
         draft={draft}
         wysylanie={wysylanie}
         zastrzezenie={zastrzezenie}
@@ -214,6 +216,7 @@ export function Rezerwacja({
         wybor={krok.wybor}
         timeZone={facility.timeZone}
         weaponTypes={grafik.weaponTypes}
+        ammunitionKinds={grafik.ammunitionKinds}
         draft={krok.draft}
         id={krok.id}
         onWroc={() => {

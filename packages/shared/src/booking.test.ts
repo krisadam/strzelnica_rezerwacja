@@ -9,6 +9,12 @@ import {
 
 const OS: Lane = { id: 'os-1', name: 'Oś pistoletowa nr 1', capacity: 4 }
 
+/** Katalog Rodzajów amunicji Strzelnicy; identyfikatory skrócone dla czytelności. */
+const KATALOG_AMUNICJI = [
+  { id: '9x19', name: '9 × 19 mm Parabellum' },
+  { id: '22lr', name: '.22 Long Rifle' },
+]
+
 function blok(nadpisania: Partial<Block> = {}): Block {
   return {
     scheduleId: 'blok-1-600',
@@ -29,12 +35,13 @@ function zgloszenie(nadpisania: Partial<BookingDraft> = {}): BookingDraft {
     hasPermit: true,
     wantsInstructor: false,
     rentals: [],
+    ammunition: [],
     ...nadpisania,
   }
 }
 
 function zastrzezenia(draft: BookingDraft, block: Block = blok()) {
-  return bookingProblems({ draft, lane: OS, block })
+  return bookingProblems({ draft, lane: OS, block, ammunitionKinds: KATALOG_AMUNICJI })
 }
 
 describe('zgłoszenie Rezerwacji', () => {
@@ -152,6 +159,104 @@ describe('Wypożyczenie broni', () => {
   })
 })
 
+/**
+ * Zapotrzebowanie na amunicję. Rodzaj amunicji nie ma puli (ADR 0004), więc
+ * dostępność Bloku nie ma tu czego orzec — zostaje sam kształt zamówienia.
+ * Reguła kształtu jest ta sama, co przy Wypożyczeniach, bo pozycja Rezerwacji
+ * jest ta sama: coś razy liczba sztuk.
+ */
+describe('Zapotrzebowanie na amunicję', () => {
+  it('nie ma zastrzeżeń do Rezerwacji bez amunicji — z własną albo kupioną na miejscu', () => {
+    expect(zastrzezenia(zgloszenie({ ammunition: [] }))).toEqual([])
+  })
+
+  it('nie ma zastrzeżeń do kilku Rodzajów naraz w jednej Rezerwacji', () => {
+    expect(
+      zastrzezenia(
+        zgloszenie({
+          ammunition: [
+            { ammunitionKindId: '9x19', quantity: 100 },
+            { ammunitionKindId: '22lr', quantity: 250 },
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  // Puli nie ma, więc nie ma też liczby sztuk, przy której zaczęłoby brakować.
+  // Górną granicą jest wyłącznie to, co Strzelnica uzna za sensowne na miejscu.
+  it('przyjmuje zamówienie większe, niż mieści się w jakimkolwiek magazynie', () => {
+    expect(
+      zastrzezenia(zgloszenie({ ammunition: [{ ammunitionKindId: '9x19', quantity: 100_000 }] })),
+    ).toEqual([])
+  })
+
+  // Sedno ADR 0004 wyrażone na szwie: dostępność nie dostaje amunicji do ręki
+  // i nie może się na nią powołać. Ten sam Blok, to samo zgłoszenie, jedyna
+  // różnica w zamówieniu — i ta sama odpowiedź.
+  it('nie zmienia osądu o terminie', () => {
+    const bez = zgloszenie({ ammunition: [] })
+    const z = zgloszenie({ ammunition: [{ ammunitionKindId: '9x19', quantity: 500 }] })
+
+    expect(zastrzezenia(z)).toEqual(zastrzezenia(bez))
+  })
+
+  it('odrzuca pozycję na zero sztuk — Zapotrzebowaniem nie jest', () => {
+    expect(
+      zastrzezenia(zgloszenie({ ammunition: [{ ammunitionKindId: '9x19', quantity: 0 }] })),
+    ).toEqual(['niepoprawne-zapotrzebowanie'])
+  })
+
+  it('odrzuca liczbę sztuk, która nie jest liczbą całkowitą', () => {
+    expect(
+      zastrzezenia(zgloszenie({ ammunition: [{ ammunitionKindId: '9x19', quantity: 10.5 }] })),
+    ).toEqual(['niepoprawne-zapotrzebowanie'])
+  })
+
+  it('odrzuca dwie pozycje tego samego Rodzaju', () => {
+    expect(
+      zastrzezenia(
+        zgloszenie({
+          ammunition: [
+            { ammunitionKindId: '9x19', quantity: 50 },
+            { ammunitionKindId: '9x19', quantity: 50 },
+          ],
+        }),
+      ),
+    ).toEqual(['niepoprawne-zapotrzebowanie'])
+  })
+
+  // Broni to nie dotyczy: Typ spoza katalogu nie ma ani jednej sztuki do
+  // wydania, więc odsiewa go dostępność Bloku. Amunicja nie przechodzi przez
+  // dostępność wcale — gdyby Rodzaj spoza katalogu nie zatrzymał się tutaj,
+  // zatrzymałby się dopiero na kluczu obcym, jako błąd serwera.
+  it('odrzuca Rodzaj, którego nie ma w katalogu Strzelnicy', () => {
+    expect(
+      zastrzezenia(zgloszenie({ ammunition: [{ ammunitionKindId: '7.62', quantity: 50 }] })),
+    ).toEqual(['niepoprawne-zapotrzebowanie'])
+  })
+
+  it('odrzuca pozycję bez wskazanego Rodzaju', () => {
+    expect(
+      zastrzezenia(zgloszenie({ ammunition: [{ ammunitionKindId: '  ', quantity: 50 }] })),
+    ).toEqual(['niepoprawne-zapotrzebowanie'])
+  })
+
+  // Wypożyczenie i Zapotrzebowanie naprawia się w dwóch różnych miejscach
+  // formularza, więc mają dwa różne zastrzeżenia — jedno wspólne kazałoby
+  // szukać pomyłki w obu naraz.
+  it('nazywa swoją pomyłkę inaczej niż pomyłkę w Wypożyczeniu', () => {
+    expect(
+      zastrzezenia(
+        zgloszenie({
+          rentals: [{ weaponTypeId: 'glock', quantity: 0 }],
+          ammunition: [{ ammunitionKindId: '9x19', quantity: 0 }],
+        }),
+      ),
+    ).toEqual(['niepoprawne-wypozyczenie', 'niepoprawne-zapotrzebowanie'])
+  })
+})
+
 describe('zastrzeżenia mówiące o samym terminie', () => {
   it.each(['termin-niedostepny', 'brak-instruktora', 'brak-sztuk-broni'] as const)(
     'rozpoznaje %s',
@@ -170,6 +275,7 @@ describe('zastrzeżenia mówiące o samym terminie', () => {
     'brak-telefonu',
     'brak-zgody',
     'niepoprawne-wypozyczenie',
+    'niepoprawne-zapotrzebowanie',
   ] as const)('nie bierze za nie zastrzeżenia do pola: %s', (problem) => {
     expect(concernsTheTerm(problem)).toBe(false)
   })
@@ -185,7 +291,12 @@ describe('wybrany termin', () => {
   // Zgłoszenie na Blok spoza rozkładu Osi nie jest ani wolne, ani zajęte —
   // takiego terminu Strzelnica nigdy nie wystawiła.
   it('odrzuca termin, którego rozkład Osi nie zna', () => {
-    expect(bookingProblems({ draft: zgloszenie(), lane: OS, block: undefined })).toEqual([
+    expect(bookingProblems({
+      draft: zgloszenie(),
+      lane: OS,
+      block: undefined,
+      ammunitionKinds: KATALOG_AMUNICJI,
+    })).toEqual([
       'termin-niedostepny',
     ])
   })
@@ -256,6 +367,7 @@ describe('odczyt żądania', () => {
     hasPermit: false,
     wantsInstructor: false,
     rentals: [{ weaponTypeId: '00000000-0000-0000-0000-0000000000c1', quantity: 2 }],
+    ammunition: [{ ammunitionKindId: '9x19', quantity: 100 }],
   } satisfies BookingRequest
 
   it('czyta poprawne żądanie', () => {
@@ -288,8 +400,23 @@ describe('odczyt żądania', () => {
       rentals: [{ weaponTypeId: 'glock', quantity: 0 }],
     })
 
-    expect(bookingProblems({ draft: odczytane, lane: OS, block: blok() })).toEqual([
+    expect(zastrzezenia(odczytane)).toEqual([
       'niepoprawne-wypozyczenie',
+    ])
+  })
+
+  it('czyta Rezerwację bez amunicji jako pustą listę, a nie brak pola', () => {
+    expect(readBookingRequest({ ...ZADANIE, ammunition: [] }).ammunition).toEqual([])
+  })
+
+  it('przepuszcza liczbę sztuk amunicji poza zakresem, zostawiając osąd zastrzeżeniom', () => {
+    const odczytane = readBookingRequest({
+      ...ZADANIE,
+      ammunition: [{ ammunitionKindId: '9x19', quantity: 0 }],
+    })
+
+    expect(zastrzezenia(odczytane)).toEqual([
+      'niepoprawne-zapotrzebowanie',
     ])
   })
 
@@ -300,7 +427,7 @@ describe('odczyt żądania', () => {
   it('przepuszcza liczbę Uczestników poza zakresem, zostawiając osąd zastrzeżeniom', () => {
     const odczytane = readBookingRequest({ ...ZADANIE, participants: 0 })
 
-    expect(bookingProblems({ draft: odczytane, lane: OS, block: blok() })).toEqual([
+    expect(zastrzezenia(odczytane)).toEqual([
       'liczba-uczestnikow-poza-zakresem',
     ])
   })
@@ -312,7 +439,7 @@ describe('odczyt żądania', () => {
     })
 
     expect(odczytane.contact.name).toBe('')
-    expect(bookingProblems({ draft: odczytane, lane: OS, block: blok() })).toEqual([
+    expect(zastrzezenia(odczytane)).toEqual([
       'brak-imienia',
     ])
   })
@@ -334,6 +461,14 @@ describe('odczyt żądania', () => {
     ['pozycja nie będąca obiektem', { ...ZADANIE, rentals: ['glock'] }],
     ['pozycja bez Typu broni', { ...ZADANIE, rentals: [{ quantity: 1 }] }],
     ['liczba sztuk jako napis', { ...ZADANIE, rentals: [{ weaponTypeId: 'glock', quantity: '1' }] }],
+    ['brak Zapotrzebowania', { ...ZADANIE, ammunition: undefined }],
+    ['Zapotrzebowanie nie będące listą', { ...ZADANIE, ammunition: { '9x19': 100 } }],
+    ['pozycja Zapotrzebowania nie będąca obiektem', { ...ZADANIE, ammunition: ['9x19'] }],
+    ['pozycja bez Rodzaju amunicji', { ...ZADANIE, ammunition: [{ quantity: 100 }] }],
+    [
+      'liczba sztuk amunicji jako napis',
+      { ...ZADANIE, ammunition: [{ ammunitionKindId: '9x19', quantity: '100' }] },
+    ],
     ['treść nie będąca obiektem', 'Anna'],
     ['brak treści', null],
   ])('odrzuca żądanie: %s', (_opis, zadanie) => {

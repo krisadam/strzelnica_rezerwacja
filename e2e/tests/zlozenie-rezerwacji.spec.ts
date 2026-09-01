@@ -35,10 +35,17 @@ test('od kalendarza do potwierdzenia i z powrotem, już bez tego terminu', async
     // to jedyne, czego czysta funkcja z definicji nie zobaczy. Ile sztuk wolno
     // wziąć, rozstrzyga się w `packages/shared` i nie jest tu sprawdzane.
     bron: { typ: 'Glock 17', sztuki: 1 },
+    // Zapotrzebowanie jedzie tym samym zapisem, co Wypożyczenie. Liczba sztuk
+    // celowo większa niż jakikolwiek magazyn: Rodzaj amunicji nie ma puli
+    // (ADR 0004), więc nikt jej nigdzie po drodze nie przytnie ani nie odmówi
+    // — a tego, że w schemacie nie ma czego egzekwować, czysta funkcja
+    // z definicji nie zobaczy.
+    amunicja: { rodzaj: '9 × 19 mm Parabellum', sztuki: 1000 },
   })
 
   await expect(page.getByText('Anna Kowalska')).toBeVisible()
   await expect(page.getByText('Glock 17 — 1 szt.')).toBeVisible()
+  await expect(page.getByText('9 × 19 mm Parabellum — 1000 szt.')).toBeVisible()
   await expect(page.getByText(czas)).toBeVisible()
 
   await page.getByRole('button', { name: 'Rezerwuję' }).click()

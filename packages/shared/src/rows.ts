@@ -4,6 +4,7 @@
  * w bazie, a tutaj typ. Wiersz, który mimo to wypada poza zakres, zatrzymuje
  * się na wejściu, zamiast wywracać kalendarz przy pierwszym renderze.
  */
+import type { AmmunitionKind } from './ammunition.ts'
 import type {
   BlockSchedule,
   Occupancy,
@@ -157,6 +158,15 @@ export function occupancyFromRow(row: Tables<'lane_occupancy'>): Occupancy {
 /** Pozycja katalogu w kształcie, w jakim potrzebuje jej formularz i dostępność. */
 export function weaponTypeFromRow(row: Tables<'weapon_types'>): WeaponType {
   return { id: row.id, name: row.name, pool: row.pool }
+}
+
+/**
+ * Pozycja katalogu amunicji w kształcie, w jakim potrzebuje jej formularz.
+ * Bez siostry po stronie zajętości: Rodzaj amunicji nie ma puli (ADR 0004),
+ * więc nie ma widoku, z którego trzeba by liczyć, ile zostało.
+ */
+export function ammunitionKindFromRow(row: Tables<'ammunition_kinds'>): AmmunitionKind {
+  return { id: row.id, name: row.name }
 }
 
 /**

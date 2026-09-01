@@ -9,6 +9,7 @@
  * jest wygodą, a nie zabezpieczeniem — dlatego serwer liczy to samo od nowa,
  * a nie ufa temu, co przyszło.
  */
+import type { AmmunitionDemand, AmmunitionKind } from './ammunition.ts'
 import type { Block, Intent, Unavailability, WeaponRental } from './availability.ts'
 import type { CalendarDay } from './calendar.ts'
 import type { Lane } from './rows.ts'
@@ -32,6 +33,13 @@ export type BookingDraft = Intent & {
   participants: number
   contact: BookingContact
   consent: boolean
+  /**
+   * Zamawiana amunicja. Nie należy do `Intent`, bo nie rozstrzyga o niczym
+   * poza sobą: Rodzaj amunicji nie ma puli (ADR 0004), więc zamówienie nie
+   * odbiera żadnego terminu ani sobie, ani nikomu innemu. Pusta lista znaczy
+   * Osobę rezerwującą z własną amunicją albo taką, która kupi ją na miejscu.
+   */
+  ammunition: readonly AmmunitionDemand[]
 }
 
 /**
@@ -54,6 +62,7 @@ export type BookingProblem =
   | 'liczba-uczestnikow-poza-zakresem'
   | 'ponad-pojemnosc-osi'
   | 'niepoprawne-wypozyczenie'
+  | 'niepoprawne-zapotrzebowanie'
   | 'brak-imienia'
   | 'niepoprawny-email'
   | 'brak-telefonu'
@@ -99,6 +108,14 @@ export type BookingCheck = {
   lane: Lane
   /** Wybrany Blok z grafiku dnia; `undefined`, gdy rozkład Osi go nie zna. */
   block: Block | undefined
+  /**
+   * Katalog Rodzajów amunicji Strzelnicy. Potrzebny tutaj, choć katalog Typów
+   * broni nie jest: Typ spoza katalogu odsiewa dostępność Bloku, bo nie ma ani
+   * jednej sztuki do wydania, a amunicja przez dostępność nie przechodzi wcale
+   * (ADR 0004). Bez katalogu Rodzaj zmyślony przez klienta zatrzymałby się
+   * dopiero na kluczu obcym — jako błąd serwera, a nie odpowiedź o zgłoszeniu.
+   */
+  ammunitionKinds: readonly AmmunitionKind[]
 }
 
 /** Same spacje nie są treścią — ani w formularzu, ani w bazie. */
@@ -114,20 +131,43 @@ function empty(value: string): boolean {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
- * Czy zamówienie sztuk w ogóle da się przyjąć — niezależnie od tego, ile sztuk
- * Strzelnica ma. O pulach orzeka dostępność Bloku; tutaj zatrzymuje się to,
- * czego żadna Pula by nie naprawiła: pozycja na zero sztuk, ułamek sztuki,
- * pozycja bez Typu i dwie pozycje tego samego Typu.
+ * Pozycja Rezerwacji sprowadzona do tego, co w niej istotne: co i ile sztuk.
+ * Wypożyczenie wskazuje Typ broni, Zapotrzebowanie — Rodzaj amunicji, ale
+ * pytanie „czy tę pozycję da się w ogóle przyjąć" jest w obu to samo.
  */
-function malformedRentals(rentals: readonly WeaponRental[]): boolean {
-  const typy = new Set<string>()
-  for (const pozycja of rentals) {
-    if (empty(pozycja.weaponTypeId)) return true
+type OrderedItem = { id: string; quantity: number }
+
+/**
+ * Czy zamówienie sztuk w ogóle da się przyjąć — niezależnie od tego, ile
+ * sztuk Strzelnica ma. O pulach orzeka dostępność Bloku (i tylko przy broni,
+ * bo amunicja puli nie ma); tutaj zatrzymuje się to, czego żadna pula by nie
+ * naprawiła: pozycja na zero sztuk, ułamek sztuki, pozycja bez wskazania
+ * i dwie pozycje tego samego.
+ *
+ * Jedna reguła dla obu rodzajów pozycji, bo druga jej kopia rozjechałaby się
+ * przy pierwszej poprawce — a rozjazd znaczyłby, że amunicję wolno zamówić
+ * w połówkach, skoro broni nie wolno.
+ */
+function malformedItems(items: readonly OrderedItem[]): boolean {
+  const wskazane = new Set<string>()
+  for (const pozycja of items) {
+    if (empty(pozycja.id)) return true
     if (!Number.isInteger(pozycja.quantity) || pozycja.quantity < 1) return true
-    if (typy.has(pozycja.weaponTypeId)) return true
-    typy.add(pozycja.weaponTypeId)
+    if (wskazane.has(pozycja.id)) return true
+    wskazane.add(pozycja.id)
   }
   return false
+}
+
+function asItems(rentals: readonly WeaponRental[]): OrderedItem[] {
+  return rentals.map((pozycja) => ({ id: pozycja.weaponTypeId, quantity: pozycja.quantity }))
+}
+
+function demandsAsItems(ammunition: readonly AmmunitionDemand[]): OrderedItem[] {
+  return ammunition.map((pozycja) => ({
+    id: pozycja.ammunitionKindId,
+    quantity: pozycja.quantity,
+  }))
 }
 
 /**
@@ -135,7 +175,12 @@ function malformedRentals(rentals: readonly WeaponRental[]): boolean {
  * z brzegu: Osoba rezerwująca ma zobaczyć całą listę poprawek za jednym razem,
  * a nie odkrywać je pojedynczo przy każdym kliknięciu.
  */
-export function bookingProblems({ draft, lane, block }: BookingCheck): BookingProblem[] {
+export function bookingProblems({
+  draft,
+  lane,
+  block,
+  ammunitionKinds,
+}: BookingCheck): BookingProblem[] {
   const problems: BookingProblem[] = []
 
   // Odmowy z powodu pul dostają własne nazwy: są jedynymi, które Osoba
@@ -154,7 +199,15 @@ export function bookingProblems({ draft, lane, block }: BookingCheck): BookingPr
     problems.push('ponad-pojemnosc-osi')
   }
 
-  if (malformedRentals(draft.rentals)) problems.push('niepoprawne-wypozyczenie')
+  // Dwa zastrzeżenia zamiast jednego wspólnego: naprawia się je w dwóch
+  // różnych miejscach formularza, a jedno kazałoby szukać pomyłki w obu naraz.
+  if (malformedItems(asItems(draft.rentals))) problems.push('niepoprawne-wypozyczenie')
+  const nieznanyRodzaj = draft.ammunition.some(
+    (pozycja) => !ammunitionKinds.some((rodzaj) => rodzaj.id === pozycja.ammunitionKindId),
+  )
+  if (malformedItems(demandsAsItems(draft.ammunition)) || nieznanyRodzaj) {
+    problems.push('niepoprawne-zapotrzebowanie')
+  }
 
   if (empty(draft.contact.name)) problems.push('brak-imienia')
   if (!EMAIL_PATTERN.test(draft.contact.email.trim())) problems.push('niepoprawny-email')
@@ -228,11 +281,39 @@ function readRentals(value: unknown): WeaponRental[] {
 
   return value.map((pozycja) => {
     const wiersz = record(pozycja, 'pozycja Wypożyczenia')
-    const quantity = wiersz.quantity
-    if (typeof quantity !== 'number' || !Number.isFinite(quantity)) {
-      throw new MalformedBookingRequestError('pole quantity nie jest liczbą')
+    return { weaponTypeId: identifier(wiersz, 'weaponTypeId'), quantity: orderedQuantity(wiersz) }
+  })
+}
+
+/**
+ * Liczba sztuk ze zgłoszenia. Zakres osądza `bookingProblems` — tutaj
+ * zatrzymuje się tylko to, co liczbą w ogóle nie jest.
+ */
+function orderedQuantity(source: Record<string, unknown>): number {
+  const quantity = source.quantity
+  if (typeof quantity !== 'number' || !Number.isFinite(quantity)) {
+    throw new MalformedBookingRequestError('pole quantity nie jest liczbą')
+  }
+  return quantity
+}
+
+/**
+ * Zapotrzebowanie ze zgłoszenia. Brak pola jest błędem kształtu, a nie pustą
+ * listą — tak samo jak przy Wypożyczeniach i z tego samego powodu: zamówienie
+ * zgubione po drodze nie ma zamieniać się w ciszę, na którą Strzelnica nie
+ * przygotuje niczego.
+ */
+function readAmmunition(value: unknown): AmmunitionDemand[] {
+  if (!Array.isArray(value)) {
+    throw new MalformedBookingRequestError('pole ammunition nie jest listą')
+  }
+
+  return value.map((pozycja) => {
+    const wiersz = record(pozycja, 'pozycja Zapotrzebowania')
+    return {
+      ammunitionKindId: identifier(wiersz, 'ammunitionKindId'),
+      quantity: orderedQuantity(wiersz),
     }
-    return { weaponTypeId: identifier(wiersz, 'weaponTypeId'), quantity }
   })
 }
 
@@ -263,6 +344,7 @@ export function readBookingRequest(value: unknown): BookingRequest {
   }
 
   const rentals = readRentals(source.rentals)
+  const ammunition = readAmmunition(source.ammunition)
 
   const consent = flag(source, 'consent')
   const hasPermit = flag(source, 'hasPermit')
@@ -288,5 +370,6 @@ export function readBookingRequest(value: unknown): BookingRequest {
     hasPermit,
     wantsInstructor,
     rentals,
+    ammunition,
   }
 }

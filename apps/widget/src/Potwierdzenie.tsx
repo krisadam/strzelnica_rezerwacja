@@ -1,6 +1,6 @@
-import type { BookingDraft, WeaponType } from '@strzelnica/shared'
+import type { AmmunitionKind, BookingDraft, WeaponType } from '@strzelnica/shared'
 import type { Wybor } from './krok.js'
-import { opisInstruktora, opisWypozyczen, teksty } from './teksty.js'
+import { opisInstruktora, opisWypozyczen, opisZapotrzebowania, teksty } from './teksty.js'
 import { Wybrany } from './Wybrany.js'
 
 /**
@@ -13,6 +13,7 @@ export function Potwierdzenie({
   wybor,
   timeZone,
   weaponTypes,
+  ammunitionKinds,
   draft,
   id,
   onWroc,
@@ -20,6 +21,7 @@ export function Potwierdzenie({
   wybor: Wybor
   timeZone: string
   weaponTypes: readonly WeaponType[]
+  ammunitionKinds: readonly AmmunitionKind[]
   draft: BookingDraft
   id: string
   onWroc: () => void
@@ -41,6 +43,14 @@ export function Potwierdzenie({
           <>
             <dt>{teksty.wypozyczenie.etykieta}</dt>
             <dd>{opisWypozyczen(draft.rentals, weaponTypes)}</dd>
+          </>
+        )}
+        {/* Amunicja tak samo — a gdy jest, to właśnie tu Strzelnica zobaczy,
+            co ma przygotować, i tu Osoba rezerwująca sprawdzi, że się zgadza. */}
+        {draft.ammunition.length > 0 && (
+          <>
+            <dt>{teksty.amunicja.etykieta}</dt>
+            <dd>{opisZapotrzebowania(draft.ammunition, ammunitionKinds)}</dd>
           </>
         )}
         <dt>{teksty.formularz.email}</dt>

@@ -161,11 +161,16 @@ w kodzie: dwa równoczesne zgłoszenia na ten sam Blok przechodzą walidację ob
 a rozstrzyga dopiero zapis. Sprawdzenie przed zapisem jest po to, żeby
 powiedzieć klientowi, co jest nie tak.
 
-Sam zapis wykonuje funkcja bazodanowa `place_booking`: Rezerwacja i jej
-Wypożyczenia powstają w jednej transakcji, a Pula sztuk Typu broni sprawdza się
-pod blokadą doradczą na Strzelnicę. Wypożyczenia widoczne publicznie są
-w widoku `weapon_occupancy` — Typ, liczba sztuk i zakres czasu, bez danych
-osobowych.
+Sam zapis wykonuje funkcja bazodanowa `place_booking`: Rezerwacja wraz
+z Wypożyczeniami i Zapotrzebowaniem na amunicję powstaje w jednej transakcji,
+a Pula sztuk Typu broni sprawdza się pod blokadą doradczą na Strzelnicę.
+Wypożyczenia widoczne publicznie są w widoku `weapon_occupancy` — Typ, liczba
+sztuk i zakres czasu, bez danych osobowych.
+
+Zapotrzebowania na amunicję takiego widoku **nie mają i mieć nie będą**. Rodzaj
+amunicji nie ma puli (ADR 0004), więc nie ma czego odliczać od cudzych
+zamówień: amunicja nigdy nie odbiera nikomu terminu, a widok wystawiałby cudze
+zamówienia bez pożytku dla dostępności.
 
 Funkcja weryfikuje nagłówek `Origin` względem `facilities.allowed_origins`
 powiększonych o domenę samego Widgetu. Ta ostatnia jest jednakowa dla

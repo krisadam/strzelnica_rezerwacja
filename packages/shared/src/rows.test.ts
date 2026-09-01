@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Tables } from './index.ts'
 import {
+  ammunitionKindFromRow,
   asWeekday,
   blockScheduleFromRow,
   facilityFromRow,
@@ -149,6 +150,21 @@ describe('Typ broni z wiersza katalogu', () => {
         created_at: '2026-01-01T00:00:00Z',
       }),
     ).toEqual({ id: '00000000-0000-0000-0000-0000000000c1', name: 'Glock 17', pool: 3 })
+  })
+})
+
+describe('Rodzaj amunicji z wiersza katalogu', () => {
+  // Bez puli, inaczej niż Typ broni: amunicji system nie zlicza (ADR 0004).
+  // Kolumny, której nie ma w schemacie, nie da się tu przepisać — i o to chodzi.
+  it('przepisuje wiersz na pozycję katalogu', () => {
+    expect(
+      ammunitionKindFromRow({
+        id: '00000000-0000-0000-0000-0000000000e1',
+        facility_id: '00000000-0000-0000-0000-000000000001',
+        name: '9 × 19 mm Parabellum',
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    ).toEqual({ id: '00000000-0000-0000-0000-0000000000e1', name: '9 × 19 mm Parabellum' })
   })
 })
 

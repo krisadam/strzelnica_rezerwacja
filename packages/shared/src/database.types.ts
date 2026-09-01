@@ -9,6 +9,84 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ammunition_demands: {
+        Row: {
+          ammunition_kind_id: string
+          booking_id: string
+          created_at: string
+          facility_id: string
+          id: string
+          quantity: number
+        }
+        Insert: {
+          ammunition_kind_id: string
+          booking_id: string
+          created_at?: string
+          facility_id: string
+          id?: string
+          quantity: number
+        }
+        Update: {
+          ammunition_kind_id?: string
+          booking_id?: string
+          created_at?: string
+          facility_id?: string
+          id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ammunition_demands_booking_fkey"
+            columns: ["booking_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id", "facility_id"]
+          },
+          {
+            foreignKeyName: "ammunition_demands_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ammunition_demands_kind_fkey"
+            columns: ["ammunition_kind_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "ammunition_kinds"
+            referencedColumns: ["id", "facility_id"]
+          },
+        ]
+      }
+      ammunition_kinds: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ammunition_kinds_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       block_schedules: {
         Row: {
           created_at: string
@@ -402,6 +480,7 @@ export type Database = {
     Functions: {
       place_booking: {
         Args: {
+          p_ammunition: Json
           p_contact_email: string
           p_contact_name: string
           p_contact_phone: string

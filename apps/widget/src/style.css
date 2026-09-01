@@ -28,7 +28,8 @@ body {
 
 .osie,
 .deklaracje,
-.wypozyczenie {
+.wypozyczenie,
+.amunicja {
   border: 1px solid var(--ramka);
   border-radius: 0.5rem;
   padding: 0.75rem 1rem 1rem;
@@ -37,7 +38,8 @@ body {
 
 .osie legend,
 .deklaracje legend,
-.wypozyczenie legend {
+.wypozyczenie legend,
+.amunicja legend {
   padding: 0 0.35rem;
   font-weight: 600;
 }
@@ -45,7 +47,8 @@ body {
 /* Deklaracje przy kalendarzu odpowiadają za to, które terminy są wolne, więc
    ich skutek stoi tuż pod nimi, a nie w osobnym rogu ekranu. */
 .deklaracje__uwaga,
-.wypozyczenie__uwaga {
+.wypozyczenie__uwaga,
+.amunicja__uwaga {
   color: var(--przygaszony);
   font-size: 0.85rem;
   margin: 0.35rem 0 0;

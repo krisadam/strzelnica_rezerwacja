@@ -130,6 +130,30 @@ describe('typy ze schematu bazy', () => {
     expect(wypozyczenie.quantity).toBe(2)
   })
 
+  // Rodzaj amunicji nie ma puli — i to jest treść, nie brak. Gdyby kolumna
+  // doszła, ten test przestałby się kompilować razem z ADR 0004.
+  it('Rodzaj amunicji niesie samą nazwę, bez puli', () => {
+    const rodzaj: Tables<'ammunition_kinds'> = {
+      id: '00000000-0000-0000-0000-0000000000e1',
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      name: '9 × 19 mm Parabellum',
+      created_at: '2026-01-01T00:00:00Z',
+    }
+
+    expect(Object.keys(rodzaj)).toEqual(['id', 'facility_id', 'name', 'created_at'])
+  })
+
+  it('Zapotrzebowanie wiąże Rezerwację z Rodzajem amunicji i liczbą sztuk', () => {
+    const zapotrzebowanie: TablesInsert<'ammunition_demands'> = {
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      booking_id: '00000000-0000-0000-0000-0000000000b1',
+      ammunition_kind_id: '00000000-0000-0000-0000-0000000000e1',
+      quantity: 200,
+    }
+
+    expect(zapotrzebowanie.quantity).toBe(200)
+  })
+
   // Publiczny odczyt Wypożyczeń idzie wyłącznie tędy: ile sztuk którego Typu
   // jest czyichś i kiedy — nigdy czyich.
   it('zajętość sztuk broni nie zna nikogo z nazwiska', () => {

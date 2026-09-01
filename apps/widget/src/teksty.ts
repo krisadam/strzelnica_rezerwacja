@@ -4,6 +4,8 @@
  * Strzelnic, więc słownik jest stały, a nie ładowany.
  */
 import type {
+  AmmunitionDemand,
+  AmmunitionKind,
   BookingDraft,
   BookingProblem,
   Unavailability,
@@ -21,6 +23,8 @@ export const teksty = {
   nastepnyDzien: 'Następny dzień',
   wczytywanie: 'Wczytuję grafik…',
   wolny: 'wolny',
+  /** Jednostka wspólna dla Wypożyczeń i amunicji — jedno i drugie liczy się w sztukach. */
+  sztuki: (ile: number) => `${ile} szt.`,
   niedostepny: 'niedostępny',
   powod: {
     'poza-godzinami-otwarcia': 'poza godzinami otwarcia',
@@ -68,9 +72,27 @@ export const teksty = {
     wyczerpany: 'wszystkie sztuki są w tym terminie zajęte',
     wyczerpanyZamowiony: 'w tym terminie nie ma już wolnych sztuk — zdejmij tę pozycję',
     brakKatalogu: 'Ta Strzelnica nie wypożycza broni.',
-    sztuki: (ile: number) => `${ile} szt.`,
     etykieta: 'Wypożyczenie',
     wlasnaBron: 'brak — własna broń',
+  },
+  /**
+   * Zapotrzebowanie na amunicję. Stoi w formularzu obok Wypożyczenia, ale
+   * mówi o czymś innym i musi to powiedzieć wprost: Strzelnica nie odkłada
+   * tych sztuk na bok (ADR 0004). Bez tego zdania „zamówiłem 200 sztuk"
+   * czytałoby się jak rezerwacja towaru — a rozczarowanie na miejscu byłoby
+   * nasze, nie klienta.
+   *
+   * Nie ma tu odpowiednika „pozostało N sztuk" ani Rodzaju wyczerpanego:
+   * puli nie ma, więc nie ma czego odliczać.
+   */
+  amunicja: {
+    legenda: 'Amunicja',
+    wyjasnienie:
+      'To zapowiedź dla Strzelnicy, żeby przygotowała amunicję na Twój przyjazd — ' +
+      'nie rezerwacja towaru. Możesz też przyjechać z własną albo dokupić na miejscu.',
+    brakKatalogu: 'Ta Strzelnica nie przyjmuje zamówień na amunicję.',
+    etykieta: 'Amunicja',
+    wlasnaAmunicja: 'brak — własna albo kupiona na miejscu',
   },
   pozwolenie: {
     etykieta: 'Pozwolenie na broń',
@@ -134,6 +156,8 @@ export const teksty = {
     'ponad-pojemnosc-osi': 'Tylu Uczestników nie zmieści się na tej Osi.',
     'niepoprawne-wypozyczenie':
       'Popraw Wypożyczenie: każdy Typ broni najwyżej raz i po całych sztukach.',
+    'niepoprawne-zapotrzebowanie':
+      'Popraw zamówienie amunicji: każdy Rodzaj najwyżej raz i po całych sztukach.',
     'brak-imienia': 'Podaj imię i nazwisko.',
     'niepoprawny-email': 'Podaj poprawny adres e-mail.',
     'brak-telefonu': 'Podaj numer telefonu.',
@@ -154,30 +178,62 @@ export function opisInstruktora(draft: BookingDraft): string {
 }
 
 /**
- * Zamówiony sprzęt jednym zdaniem. Powtarzany na podsumowaniu i potwierdzeniu —
- * Osoba rezerwująca ma widzieć zamówioną broń wszędzie tam, gdzie widzi resztę
- * Rezerwacji.
+ * Zamówione pozycje jednym zdaniem — wspólny kształt dla Wypożyczeń
+ * i Zapotrzebowania, bo obie są tym samym: katalog razy liczba sztuk.
  *
  * Kolejność bierze się z katalogu, nie z kolejności klikania: lista, która
  * przestawia się przy każdej zmianie liczby sztuk, każe czytać ją od nowa.
- * Typ spoza katalogu idzie na koniec, a nie znika po cichu — zamówienie,
+ * Pozycja spoza katalogu idzie na koniec, a nie znika po cichu — zamówienie,
  * którego Strzelnica nie zna, ma być widoczne.
  *
- * Brak Wypożyczeń mówi o sobie wprost: pusta pozycja w podsumowaniu wyglądałaby
+ * Brak pozycji mówi o sobie wprost: pusta wartość w podsumowaniu wyglądałaby
  * na coś, o co nikt nie zapytał.
+ */
+function opisPozycji(
+  pozycje: readonly { id: string; quantity: number }[],
+  katalog: readonly { id: string; name: string }[],
+  brak: string,
+): string {
+  const znane = katalog.flatMap((wpis) => {
+    const pozycja = pozycje.find((kandydat) => kandydat.id === wpis.id)
+    return pozycja ? [`${wpis.name} — ${teksty.sztuki(pozycja.quantity)}`] : []
+  })
+  const obce = pozycje
+    .filter((pozycja) => !katalog.some((wpis) => wpis.id === pozycja.id))
+    .map((pozycja) => `${pozycja.id} — ${teksty.sztuki(pozycja.quantity)}`)
+
+  const opisane = [...znane, ...obce]
+  return opisane.length === 0 ? brak : opisane.join(', ')
+}
+
+/**
+ * Zamówiony sprzęt jednym zdaniem. Powtarzany na podsumowaniu i potwierdzeniu —
+ * Osoba rezerwująca ma widzieć zamówioną broń wszędzie tam, gdzie widzi resztę
+ * Rezerwacji.
  */
 export function opisWypozyczen(
   rentals: readonly WeaponRental[],
   weaponTypes: readonly WeaponType[],
 ): string {
-  const znane = weaponTypes.flatMap((typ) => {
-    const pozycja = rentals.find((kandydat) => kandydat.weaponTypeId === typ.id)
-    return pozycja ? [`${typ.name} — ${teksty.wypozyczenie.sztuki(pozycja.quantity)}`] : []
-  })
-  const obce = rentals
-    .filter((pozycja) => !weaponTypes.some((typ) => typ.id === pozycja.weaponTypeId))
-    .map((pozycja) => `${pozycja.weaponTypeId} — ${teksty.wypozyczenie.sztuki(pozycja.quantity)}`)
+  return opisPozycji(
+    rentals.map((pozycja) => ({ id: pozycja.weaponTypeId, quantity: pozycja.quantity })),
+    weaponTypes,
+    teksty.wypozyczenie.wlasnaBron,
+  )
+}
 
-  const pozycje = [...znane, ...obce]
-  return pozycje.length === 0 ? teksty.wypozyczenie.wlasnaBron : pozycje.join(', ')
+/**
+ * Zamówiona amunicja jednym zdaniem — siostrzana wobec `opisWypozyczen`
+ * i z tego samego powodu: Osoba rezerwująca ma widzieć zamówienie wszędzie
+ * tam, gdzie widzi resztę Rezerwacji.
+ */
+export function opisZapotrzebowania(
+  ammunition: readonly AmmunitionDemand[],
+  kinds: readonly AmmunitionKind[],
+): string {
+  return opisPozycji(
+    ammunition.map((pozycja) => ({ id: pozycja.ammunitionKindId, quantity: pozycja.quantity })),
+    kinds,
+    teksty.amunicja.wlasnaAmunicja,
+  )
 }

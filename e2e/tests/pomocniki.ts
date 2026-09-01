@@ -93,10 +93,15 @@ export async function wypelnijFormularz(
     telefon: string
     /** Typ broni i liczba sztuk do wypożyczenia; brak znaczy własną broń. */
     bron?: { typ: string; sztuki: number }
+    /** Rodzaj amunicji i liczba sztuk; brak znaczy własną albo kupioną na miejscu. */
+    amunicja?: { rodzaj: string; sztuki: number }
   },
 ): Promise<void> {
   await page.getByLabel('Liczba Uczestników').fill(String(dane.uczestnicy))
   if (dane.bron) await page.getByLabel(dane.bron.typ).fill(String(dane.bron.sztuki))
+  if (dane.amunicja) {
+    await page.getByLabel(dane.amunicja.rodzaj).fill(String(dane.amunicja.sztuki))
+  }
   await page.getByLabel('Imię i nazwisko').fill(dane.imie)
   await page.getByLabel('Adres e-mail').fill(dane.email)
   await page.getByLabel('Telefon').fill(dane.telefon)

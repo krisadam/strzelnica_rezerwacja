@@ -5,6 +5,7 @@
  * funkcja z `@strzelnica/shared`; tutaj tylko odczyt i przepisanie wierszy.
  */
 import type {
+  AmmunitionKind,
   BlockSchedule,
   CalendarDay,
   DaySchedule,
@@ -17,6 +18,7 @@ import type {
   WeaponType,
 } from '@strzelnica/shared'
 import {
+  ammunitionKindFromRow,
   blockScheduleFromRow,
   closedDateFromRow,
   facilityFromRow,
@@ -37,6 +39,12 @@ export type Grafik = {
   openingHours: OpeningHours[]
   closedDates: CalendarDay[]
   weaponTypes: WeaponType[]
+  /**
+   * Katalog Rodzajów amunicji. Nie ma go w `Zajetosc` obok Typów broni, bo
+   * nie ma czego odświeżać: cudze zamówienia amunicji nie odbierają nikomu
+   * ani jednej sztuki (ADR 0004), więc katalog czyta się raz, z resztą grafiku.
+   */
+  ammunitionKinds: AmmunitionKind[]
 }
 
 /**
@@ -139,13 +147,15 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
 
   const facility = facilityFromRow(row)
 
-  const [lanes, schedules, openingHours, exceptions, weaponTypes] = await Promise.all([
-    client.from('lanes').select('*').eq('facility_id', facility.id).order('name'),
-    client.from('block_schedules').select('*').eq('facility_id', facility.id),
-    client.from('opening_hours').select('*').eq('facility_id', facility.id),
-    client.from('calendar_exceptions').select('*').eq('facility_id', facility.id),
-    client.from('weapon_types').select('*').eq('facility_id', facility.id).order('name'),
-  ])
+  const [lanes, schedules, openingHours, exceptions, weaponTypes, ammunitionKinds] =
+    await Promise.all([
+      client.from('lanes').select('*').eq('facility_id', facility.id).order('name'),
+      client.from('block_schedules').select('*').eq('facility_id', facility.id),
+      client.from('opening_hours').select('*').eq('facility_id', facility.id),
+      client.from('calendar_exceptions').select('*').eq('facility_id', facility.id),
+      client.from('weapon_types').select('*').eq('facility_id', facility.id).order('name'),
+      client.from('ammunition_kinds').select('*').eq('facility_id', facility.id).order('name'),
+    ])
 
   return {
     facility,
@@ -154,5 +164,6 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
     openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),
     closedDates: rowsOrThrow(exceptions).map(closedDateFromRow),
     weaponTypes: rowsOrThrow(weaponTypes).map(weaponTypeFromRow),
+    ammunitionKinds: rowsOrThrow(ammunitionKinds).map(ammunitionKindFromRow),
   }
 }

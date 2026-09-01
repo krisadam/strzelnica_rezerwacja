@@ -1,4 +1,5 @@
 export type { Database, Json, Tables, TablesInsert, TablesUpdate } from './database.types.ts'
+export type { AmmunitionDemand, AmmunitionKind } from './ammunition.ts'
 export { MissingSupabaseConfigError, readSupabaseConfig } from './config.ts'
 export type { Environment, SupabaseConfig } from './config.ts'
 export {
@@ -50,6 +51,7 @@ export type {
   BookingRequest,
 } from './booking.ts'
 export {
+  ammunitionKindFromRow,
   asWeekday,
   blockScheduleFromRow,
   closedDateFromRow,

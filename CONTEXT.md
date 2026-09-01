@@ -123,6 +123,12 @@ Pozycja katalogu Strzelnicy (np. „Glock 17") wraz z **pulą** — liczbą sztu
 dostępnych do wypożyczenia. Suma sztuk danego Typu w nakładających się
 Rezerwacjach nie może przekroczyć Puli.
 
+## Rodzaj amunicji
+
+Pozycja katalogu Strzelnicy (np. „9 × 19 mm Parabellum"). W odróżnieniu od
+Typu broni **nie ma puli**: amunicja nie wraca do Strzelnicy, więc nie ma
+stałej liczby sztuk, którą dałoby się rozdzielać między Rezerwacje.
+
 ## Zapotrzebowanie na amunicję
 
 Deklarowany przez Osobę rezerwującą rodzaj i liczba sztuk amunicji. Jest

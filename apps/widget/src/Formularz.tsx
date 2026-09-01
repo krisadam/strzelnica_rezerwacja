@@ -1,6 +1,12 @@
-import type { BookingDraft, WeaponOccupancy, WeaponType } from '@strzelnica/shared'
+import type {
+  AmmunitionKind,
+  BookingDraft,
+  WeaponOccupancy,
+  WeaponType,
+} from '@strzelnica/shared'
 import { bookingProblems, concernsTheTerm, remainingWeapons } from '@strzelnica/shared'
 import { useMemo, useState } from 'react'
+import { Amunicja } from './Amunicja.js'
 import { Deklaracje } from './Deklaracje.js'
 import type { Wybor } from './krok.js'
 import { opisInstruktora, teksty } from './teksty.js'
@@ -25,6 +31,7 @@ export function Formularz({
   timeZone,
   weaponTypes,
   weaponOccupancies,
+  ammunitionKinds,
   draft,
   onDraft,
   onDalej,
@@ -34,6 +41,7 @@ export function Formularz({
   timeZone: string
   weaponTypes: readonly WeaponType[]
   weaponOccupancies: readonly WeaponOccupancy[]
+  ammunitionKinds: readonly AmmunitionKind[]
   draft: BookingDraft
   onDraft: (draft: BookingDraft) => void
   onDalej: () => void
@@ -52,7 +60,12 @@ export function Formularz({
       }),
     [weaponTypes, weaponOccupancies, wybor.block.startsAt, wybor.block.endsAt],
   )
-  const zastrzezenia = bookingProblems({ draft, lane: wybor.lane, block: wybor.block })
+  const zastrzezenia = bookingProblems({
+    draft,
+    lane: wybor.lane,
+    block: wybor.block,
+    ammunitionKinds,
+  })
   const widoczne = pokaz ? zastrzezenia : zastrzezenia.filter(concernsTheTerm)
 
   const zmien = (czesc: Partial<BookingDraft>) => onDraft({ ...draft, ...czesc })
@@ -94,6 +107,12 @@ export function Formularz({
         dostepne={dostepne}
         rentals={draft.rentals}
         onRentals={(rentals) => zmien({ rentals })}
+      />
+
+      <Amunicja
+        kinds={ammunitionKinds}
+        ammunition={draft.ammunition}
+        onAmmunition={(ammunition) => zmien({ ammunition })}
       />
 
       <label className="pole">

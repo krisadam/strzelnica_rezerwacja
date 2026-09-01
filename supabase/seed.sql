@@ -193,3 +193,38 @@ values (
   1
 )
 on conflict (id) do nothing;
+
+-- Katalog Rodzajów amunicji. Bez pul — Rodzaj amunicji ich nie ma (ADR 0004),
+-- więc żaden z nich nie bywa „wyczerpany" i grafik demo nie ma tu czego
+-- pokazywać poza samą listą.
+insert into public.ammunition_kinds (id, facility_id, name)
+values
+  (
+    '00000000-0000-0000-0000-0000000000e1',
+    '00000000-0000-0000-0000-000000000001',
+    '9 × 19 mm Parabellum'
+  ),
+  (
+    '00000000-0000-0000-0000-0000000000e2',
+    '00000000-0000-0000-0000-000000000001',
+    '.223 Remington'
+  ),
+  (
+    '00000000-0000-0000-0000-0000000000e3',
+    '00000000-0000-0000-0000-000000000001',
+    '.22 Long Rifle'
+  )
+on conflict (id) do nothing;
+
+-- Zapotrzebowanie przy Rezerwacji z seeda. Rodzaj celowo nie pasuje do
+-- kalibru wypożyczonego „CZ Shadow 2": zgodności nie sprawdzamy (ADR 0004),
+-- a dane demo mają to pokazywać, zamiast udawać walidację, której nie ma.
+insert into public.ammunition_demands (id, facility_id, booking_id, ammunition_kind_id, quantity)
+values (
+  '00000000-0000-0000-0000-0000000000f1',
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-0000000000b1',
+  '00000000-0000-0000-0000-0000000000e3',
+  200
+)
+on conflict (id) do nothing;
