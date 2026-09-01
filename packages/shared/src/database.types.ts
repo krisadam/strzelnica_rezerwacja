@@ -258,6 +258,87 @@ export type Database = {
           },
         ]
       }
+      weapon_rentals: {
+        Row: {
+          booking_id: string
+          created_at: string
+          facility_id: string
+          id: string
+          quantity: number
+          weapon_type_id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          facility_id: string
+          id?: string
+          quantity: number
+          weapon_type_id: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          facility_id?: string
+          id?: string
+          quantity?: number
+          weapon_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weapon_rentals_booking_fkey"
+            columns: ["booking_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id", "facility_id"]
+          },
+          {
+            foreignKeyName: "weapon_rentals_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weapon_rentals_weapon_type_fkey"
+            columns: ["weapon_type_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "weapon_types"
+            referencedColumns: ["id", "facility_id"]
+          },
+        ]
+      }
+      weapon_types: {
+        Row: {
+          created_at: string
+          facility_id: string
+          id: string
+          name: string
+          pool: number
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          id?: string
+          name: string
+          pool: number
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          id?: string
+          name?: string
+          pool?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weapon_types_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       lane_occupancy: {
@@ -299,9 +380,43 @@ export type Database = {
           },
         ]
       }
+      weapon_occupancy: {
+        Row: {
+          ends_at: string | null
+          facility_id: string | null
+          quantity: number | null
+          starts_at: string | null
+          weapon_type_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      [_ in never]: never
+      place_booking: {
+        Args: {
+          p_contact_email: string
+          p_contact_name: string
+          p_contact_phone: string
+          p_ends_at: string
+          p_facility_id: string
+          p_has_permit: boolean
+          p_lane_id: string
+          p_participants: number
+          p_rentals: Json
+          p_starts_at: string
+          p_status: Database["public"]["Enums"]["booking_status"]
+          p_with_instructor: boolean
+        }
+        Returns: string
+      }
     }
     Enums: {
       booking_status:

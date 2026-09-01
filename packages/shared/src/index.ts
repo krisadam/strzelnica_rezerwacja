@@ -15,6 +15,7 @@ export {
   bookingHorizon,
   instructorAttends,
   occupancyWindow,
+  remainingWeapons,
   scheduleForDay,
 } from './availability.ts'
 export type {
@@ -26,8 +27,13 @@ export type {
   Intent,
   Occupancy,
   OpeningHours,
+  RemainingWeaponsInput,
   TimeRules,
   Unavailability,
+  WeaponAvailability,
+  WeaponOccupancy,
+  WeaponRental,
+  WeaponType,
 } from './availability.ts'
 export {
   bookingProblems,
@@ -54,6 +60,8 @@ export {
   occupancyFromRow,
   openingHoursFromRow,
   rowsOrThrow,
+  weaponOccupancyFromRow,
+  weaponTypeFromRow,
 } from './rows.ts'
 export type { Facility, FacilityRow, Lane, QueryResult } from './rows.ts'
 export {

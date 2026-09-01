@@ -59,6 +59,26 @@ export async function pierwszyWolnyBlok(page: Page, os: string): Promise<Locator
   throw new Error(`Osi „${os}" nie ma wolnego Bloku w najbliższych ${DNI_SZUKANIA} dniach.`)
 }
 
+/**
+ * Pierwszy wolny Blok wskazanej Osi po przejściu o `oIleDni` naprzód od dnia,
+ * na którym stoi kalendarz. Inaczej niż `pierwszyWolnyBlok`, nie szuka dalej:
+ * wołający sam prowadzi kalendarz, bo chce tego samego dnia na dwóch stronach
+ * naraz — dopiero wtedy Bloki obu stron nachodzą na siebie w czasie.
+ */
+export async function wolnyBlokPoDniach(
+  page: Page,
+  os: string,
+  oIleDni: number,
+): Promise<Locator | null> {
+  await page.getByRole('radio', { name: os }).check()
+  for (let krok = 0; krok < oIleDni; krok += 1) {
+    await page.getByRole('button', { name: 'Następny dzień' }).click()
+  }
+
+  const wolne = page.getByRole('button', { name: 'wolny' })
+  return (await wolne.count()) > 0 ? wolne.first() : null
+}
+
 /** Godzina Bloku, po której poznaje się go później w kalendarzu. */
 export function czasBloku(blok: Locator): Promise<string> {
   return blok.locator('.blok__czas').innerText()
@@ -66,9 +86,17 @@ export function czasBloku(blok: Locator): Promise<string> {
 
 export async function wypelnijFormularz(
   page: Page,
-  dane: { uczestnicy: number; imie: string; email: string; telefon: string },
+  dane: {
+    uczestnicy: number
+    imie: string
+    email: string
+    telefon: string
+    /** Typ broni i liczba sztuk do wypożyczenia; brak znaczy własną broń. */
+    bron?: { typ: string; sztuki: number }
+  },
 ): Promise<void> {
   await page.getByLabel('Liczba Uczestników').fill(String(dane.uczestnicy))
+  if (dane.bron) await page.getByLabel(dane.bron.typ).fill(String(dane.bron.sztuki))
   await page.getByLabel('Imię i nazwisko').fill(dane.imie)
   await page.getByLabel('Adres e-mail').fill(dane.email)
   await page.getByLabel('Telefon').fill(dane.telefon)

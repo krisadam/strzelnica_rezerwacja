@@ -31,9 +31,14 @@ test('od kalendarza do potwierdzenia i z powrotem, już bez tego terminu', async
     imie: 'Anna Kowalska',
     email: 'anna@example.pl',
     telefon: '600100200',
+    // Wypożyczenie jedzie razem z Rezerwacją jako pozycja tego samego zapisu —
+    // to jedyne, czego czysta funkcja z definicji nie zobaczy. Ile sztuk wolno
+    // wziąć, rozstrzyga się w `packages/shared` i nie jest tu sprawdzane.
+    bron: { typ: 'Glock 17', sztuki: 1 },
   })
 
   await expect(page.getByText('Anna Kowalska')).toBeVisible()
+  await expect(page.getByText('Glock 17 — 1 szt.')).toBeVisible()
   await expect(page.getByText(czas)).toBeVisible()
 
   await page.getByRole('button', { name: 'Rezerwuję' }).click()

@@ -36,4 +36,7 @@ export const PUSTY_DRAFT: BookingDraft = {
   consent: false,
   hasPermit: false,
   wantsInstructor: false,
+  // Pusta lista, a nie brak pola: Osoba rezerwująca zaczyna z własną bronią
+  // i dopiero sama coś dokłada.
+  rentals: [],
 }

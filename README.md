@@ -161,6 +161,12 @@ w kodzie: dwa równoczesne zgłoszenia na ten sam Blok przechodzą walidację ob
 a rozstrzyga dopiero zapis. Sprawdzenie przed zapisem jest po to, żeby
 powiedzieć klientowi, co jest nie tak.
 
+Sam zapis wykonuje funkcja bazodanowa `place_booking`: Rezerwacja i jej
+Wypożyczenia powstają w jednej transakcji, a Pula sztuk Typu broni sprawdza się
+pod blokadą doradczą na Strzelnicę. Wypożyczenia widoczne publicznie są
+w widoku `weapon_occupancy` — Typ, liczba sztuk i zakres czasu, bez danych
+osobowych.
+
 Funkcja weryfikuje nagłówek `Origin` względem `facilities.allowed_origins`
 powiększonych o domenę samego Widgetu. Ta ostatnia jest jednakowa dla
 wszystkich Strzelnic, więc jest konfiguracją platformy: lokalnie stoi

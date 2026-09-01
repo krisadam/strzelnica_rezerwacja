@@ -27,7 +27,8 @@ body {
 }
 
 .osie,
-.deklaracje {
+.deklaracje,
+.wypozyczenie {
   border: 1px solid var(--ramka);
   border-radius: 0.5rem;
   padding: 0.75rem 1rem 1rem;
@@ -35,17 +36,27 @@ body {
 }
 
 .osie legend,
-.deklaracje legend {
+.deklaracje legend,
+.wypozyczenie legend {
   padding: 0 0.35rem;
   font-weight: 600;
 }
 
 /* Deklaracje przy kalendarzu odpowiadają za to, które terminy są wolne, więc
    ich skutek stoi tuż pod nimi, a nie w osobnym rogu ekranu. */
-.deklaracje__uwaga {
+.deklaracje__uwaga,
+.wypozyczenie__uwaga {
   color: var(--przygaszony);
   font-size: 0.85rem;
   margin: 0.35rem 0 0;
+}
+
+/* Typ wyczerpany w tym terminie zostaje na liście — zniknięcie wyglądałoby na
+   Typ wycofany z katalogu, a nie na brak wolnych sztuk akurat teraz. */
+.wypozyczenie__wyczerpany {
+  color: var(--przygaszony);
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
 }
 
 .osie__pozycja {

@@ -3,7 +3,13 @@
  * zamiast wplecione w komponenty". Jeden wygląd i jeden język dla wszystkich
  * Strzelnic, więc słownik jest stały, a nie ładowany.
  */
-import type { BookingDraft, BookingProblem, Unavailability } from '@strzelnica/shared'
+import type {
+  BookingDraft,
+  BookingProblem,
+  Unavailability,
+  WeaponRental,
+  WeaponType,
+} from '@strzelnica/shared'
 import { TYTUL_RAMKI } from '@strzelnica/shared'
 
 export const teksty = {
@@ -23,6 +29,7 @@ export const teksty = {
     'ponizej-wyprzedzenia': 'zbyt bliski termin',
     'termin-zajety': 'termin już zajęty',
     'brak-instruktora': 'brak wolnego Instruktora',
+    'brak-sztuk-broni': 'brak tylu sztuk zamówionej broni',
   } satisfies Record<Unavailability, string>,
   /**
    * Powód, dla którego „Następny dzień" przestaje działać. Bez tego zdania
@@ -47,6 +54,23 @@ export const teksty = {
     wymagany: 'tak — wymagany, bo nie deklarujesz Pozwolenia',
     zamowiony: 'tak — zamówiony dobrowolnie',
     brak: 'nie',
+  },
+  /**
+   * Wypożyczenie broni. Stoi w formularzu, a nie przy kalendarzu: liczba
+   * pozostałych sztuk jest własnością terminu, więc daje się pokazać dopiero
+   * po jego wybraniu. Zmiana zamówienia i tak przelicza cały grafik — Blok bez
+   * dość sztuk gaśnie po powrocie do kalendarza.
+   */
+  wypozyczenie: {
+    legenda: 'Wypożyczenie broni',
+    wyjasnienie: 'Możesz przyjechać z własną bronią i nie zamawiać niczego.',
+    pozostalo: (ile: number) => `pozostało ${ile} szt. w tym terminie`,
+    wyczerpany: 'wszystkie sztuki są w tym terminie zajęte',
+    wyczerpanyZamowiony: 'w tym terminie nie ma już wolnych sztuk — zdejmij tę pozycję',
+    brakKatalogu: 'Ta Strzelnica nie wypożycza broni.',
+    sztuki: (ile: number) => `${ile} szt.`,
+    etykieta: 'Wypożyczenie',
+    wlasnaBron: 'brak — własna broń',
   },
   pozwolenie: {
     etykieta: 'Pozwolenie na broń',
@@ -102,7 +126,14 @@ export const teksty = {
       'W tym terminie Strzelnica nie ma już wolnego Instruktora. Wybierz inny termin ' +
       'albo zaznacz Pozwolenie na broń, jeśli je posiadasz.',
     'liczba-uczestnikow-poza-zakresem': 'Podaj liczbę Uczestników — co najmniej jednego.',
+    // Naprawia się mniejszym zamówieniem albo innym terminem — jak przy
+    // Instruktorze, mówimy o obu drogach.
+    'brak-sztuk-broni':
+      'W tym terminie nie ma tylu sztuk zamawianej broni. Zamów mniej sztuk ' +
+      'albo wybierz inny termin.',
     'ponad-pojemnosc-osi': 'Tylu Uczestników nie zmieści się na tej Osi.',
+    'niepoprawne-wypozyczenie':
+      'Popraw Wypożyczenie: każdy Typ broni najwyżej raz i po całych sztukach.',
     'brak-imienia': 'Podaj imię i nazwisko.',
     'niepoprawny-email': 'Podaj poprawny adres e-mail.',
     'brak-telefonu': 'Podaj numer telefonu.',
@@ -120,4 +151,33 @@ export const teksty = {
 export function opisInstruktora(draft: BookingDraft): string {
   if (!draft.hasPermit) return teksty.instruktor.wymagany
   return draft.wantsInstructor ? teksty.instruktor.zamowiony : teksty.instruktor.brak
+}
+
+/**
+ * Zamówiony sprzęt jednym zdaniem. Powtarzany na podsumowaniu i potwierdzeniu —
+ * Osoba rezerwująca ma widzieć zamówioną broń wszędzie tam, gdzie widzi resztę
+ * Rezerwacji.
+ *
+ * Kolejność bierze się z katalogu, nie z kolejności klikania: lista, która
+ * przestawia się przy każdej zmianie liczby sztuk, każe czytać ją od nowa.
+ * Typ spoza katalogu idzie na koniec, a nie znika po cichu — zamówienie,
+ * którego Strzelnica nie zna, ma być widoczne.
+ *
+ * Brak Wypożyczeń mówi o sobie wprost: pusta pozycja w podsumowaniu wyglądałaby
+ * na coś, o co nikt nie zapytał.
+ */
+export function opisWypozyczen(
+  rentals: readonly WeaponRental[],
+  weaponTypes: readonly WeaponType[],
+): string {
+  const znane = weaponTypes.flatMap((typ) => {
+    const pozycja = rentals.find((kandydat) => kandydat.weaponTypeId === typ.id)
+    return pozycja ? [`${typ.name} — ${teksty.wypozyczenie.sztuki(pozycja.quantity)}`] : []
+  })
+  const obce = rentals
+    .filter((pozycja) => !weaponTypes.some((typ) => typ.id === pozycja.weaponTypeId))
+    .map((pozycja) => `${pozycja.weaponTypeId} — ${teksty.wypozyczenie.sztuki(pozycja.quantity)}`)
+
+  const pozycje = [...znane, ...obce]
+  return pozycje.length === 0 ? teksty.wypozyczenie.wlasnaBron : pozycje.join(', ')
 }

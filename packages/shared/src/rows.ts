@@ -4,7 +4,14 @@
  * w bazie, a tutaj typ. Wiersz, który mimo to wypada poza zakres, zatrzymuje
  * się na wejściu, zamiast wywracać kalendarz przy pierwszym renderze.
  */
-import type { BlockSchedule, Occupancy, OpeningHours, TimeRules } from './availability.ts'
+import type {
+  BlockSchedule,
+  Occupancy,
+  OpeningHours,
+  TimeRules,
+  WeaponOccupancy,
+  WeaponType,
+} from './availability.ts'
 import type { CalendarDay, Weekday } from './calendar.ts'
 import type { Tables } from './database.types.ts'
 
@@ -118,7 +125,7 @@ export function laneFromRow(row: Tables<'lanes'>): Lane {
 
 export class IncompleteOccupancyError extends Error {
   constructor(column: string) {
-    super(`Wiersz zajętości Osi nie ma kolumny ${column}.`)
+    super(`Wiersz zajętości nie ma kolumny ${column}.`)
     this.name = 'IncompleteOccupancyError'
   }
 }
@@ -144,5 +151,32 @@ export function occupancyFromRow(row: Tables<'lane_occupancy'>): Occupancy {
     startsAt: new Date(row.starts_at),
     endsAt: new Date(row.ends_at),
     withInstructor: row.with_instructor,
+  }
+}
+
+/** Pozycja katalogu w kształcie, w jakim potrzebuje jej formularz i dostępność. */
+export function weaponTypeFromRow(row: Tables<'weapon_types'>): WeaponType {
+  return { id: row.id, name: row.name, pool: row.pool }
+}
+
+/**
+ * Zajętość sztuk z widoku `weapon_occupancy`, siostrzana wobec `occupancyFromRow`
+ * i z tego samego powodu ostrożna: kolumny widoku są w wygenerowanych typach
+ * dopuszczalnie puste, a wiersz przepuszczony z brakiem policzyłby się jako
+ * zero sztuk i po cichu zwolnił broń, której nie ma.
+ */
+export function weaponOccupancyFromRow(row: Tables<'weapon_occupancy'>): WeaponOccupancy {
+  if (!row.weapon_type_id) throw new IncompleteOccupancyError('weapon_type_id')
+  if (row.quantity === null || row.quantity === undefined) {
+    throw new IncompleteOccupancyError('quantity')
+  }
+  if (!row.starts_at) throw new IncompleteOccupancyError('starts_at')
+  if (!row.ends_at) throw new IncompleteOccupancyError('ends_at')
+
+  return {
+    weaponTypeId: row.weapon_type_id,
+    quantity: row.quantity,
+    startsAt: new Date(row.starts_at),
+    endsAt: new Date(row.ends_at),
   }
 }
