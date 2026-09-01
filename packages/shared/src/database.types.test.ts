@@ -5,7 +5,7 @@ import type { Tables, TablesInsert } from './index.ts'
 // że eksportowany kształt daje się użyć i nadąża za migracjami. Gdy kolumna
 // zniknie ze schematu, kontrola typów padnie tutaj, a nie u konsumenta.
 describe('typy ze schematu bazy', () => {
-  it('Strzelnica ma slug, strefę, reguły czasowe i domeny osadzenia', () => {
+  it('Strzelnica ma slug, strefę, reguły czasowe, domeny osadzenia i Pulę', () => {
     const strzelnica: Tables<'facilities'> = {
       id: '00000000-0000-0000-0000-000000000001',
       slug: 'strzelnica-demo',
@@ -15,6 +15,7 @@ describe('typy ze schematu bazy', () => {
       min_lead_minutes: 120,
       cancellation_window_hours: 24,
       allowed_origins: ['https://klient.example.pl'],
+      instructor_pool: 2,
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -33,6 +34,7 @@ describe('typy ze schematu bazy', () => {
     expect(nowa.booking_horizon_days).toBeUndefined()
     expect(nowa.min_lead_minutes).toBeUndefined()
     expect(nowa.cancellation_window_hours).toBeUndefined()
+    expect(nowa.instructor_pool).toBeUndefined()
   })
 
   it('Oś niesie identyfikator Strzelnicy i pojemność', () => {
@@ -82,7 +84,7 @@ describe('typy ze schematu bazy', () => {
     expect(godziny.closes_minute).toBeGreaterThan(1440)
   })
 
-  it('Rezerwacja niesie stan, kontakt i liczbę Uczestników', () => {
+  it('Rezerwacja niesie stan, kontakt, liczbę Uczestników i Instruktora', () => {
     const rezerwacja: TablesInsert<'bookings'> = {
       facility_id: '00000000-0000-0000-0000-000000000001',
       lane_id: '00000000-0000-0000-0000-0000000000a1',
@@ -93,9 +95,14 @@ describe('typy ze schematu bazy', () => {
       contact_name: 'Anna Kowalska',
       contact_email: 'anna@example.pl',
       contact_phone: '600100200',
+      has_permit: false,
+      with_instructor: true,
     }
 
     expect(rezerwacja.status).toBe('potwierdzona')
+    // Deklaracja i obecność Instruktora podawane wprost: kolumny straciły
+    // wartości domyślne, żeby wpis nie mógł o nich milczkiem zapomnieć.
+    expect(rezerwacja.with_instructor).toBe(true)
     // Moment akceptacji regulaminu uzupełnia baza, tak jak datę utworzenia.
     expect(rezerwacja.consented_at).toBeUndefined()
   })
@@ -108,6 +115,9 @@ describe('typy ze schematu bazy', () => {
       lane_id: '00000000-0000-0000-0000-0000000000a1',
       starts_at: '2026-06-15T08:00:00Z',
       ends_at: '2026-06-15T10:00:00Z',
+      // Zajęcie miejsca w Puli instruktorów nie mówi o nikim z nazwiska,
+      // a bez niego kalendarz nie policzyłby Puli.
+      with_instructor: true,
     }
 
     expect(Object.keys(zajetosc)).toEqual([
@@ -115,6 +125,7 @@ describe('typy ze schematu bazy', () => {
       'lane_id',
       'starts_at',
       'ends_at',
+      'with_instructor',
     ])
   })
 })

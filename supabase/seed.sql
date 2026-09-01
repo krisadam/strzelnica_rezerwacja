@@ -10,9 +10,14 @@
 -- podawaną lokalnie na porcie 5175. Testy przeglądarkowe podają tę samą stronę
 -- także spod portu 5176 — spoza listy — żeby sprawdzić, że przeglądarka blokuje
 -- osadzenie na obcej domenie.
+--
+-- Pula instruktorów wynosi jeden, żeby grafik demo pokazywał także jej
+-- wyczerpanie: Rezerwacja niżej zabiera jedynego Instruktora, więc ten sam
+-- czas na drugiej Osi zostaje wolny dla Osoby rezerwującej z Pozwoleniem
+-- i niedostępny dla tej bez.
 insert into public.facilities (
   id, slug, name, booking_horizon_days, min_lead_minutes, cancellation_window_hours,
-  allowed_origins
+  allowed_origins, instructor_pool
 )
 values (
   '00000000-0000-0000-0000-000000000001',
@@ -21,7 +26,8 @@ values (
   30,
   120,
   24,
-  '{http://localhost:5175}'
+  '{http://localhost:5175}',
+  1
 )
 on conflict (id) do nothing;
 
@@ -121,9 +127,11 @@ on conflict (facility_id, closed_on) do nothing;
 -- roboczy ma ten Blok w rozkładzie, a odległość trzyma go z dala od terminów,
 -- w które celują testy przeglądarkowe. Moment liczony jest w strefie
 -- Strzelnicy, bo rozkład mówi o jej zegarze, a kolumna trzyma UTC.
+-- Rezerwujący nie ma Pozwolenia, więc bierze Instruktora — i tym samym
+-- jedyne miejsce w Puli.
 insert into public.bookings (
   id, facility_id, lane_id, starts_at, ends_at, status, participants,
-  contact_name, contact_email, contact_phone
+  contact_name, contact_email, contact_phone, has_permit, with_instructor
 )
 select
   '00000000-0000-0000-0000-0000000000b1',
@@ -135,7 +143,9 @@ select
   2,
   'Jan Przykładowy',
   'jan@example.pl',
-  '600100200'
+  '600100200',
+  false,
+  true
 from public.facilities f
 cross join lateral (
   select (

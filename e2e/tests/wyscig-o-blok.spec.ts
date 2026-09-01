@@ -5,6 +5,7 @@ import {
   OS_KARABINOWA,
   pierwszyWolnyBlok,
   wypelnijFormularz,
+  zadeklarujPozwolenie,
   ZIMNY_START_MS,
 } from './pomocniki.js'
 
@@ -17,6 +18,7 @@ import {
 
 async function doPodsumowania(page: Page, imie: string): Promise<void> {
   await otworzWidget(page)
+  await zadeklarujPozwolenie(page)
   const blok = await pierwszyWolnyBlok(page, OS_KARABINOWA)
   await blok.click()
   await wypelnijFormularz(page, {

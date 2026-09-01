@@ -5,6 +5,7 @@ import {
   OS_PISTOLETOWA,
   pierwszyWolnyBlok,
   wypelnijFormularz,
+  zadeklarujPozwolenie,
   ZIMNY_START_MS,
 } from './pomocniki.js'
 
@@ -15,6 +16,7 @@ import {
 // sprawdzane po raz drugi.
 test('od kalendarza do potwierdzenia i z powrotem, już bez tego terminu', async ({ page }) => {
   await otworzWidget(page)
+  await zadeklarujPozwolenie(page)
 
   const blok = await pierwszyWolnyBlok(page, OS_PISTOLETOWA)
   const czas = await czasBloku(blok)

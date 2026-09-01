@@ -7,7 +7,9 @@
 import type {
   BlockSchedule,
   CalendarDay,
+  DaySchedule,
   Facility,
+  Intent,
   Lane,
   Occupancy,
   OpeningHours,
@@ -20,6 +22,7 @@ import {
   occupancyFromRow,
   openingHoursFromRow,
   rowsOrThrow,
+  scheduleForDay,
 } from '@strzelnica/shared'
 import type { StrzelnicaClient } from './supabase.js'
 
@@ -29,6 +32,37 @@ export type Grafik = {
   schedules: BlockSchedule[]
   openingHours: OpeningHours[]
   closedDates: CalendarDay[]
+}
+
+/**
+ * Grafik jednej Osi w jednym dniu, złożony z tego, co Widget ma pod ręką.
+ * Wołają go dwa miejsca — kalendarz, który rysuje wszystkie Bloki dnia, i sam
+ * przebieg rezerwacji, który po każdej zmianie deklaracji pyta o ten jeden
+ * wybrany. Złożone osobno w każdym z nich byłyby dwiema listami wejść do
+ * rozjechania się: kalendarz pokazywałby Blok wolny, a formularz zdejmowałby go
+ * jako niedostępny.
+ */
+export function grafikDnia(
+  grafik: Grafik,
+  occupancies: readonly Occupancy[],
+  intent: Intent,
+  lane: Lane,
+  day: CalendarDay,
+  now: Date,
+): DaySchedule {
+  return scheduleForDay({
+    day,
+    laneId: lane.id,
+    timeZone: grafik.facility.timeZone,
+    timeRules: grafik.facility.timeRules,
+    instructorPool: grafik.facility.instructorPool,
+    intent,
+    schedules: grafik.schedules,
+    openingHours: grafik.openingHours,
+    closedDates: grafik.closedDates,
+    occupancies,
+    now,
+  })
 }
 
 export class UnknownFacilityError extends Error {
@@ -63,7 +97,7 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
   const { data: row, error } = await client
     .from('facilities')
     .select(
-      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours',
+      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, instructor_pool',
     )
     .eq('slug', slug)
     .maybeSingle()

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Block, BookingDraft, BookingRequest, Lane } from './index.ts'
-import { bookingProblems, MalformedBookingRequestError, readBookingRequest } from './index.ts'
+import {
+  bookingProblems,
+  concernsTheTerm,
+  MalformedBookingRequestError,
+  readBookingRequest,
+} from './index.ts'
 
 const OS: Lane = { id: 'os-1', name: 'Oś pistoletowa nr 1', capacity: 4 }
 
@@ -21,6 +26,8 @@ function zgloszenie(nadpisania: Partial<BookingDraft> = {}): BookingDraft {
     participants: 2,
     contact: { name: 'Anna Kowalska', email: 'anna@example.pl', phone: '600100200' },
     consent: true,
+    hasPermit: true,
+    wantsInstructor: false,
     ...nadpisania,
   }
 }
@@ -45,6 +52,55 @@ describe('zgłoszenie Rezerwacji', () => {
       'brak-telefonu',
       'brak-zgody',
     ])
+  })
+})
+
+/**
+ * Instruktor przy Rezerwacji. Zastrzeżenie nie liczy tu Puli — o niej orzeka
+ * dostępność Bloku, ta sama dla kalendarza i dla serwera. Tutaj rozstrzyga się
+ * wyłącznie, jak nazwać odmowę, żeby Osoba rezerwująca wiedziała, czy zmiana
+ * deklaracji cokolwiek da.
+ */
+describe('Instruktor', () => {
+  it('nie ma zastrzeżeń do zgłoszenia bez Pozwolenia na wolny Blok', () => {
+    expect(zastrzezenia(zgloszenie({ hasPermit: false }))).toEqual([])
+  })
+
+  it('nazywa odmowę brakiem Instruktora, a nie zajętym terminem', () => {
+    expect(
+      zastrzezenia(
+        zgloszenie({ hasPermit: false }),
+        blok({ available: false, unavailableBecause: 'brak-instruktora' }),
+      ),
+    ).toEqual(['brak-instruktora'])
+  })
+
+  it('zostaje przy terminie niedostępnym, gdy powód mówi o samym Bloku', () => {
+    expect(
+      zastrzezenia(
+        zgloszenie({ hasPermit: false }),
+        blok({ available: false, unavailableBecause: 'termin-zajety' }),
+      ),
+    ).toEqual(['termin-niedostepny'])
+  })
+})
+
+describe('zastrzeżenia mówiące o samym terminie', () => {
+  it.each(['termin-niedostepny', 'brak-instruktora'] as const)('rozpoznaje %s', (problem) => {
+    expect(concernsTheTerm(problem)).toBe(true)
+  })
+
+  // Puste pole formularza mówi o tym, czego Osoba rezerwująca jeszcze nie
+  // wypełniła — i dlatego wolno je pokazać dopiero po próbie przejścia dalej.
+  it.each([
+    'liczba-uczestnikow-poza-zakresem',
+    'ponad-pojemnosc-osi',
+    'brak-imienia',
+    'niepoprawny-email',
+    'brak-telefonu',
+    'brak-zgody',
+  ] as const)('nie bierze za nie zastrzeżenia do pola: %s', (problem) => {
+    expect(concernsTheTerm(problem)).toBe(false)
   })
 })
 
@@ -126,6 +182,8 @@ describe('odczyt żądania', () => {
     participants: 2,
     contact: { name: 'Anna Kowalska', email: 'anna@example.pl', phone: '600100200' },
     consent: true,
+    hasPermit: false,
+    wantsInstructor: false,
   } satisfies BookingRequest
 
   it('czyta poprawne żądanie', () => {
@@ -178,6 +236,9 @@ describe('odczyt żądania', () => {
     ['minuta ułamkowa', { ...ZADANIE, startMinute: 600.5 }],
     ['liczba Uczestników jako napis', { ...ZADANIE, participants: '2' }],
     ['zgoda jako napis', { ...ZADANIE, consent: 'tak' }],
+    ['deklaracja Pozwolenia jako napis', { ...ZADANIE, hasPermit: 'tak' }],
+    ['brak deklaracji Pozwolenia', { ...ZADANIE, hasPermit: undefined }],
+    ['chęć Instruktora jako napis', { ...ZADANIE, wantsInstructor: 'tak' }],
     ['kontakt nie będący obiektem', { ...ZADANIE, contact: 'Anna' }],
     ['treść nie będąca obiektem', 'Anna'],
     ['brak treści', null],

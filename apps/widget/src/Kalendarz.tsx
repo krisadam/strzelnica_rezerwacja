@@ -1,13 +1,9 @@
-import type { Block, CalendarDay, Lane, Occupancy } from '@strzelnica/shared'
-import {
-  addDays,
-  bookingHorizon,
-  formatDayLabel,
-  formatTimeRange,
-  scheduleForDay,
-} from '@strzelnica/shared'
+import type { Block, CalendarDay, Intent, Lane, Occupancy } from '@strzelnica/shared'
+import { addDays, bookingHorizon, formatDayLabel, formatTimeRange } from '@strzelnica/shared'
 import { useMemo } from 'react'
+import { Deklaracje } from './Deklaracje.js'
 import type { Grafik } from './grafik.js'
+import { grafikDnia } from './grafik.js'
 import { teksty } from './teksty.js'
 
 function Blok({
@@ -51,6 +47,10 @@ function Blok({
  *
  * Wybrana Oś i dzień mieszkają wyżej: Osoba rezerwująca, która wróci z formularza
  * po zajętym terminie, ma zastać kalendarz tam, gdzie go zostawiła.
+ *
+ * Deklaracje też stoją tutaj, bo dostępność zależy od nich tak samo jak od dnia:
+ * ten sam Blok bywa wolny dla Osoby rezerwującej z Pozwoleniem i niedostępny
+ * dla tej bez niego, więc ich zmiana przelicza grafik od razu.
  */
 export function Kalendarz({
   grafik,
@@ -58,8 +58,10 @@ export function Kalendarz({
   now,
   lane,
   day,
+  intent,
   onLane,
   onDay,
+  onIntent,
   onWybierz,
 }: {
   grafik: Grafik
@@ -67,8 +69,10 @@ export function Kalendarz({
   now: Date
   lane: Lane
   day: CalendarDay
+  intent: Intent
   onLane: (lane: Lane) => void
   onDay: (day: CalendarDay) => void
+  onIntent: (intent: Intent) => void
   onWybierz: (block: Block) => void
 }) {
   const { facility, lanes } = grafik
@@ -78,24 +82,16 @@ export function Kalendarz({
     [facility, now],
   )
 
-  const grafikDnia = useMemo(
-    () =>
-      scheduleForDay({
-        day,
-        timeZone: facility.timeZone,
-        laneId: lane.id,
-        schedules: grafik.schedules,
-        openingHours: grafik.openingHours,
-        closedDates: grafik.closedDates,
-        occupancies,
-        timeRules: facility.timeRules,
-        now,
-      }),
-    [day, lane, grafik, occupancies, facility, now],
+  const dzien = useMemo(
+    () => grafikDnia(grafik, occupancies, intent, lane, day, now),
+    [grafik, occupancies, intent, lane, day, now],
   )
 
   return (
     <div className="kalendarz">
+      <Deklaracje intent={intent} onIntent={onIntent} />
+      <p className="reguly">{teksty.deklaracje.wplyw}</p>
+
       <fieldset className="osie">
         <legend>{teksty.wybierzOs}</legend>
         {lanes.map((pozycja) => (
@@ -129,13 +125,13 @@ export function Kalendarz({
 
       <p className="reguly">{teksty.zasiegKalendarza(formatDayLabel(ostatniDzien))}</p>
 
-      {!grafikDnia.open && <p className="komunikat">{teksty.dzienZamkniety}</p>}
-      {grafikDnia.open && grafikDnia.blocks.length === 0 && (
+      {!dzien.open && <p className="komunikat">{teksty.dzienZamkniety}</p>}
+      {dzien.open && dzien.blocks.length === 0 && (
         <p className="komunikat">{teksty.osBezBlokow}</p>
       )}
-      {grafikDnia.open && grafikDnia.blocks.length > 0 && (
+      {dzien.open && dzien.blocks.length > 0 && (
         <ul className="bloki">
-          {grafikDnia.blocks.map((block) => (
+          {dzien.blocks.map((block) => (
             <Blok
               key={block.scheduleId}
               block={block}

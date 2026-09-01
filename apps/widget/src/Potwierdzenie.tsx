@@ -1,6 +1,6 @@
 import type { BookingDraft } from '@strzelnica/shared'
 import type { Wybor } from './krok.js'
-import { teksty } from './teksty.js'
+import { opisInstruktora, teksty } from './teksty.js'
 import { Wybrany } from './Wybrany.js'
 
 /**
@@ -31,6 +31,8 @@ export function Potwierdzenie({
       <dl className="wybrany">
         <dt>{teksty.formularz.liczbaUczestnikow}</dt>
         <dd>{teksty.podsumowanie.uczestnicy(draft.participants)}</dd>
+        <dt>{teksty.instruktor.etykieta}</dt>
+        <dd>{opisInstruktora(draft)}</dd>
         <dt>{teksty.formularz.email}</dt>
         <dd>{draft.contact.email}</dd>
       </dl>

@@ -63,11 +63,13 @@ export type Database = {
           created_at: string
           ends_at: string
           facility_id: string
+          has_permit: boolean
           id: string
           lane_id: string
           participants: number
           starts_at: string
           status: Database["public"]["Enums"]["booking_status"]
+          with_instructor: boolean
         }
         Insert: {
           consented_at?: string
@@ -77,11 +79,13 @@ export type Database = {
           created_at?: string
           ends_at: string
           facility_id: string
+          has_permit: boolean
           id?: string
           lane_id: string
           participants: number
           starts_at: string
           status: Database["public"]["Enums"]["booking_status"]
+          with_instructor: boolean
         }
         Update: {
           consented_at?: string
@@ -91,11 +95,13 @@ export type Database = {
           created_at?: string
           ends_at?: string
           facility_id?: string
+          has_permit?: boolean
           id?: string
           lane_id?: string
           participants?: number
           starts_at?: string
           status?: Database["public"]["Enums"]["booking_status"]
+          with_instructor?: boolean
         }
         Relationships: [
           {
@@ -153,6 +159,7 @@ export type Database = {
           cancellation_window_hours: number
           created_at: string
           id: string
+          instructor_pool: number
           min_lead_minutes: number
           name: string
           slug: string
@@ -164,6 +171,7 @@ export type Database = {
           cancellation_window_hours?: number
           created_at?: string
           id?: string
+          instructor_pool?: number
           min_lead_minutes?: number
           name: string
           slug: string
@@ -175,6 +183,7 @@ export type Database = {
           cancellation_window_hours?: number
           created_at?: string
           id?: string
+          instructor_pool?: number
           min_lead_minutes?: number
           name?: string
           slug?: string
@@ -257,18 +266,21 @@ export type Database = {
           facility_id: string | null
           lane_id: string | null
           starts_at: string | null
+          with_instructor: boolean | null
         }
         Insert: {
           ends_at?: string | null
           facility_id?: string | null
           lane_id?: string | null
           starts_at?: string | null
+          with_instructor?: boolean | null
         }
         Update: {
           ends_at?: string | null
           facility_id?: string | null
           lane_id?: string | null
           starts_at?: string | null
+          with_instructor?: boolean | null
         }
         Relationships: [
           {

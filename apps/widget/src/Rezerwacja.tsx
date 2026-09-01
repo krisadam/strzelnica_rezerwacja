@@ -1,9 +1,16 @@
-import type { Block, BookingProblem, Lane, Occupancy, SupabaseConfig } from '@strzelnica/shared'
+import type {
+  Block,
+  BookingProblem,
+  Intent,
+  Lane,
+  Occupancy,
+  SupabaseConfig,
+} from '@strzelnica/shared'
 import { dayIn } from '@strzelnica/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Formularz } from './Formularz.js'
 import type { Grafik } from './grafik.js'
-import { loadZajetosc } from './grafik.js'
+import { grafikDnia, loadZajetosc } from './grafik.js'
 import { Kalendarz } from './Kalendarz.js'
 import type { Krok, Wybor } from './krok.js'
 import { PUSTY_DRAFT } from './krok.js'
@@ -22,6 +29,11 @@ import { zlozRezerwacje } from './zapis.js'
  * Zajętość Osi jest jedyną częścią grafiku zmieniającą się w trakcie: po
  * każdym zapisie i po każdym przegranym wyścigu o Blok pobieramy ją na nowo,
  * żeby kalendarz nie proponował terminu, którego już nie ma.
+ *
+ * Wybrany Blok nie jest zapamiętywany takim, jakim był w chwili kliknięcia:
+ * jego dostępność zależy od deklaracji, a te wolno zmienić jeszcze
+ * w formularzu. Wybór niesie więc, który to Blok, a o to, czy wciąż jest wolny,
+ * pyta się grafiku przy każdym renderze.
  */
 export function Rezerwacja({
   client,
@@ -97,11 +109,31 @@ export function Rezerwacja({
     setKrok({ nazwa: 'kalendarz', ...(powrot ? { powrot } : {}) })
   }
 
+  /**
+   * Wybrany termin w kształcie, jaki ma teraz — po ewentualnej zmianie
+   * deklaracji i po odświeżeniu zajętości. Zniknięcie z grafiku (dzień zamknięty
+   * wyjątkiem, Blok zdjęty z rozkładu) zostawia sam wybór, już niedostępny:
+   * `bookingProblems` odpowie wtedy tak samo, jak na termin, którego rozkład
+   * Osi nie zna.
+   */
+  const odswiezony = (wybor: Wybor): Wybor => {
+    const dzien = grafikDnia(grafik, occupancies, draft, wybor.lane, wybor.day, now)
+    const block = dzien.blocks.find((kandydat) => kandydat.scheduleId === wybor.block.scheduleId)
+    return { ...wybor, block: block ?? { ...wybor.block, available: false } }
+  }
+
   const wybierz = (block: Block) => {
     if (!lane) return
     setZastrzezenie(null)
     setBladZapisu(null)
     setKrok({ nazwa: 'formularz', wybor: { lane, day, block } })
+  }
+
+  // Deklaracje zmieniają dostępność, więc zastrzeżenie sprzed zmiany przestaje
+  // opisywać cokolwiek — zdejmujemy je razem z nimi.
+  const zmienDeklaracje = (intent: Intent) => {
+    setZastrzezenie(null)
+    setDraft({ ...draft, ...intent })
   }
 
   async function wyslij(wybor: Wybor) {
@@ -141,7 +173,7 @@ export function Rezerwacja({
   if (krok.nazwa === 'formularz') {
     return (
       <Formularz
-        wybor={krok.wybor}
+        wybor={odswiezony(krok.wybor)}
         timeZone={facility.timeZone}
         draft={draft}
         onDraft={setDraft}
@@ -154,7 +186,7 @@ export function Rezerwacja({
   if (krok.nazwa === 'podsumowanie') {
     return (
       <Podsumowanie
-        wybor={krok.wybor}
+        wybor={odswiezony(krok.wybor)}
         timeZone={facility.timeZone}
         draft={draft}
         wysylanie={wysylanie}
@@ -196,8 +228,10 @@ export function Rezerwacja({
         now={now}
         lane={lane}
         day={day}
+        intent={draft}
         onLane={setLane}
         onDay={setDay}
+        onIntent={zmienDeklaracje}
         onWybierz={wybierz}
       />
     </>

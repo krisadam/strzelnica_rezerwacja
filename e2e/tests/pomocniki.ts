@@ -27,6 +27,19 @@ export async function otworzWidget(page: Page): Promise<void> {
 }
 
 /**
+ * Deklaracja Pozwolenia na broń, składana przed szukaniem terminu — bo to ona
+ * rozstrzyga, które terminy są wolne.
+ *
+ * Testy rezerwujące składają ją po to, żeby nie zajmować miejsca w Puli
+ * instruktorów: jadą równolegle i odbierałyby je sobie nawzajem. To ustawienie
+ * środowiska, nie przedmiot testu — sama Pula rozstrzyga się na szwie czystych
+ * funkcji, gdzie jest opisana co do ostatniego wolnego miejsca.
+ */
+export async function zadeklarujPozwolenie(page: Page): Promise<void> {
+  await page.getByRole('checkbox', { name: 'Mam pozwolenie na broń' }).check()
+}
+
+/**
  * Pierwszy wolny Blok wskazanej Osi, szukany dzień po dniu od dzisiaj. Testy
  * celują w terminy względne wobec „teraz" — zegara nikt tu nie zamraża, bo
  * zamrożenie w przeglądarce nie zamraża zegara bazy.

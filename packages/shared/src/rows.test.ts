@@ -72,6 +72,7 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       min_lead_minutes: 120,
       cancellation_window_hours: 24,
       allowed_origins: ['https://klient.example.pl'],
+      instructor_pool: 2,
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -80,6 +81,7 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       name: 'Strzelnica Demo',
       timeZone: 'Europe/Warsaw',
       timeRules: { horizonDays: 30, minLeadMinutes: 120, cancellationWindowHours: 24 },
+      instructorPool: 2,
     })
   })
 
@@ -106,17 +108,25 @@ describe('zajętość Osi z wiersza widoku', () => {
     lane_id: '00000000-0000-0000-0000-0000000000a1',
     starts_at: '2026-06-15T08:00:00+00:00',
     ends_at: '2026-06-15T10:00:00+00:00',
+    with_instructor: true,
   }
 
-  it('przenosi Oś i zakres czasu', () => {
+  it('przenosi Oś, zakres czasu i zajęcie Instruktora', () => {
     expect(occupancyFromRow(WIERSZ)).toEqual({
       laneId: '00000000-0000-0000-0000-0000000000a1',
       startsAt: new Date('2026-06-15T08:00:00Z'),
       endsAt: new Date('2026-06-15T10:00:00Z'),
+      withInstructor: true,
     })
   })
 
-  it.each(['lane_id', 'starts_at', 'ends_at'] as const)(
+  // Rezerwacja bez Instruktora nie zajmuje miejsca w Puli — i to `false` ma
+  // przejść, a nie zostać wzięte za brak wartości.
+  it('przenosi Rezerwację bez Instruktora, zamiast brać ją za wiersz niepełny', () => {
+    expect(occupancyFromRow({ ...WIERSZ, with_instructor: false }).withInstructor).toBe(false)
+  })
+
+  it.each(['lane_id', 'starts_at', 'ends_at', 'with_instructor'] as const)(
     'zatrzymuje wiersz bez kolumny %s',
     (kolumna) => {
       expect(() => occupancyFromRow({ ...WIERSZ, [kolumna]: null })).toThrow(

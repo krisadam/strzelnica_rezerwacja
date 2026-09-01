@@ -71,6 +71,8 @@ export type Facility = {
   name: string
   timeZone: string
   timeRules: TimeRules
+  /** Pula instruktorów: ilu Instruktorów Strzelnica zapewnia jednocześnie. */
+  instructorPool: number
 }
 
 /**
@@ -86,6 +88,7 @@ export type FacilityRow = Pick<
   | 'booking_horizon_days'
   | 'min_lead_minutes'
   | 'cancellation_window_hours'
+  | 'instructor_pool'
 >
 
 export function facilityFromRow(row: FacilityRow): Facility {
@@ -98,6 +101,7 @@ export function facilityFromRow(row: FacilityRow): Facility {
       minLeadMinutes: row.min_lead_minutes,
       cancellationWindowHours: row.cancellation_window_hours,
     },
+    instructorPool: row.instructor_pool,
   }
 }
 
@@ -129,10 +133,16 @@ export function occupancyFromRow(row: Tables<'lane_occupancy'>): Occupancy {
   if (!row.lane_id) throw new IncompleteOccupancyError('lane_id')
   if (!row.starts_at) throw new IncompleteOccupancyError('starts_at')
   if (!row.ends_at) throw new IncompleteOccupancyError('ends_at')
+  // Sprawdzane wprost, bo `false` jest tu wartością, a nie brakiem: Rezerwacja
+  // bez Instruktora ma przejść, a nie zatrzymać się jak wiersz niepełny.
+  if (row.with_instructor === null || row.with_instructor === undefined) {
+    throw new IncompleteOccupancyError('with_instructor')
+  }
 
   return {
     laneId: row.lane_id,
     startsAt: new Date(row.starts_at),
     endsAt: new Date(row.ends_at),
+    withInstructor: row.with_instructor,
   }
 }

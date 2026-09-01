@@ -9,7 +9,7 @@
  * jest wygodą, a nie zabezpieczeniem — dlatego serwer liczy to samo od nowa,
  * a nie ufa temu, co przyszło.
  */
-import type { Block } from './availability.ts'
+import type { Block, Intent } from './availability.ts'
 import type { CalendarDay } from './calendar.ts'
 import type { Lane } from './rows.ts'
 
@@ -20,8 +20,14 @@ export type BookingContact = {
   phone: string
 }
 
-/** To, co Osoba rezerwująca wypełnia sama. Termin przychodzi osobno. */
-export type BookingDraft = {
+/**
+ * To, co Osoba rezerwująca wypełnia sama. Termin przychodzi osobno.
+ *
+ * Rozszerza `Intent`, więc zgłoszenie wolno podać wprost tam, gdzie pyta się
+ * o dostępność. Deklaracja Pozwolenia nie jest bowiem zwykłym polem formularza
+ * — rozstrzyga, które terminy Osoba rezerwująca w ogóle widzi jako wolne.
+ */
+export type BookingDraft = Intent & {
   participants: number
   contact: BookingContact
   consent: boolean
@@ -42,12 +48,24 @@ export type BookingRequest = BookingDraft & {
 /** Zastrzeżenie do zgłoszenia. Jedno pole — jedna wartość. */
 export type BookingProblem =
   | 'termin-niedostepny'
+  | 'brak-instruktora'
   | 'liczba-uczestnikow-poza-zakresem'
   | 'ponad-pojemnosc-osi'
   | 'brak-imienia'
   | 'niepoprawny-email'
   | 'brak-telefonu'
   | 'brak-zgody'
+
+/**
+ * Czy zastrzeżenie mówi o samym terminie, a nie o wypełnieniu formularza.
+ * Te dwa rodzaje pokazuje się w różnych chwilach: pustego pola nie wytyka się
+ * Osobie rezerwującej, zanim go tknie, ale o terminie, który właśnie przestał
+ * być wolny, mówi się od razu. Rozróżnienie mieszka przy definicji zastrzeżeń,
+ * żeby kolejne dopisane tutaj nie mogło o nim zapomnieć.
+ */
+export function concernsTheTerm(problem: BookingProblem): boolean {
+  return problem === 'termin-niedostepny' || problem === 'brak-instruktora'
+}
 
 /** Odpowiedź Edge Function w kształcie znanym obu stronom. */
 export type BookingOutcome =
@@ -81,7 +99,13 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export function bookingProblems({ draft, lane, block }: BookingCheck): BookingProblem[] {
   const problems: BookingProblem[] = []
 
-  if (!block?.available) problems.push('termin-niedostepny')
+  // Odmowa z powodu Puli instruktorów dostaje własną nazwę: jest jedyną,
+  // którą Osoba rezerwująca naprawia zmianą deklaracji, a nie zmianą terminu.
+  if (!block?.available) {
+    problems.push(
+      block?.unavailableBecause === 'brak-instruktora' ? 'brak-instruktora' : 'termin-niedostepny',
+    )
+  }
 
   if (!Number.isInteger(draft.participants) || draft.participants < 1) {
     problems.push('liczba-uczestnikow-poza-zakresem')
@@ -137,6 +161,15 @@ function formText(source: Record<string, unknown>, key: string): string {
   return value.trim()
 }
 
+/** Pole zaznaczane w formularzu; brak wartości nie jest tym samym, co „nie". */
+function flag(source: Record<string, unknown>, key: string): boolean {
+  const value = source[key]
+  if (typeof value !== 'boolean') {
+    throw new MalformedBookingRequestError(`pole ${key} nie jest wartością logiczną`)
+  }
+  return value
+}
+
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 /**
@@ -163,10 +196,9 @@ export function readBookingRequest(value: unknown): BookingRequest {
     throw new MalformedBookingRequestError('pole participants nie jest liczbą')
   }
 
-  const consent = source.consent
-  if (typeof consent !== 'boolean') {
-    throw new MalformedBookingRequestError('pole consent nie jest wartością logiczną')
-  }
+  const consent = flag(source, 'consent')
+  const hasPermit = flag(source, 'hasPermit')
+  const wantsInstructor = flag(source, 'wantsInstructor')
 
   const day = identifier(source, 'day')
   if (!DAY_PATTERN.test(day)) {
@@ -185,5 +217,7 @@ export function readBookingRequest(value: unknown): BookingRequest {
       phone: formText(contact, 'phone'),
     },
     consent,
+    hasPermit,
+    wantsInstructor,
   }
 }
