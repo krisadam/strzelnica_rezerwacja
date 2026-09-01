@@ -6,8 +6,13 @@
 -- Reguły czasowe wypisane wprost, choć równe wartościom domyślnym: grafik
 -- demo ma pokazywać, co robi horyzont i wyprzedzenie, więc muszą być widoczne
 -- w danych, a nie tylko w schemacie.
+-- Dozwolona domena osadzenia wskazuje stronę demonstracyjną z `apps/widget/demo`,
+-- podawaną lokalnie na porcie 5175. Testy przeglądarkowe podają tę samą stronę
+-- także spod portu 5176 — spoza listy — żeby sprawdzić, że przeglądarka blokuje
+-- osadzenie na obcej domenie.
 insert into public.facilities (
-  id, slug, name, booking_horizon_days, min_lead_minutes, cancellation_window_hours
+  id, slug, name, booking_horizon_days, min_lead_minutes, cancellation_window_hours,
+  allowed_origins
 )
 values (
   '00000000-0000-0000-0000-000000000001',
@@ -15,7 +20,8 @@ values (
   'Strzelnica Demo',
   30,
   120,
-  24
+  24,
+  '{http://localhost:5175}'
 )
 on conflict (id) do nothing;
 

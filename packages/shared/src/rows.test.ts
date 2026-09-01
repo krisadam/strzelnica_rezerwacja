@@ -68,6 +68,7 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       booking_horizon_days: 30,
       min_lead_minutes: 120,
       cancellation_window_hours: 24,
+      allowed_origins: ['https://klient.example.pl'],
       created_at: '2026-01-01T00:00:00Z',
     }
 

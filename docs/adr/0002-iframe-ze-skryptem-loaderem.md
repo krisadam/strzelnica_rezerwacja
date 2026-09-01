@@ -2,7 +2,7 @@
 
 Widget trafia na strony WWW, nad którymi nie mamy kontroli. Osadzamy go
 w `<iframe>` tworzonym przez mały skrypt-loader (`<script src="…/embed.js"
-data-facility="…">`), który przez `postMessage` synchronizuje wysokość ramki
+data-strzelnica="…">`), który przez `postMessage` synchronizuje wysokość ramki
 i przewijanie przy zmianie kroku formularza.
 
 Odrzucone: web component w Shadow DOM — brak twardej izolacji od CSS, `z-index`

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Strzelnica Demo — rezerwacja osi</title>
+    <style>
+      /* Strona gospodarza wygląda po swojemu; Widget nie dziedziczy z niej
+         niczego, bo siedzi w ramce. To ten sam plik, którym testy
+         przeglądarkowe sprawdzają osadzenie. */
+      body {
+        margin: 0;
+        font-family: Georgia, 'Times New Roman', serif;
+        color: #2b2118;
+        background: #f4efe7;
+      }
+      .strona {
+        max-width: 52rem;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+      }
+      h1 {
+        font-size: 2rem;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        line-height: 1.6;
+      }
+      .osadzenie {
+        background: #ffffff;
+        border-radius: 0.75rem;
+        padding: 0.5rem;
+        margin: 2rem 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="strona">
+      <h1>Strzelnica Demo</h1>
+      <p>
+        Przykładowa strona WWW Strzelnicy — taka, jakiej nie budowaliśmy i nad
+        którą nie mamy kontroli. Moduł rezerwacji trafia na nią jednym
+        znacznikiem <code>&lt;script&gt;</code> widocznym niżej w źródle.
+      </p>
+
+      <h2>Rezerwacja osi</h2>
+      <div class="osadzenie">
+        <!--
+          Jedyne, co właściciel strony wkleja u siebie. Adres wskazuje lokalny
+          build Widgetu (`pnpm build`, potem `pnpm demo`); we wdrożeniu jest to
+          adres naszej domeny. `data-strzelnica` to identyfikator Strzelnicy.
+        -->
+        <script src="http://localhost:5173/embed.js" data-strzelnica="strzelnica-demo"></script>
+      </div>
+
+      <h2>Jak do nas trafić</h2>
+      <p>
+        ul. Strzelecka 1, 00-001 Warszawa. Płatność na miejscu, gotówką lub
+        kartą. Zapraszamy od poniedziałku do niedzieli.
+      </p>
+    </div>
+  </body>
+</html>

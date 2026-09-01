@@ -3,6 +3,9 @@
  * przez Widget, Panel i skrypty. Czysta funkcja — środowisko jest
  * parametrem, nie odczytem `process.env` w środku.
  */
+/** Zmienne środowiskowe w postaci, w jakiej podaje je Vite i Node. */
+export type Environment = Record<string, string | undefined>
+
 export type SupabaseConfig = {
   url: string
   anonKey: string
@@ -15,7 +18,7 @@ export class MissingSupabaseConfigError extends Error {
   }
 }
 
-function required(env: Record<string, string | undefined>, name: string): string {
+function required(env: Environment, name: string): string {
   const value = env[name]?.trim()
   if (!value) {
     throw new MissingSupabaseConfigError(
@@ -30,7 +33,7 @@ function required(env: Record<string, string | undefined>, name: string): string
  * zmiennych nie ma jak odpytać bazy, więc lepiej padnie przy starcie niż
  * przy pierwszym kliknięciu Osoby rezerwującej.
  */
-export function readSupabaseConfig(env: Record<string, string | undefined>): SupabaseConfig {
+export function readSupabaseConfig(env: Environment): SupabaseConfig {
   const url = required(env, 'VITE_SUPABASE_URL')
   const anonKey = required(env, 'VITE_SUPABASE_ANON_KEY')
 

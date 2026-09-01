@@ -1,5 +1,7 @@
 import { MissingSupabaseConfigError } from '@strzelnica/shared'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import type { Gospodarz } from './gospodarz.js'
+import { polaczZGospodarzem } from './gospodarz.js'
 import type { Grafik } from './grafik.js'
 import { loadGrafik, UnknownFacilityError } from './grafik.js'
 import { Kalendarz } from './Kalendarz.js'
@@ -7,8 +9,9 @@ import { createStrzelnicaClient } from './supabase.js'
 import { teksty } from './teksty.js'
 
 /**
- * Identyfikator Strzelnicy przychodzi na razie z adresu. W kolejnym ticketie
- * poda go skrypt osadzający przez atrybut `data-*` ramki (ADR 0002).
+ * Identyfikator Strzelnicy przychodzi z adresu ramki; wpisuje go tam skrypt
+ * osadzający na podstawie atrybutu `data-strzelnica` (ADR 0002). Ten sam adres
+ * otwarty wprost w przeglądarce działa tak samo — na tym stoi praca lokalna.
  */
 function slugStrzelnicy(search: string): string | null {
   return new URLSearchParams(search).get('strzelnica')
@@ -39,6 +42,7 @@ export function App() {
   const slug = slugStrzelnicy(window.location.search)
   const [stan, setStan] = useState<Stan>({ faza: 'wczytywanie' })
   const [now, setNow] = useState(() => new Date())
+  const [gospodarz, setGospodarz] = useState<Gospodarz | null>(null)
 
   useEffect(() => {
     if (!slug) {
@@ -68,6 +72,14 @@ export function App() {
     return () => clearInterval(tik)
   }, [])
 
+  useEffect(() => {
+    const polaczenie = polaczZGospodarzem()
+    setGospodarz(polaczenie)
+    return () => polaczenie?.rozlacz()
+  }, [])
+
+  const zmianaWidoku = useCallback(() => gospodarz?.zazadajPrzewiniecia(), [gospodarz])
+
   return (
     <main className="widget">
       <h1>{teksty.tytul}</h1>
@@ -77,7 +89,9 @@ export function App() {
           {stan.powod}
         </p>
       )}
-      {stan.faza === 'gotowe' && <Kalendarz grafik={stan.grafik} now={now} />}
+      {stan.faza === 'gotowe' && (
+        <Kalendarz grafik={stan.grafik} now={now} onZmianaWidoku={zmianaWidoku} />
+      )}
     </main>
   )
 }

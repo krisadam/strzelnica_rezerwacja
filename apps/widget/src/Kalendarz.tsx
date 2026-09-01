@@ -7,7 +7,7 @@ import {
   formatTimeRange,
   scheduleForDay,
 } from '@strzelnica/shared'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Grafik } from './grafik.js'
 import { teksty } from './teksty.js'
 
@@ -33,10 +33,36 @@ function Blok({ block, timeZone }: { block: Block; timeZone: string }) {
  * dzień, do którego wolno dojść, jest ostatnim, w którym wolno rezerwować.
  * „Teraz" przychodzi z zewnątrz, żeby ta sama zasada obowiązywała także tutaj.
  */
-export function Kalendarz({ grafik, now }: { grafik: Grafik; now: Date }) {
+export function Kalendarz({
+  grafik,
+  now,
+  onZmianaWidoku,
+}: {
+  grafik: Grafik
+  now: Date
+  /**
+   * Widok zmieniony kliknięciem. Osadzony Widget prosi wtedy stronę gospodarza
+   * o przewinięcie do góry ramki, żeby nowa treść nie pojawiła się poza
+   * ekranem. Tą samą drogą pójdą kolejne kroki formularza.
+   */
+  onZmianaWidoku: () => void
+}) {
   const { facility, lanes } = grafik
   const [laneId, setLaneId] = useState(lanes[0]?.id ?? '')
   const [day, setDay] = useState(() => dayIn(facility.timeZone, now))
+
+  // Widok to wybrana Oś i wybrany dzień; zgłaszamy jego zmianę w jednym
+  // miejscu, a nie w każdym przycisku z osobna — kolejny sposób na zmianę
+  // widoku nie może wtedy zapomnieć o zgłoszeniu. Pierwsze wejście zmianą
+  // nie jest.
+  const pierwszyWidok = useRef(true)
+  useEffect(() => {
+    if (pierwszyWidok.current) {
+      pierwszyWidok.current = false
+      return
+    }
+    onZmianaWidoku()
+  }, [day, laneId, onZmianaWidoku])
 
   const ostatniDzien = useMemo(
     () => bookingHorizon({ timeZone: facility.timeZone, timeRules: facility.timeRules, now }),

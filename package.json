@@ -11,6 +11,7 @@
     "dev:widget": "pnpm --filter @strzelnica/widget dev",
     "dev:panel": "pnpm --filter @strzelnica/panel dev",
     "build": "pnpm --filter @strzelnica/widget --filter @strzelnica/panel build",
+    "demo": "pnpm --filter @strzelnica/widget exec vite preview --outDir demo --port 5175 --strictPort",
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm --filter @strzelnica/shared test",

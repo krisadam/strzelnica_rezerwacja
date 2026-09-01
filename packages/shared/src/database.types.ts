@@ -88,6 +88,7 @@ export type Database = {
       }
       facilities: {
         Row: {
+          allowed_origins: string[]
           booking_horizon_days: number
           cancellation_window_hours: number
           created_at: string
@@ -98,6 +99,7 @@ export type Database = {
           timezone: string
         }
         Insert: {
+          allowed_origins?: string[]
           booking_horizon_days?: number
           cancellation_window_hours?: number
           created_at?: string
@@ -108,6 +110,7 @@ export type Database = {
           timezone?: string
         }
         Update: {
+          allowed_origins?: string[]
           booking_horizon_days?: number
           cancellation_window_hours?: number
           created_at?: string

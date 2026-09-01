@@ -5,7 +5,7 @@ import type { Tables, TablesInsert } from './index.js'
 // że eksportowany kształt daje się użyć i nadąża za migracjami. Gdy kolumna
 // zniknie ze schematu, kontrola typów padnie tutaj, a nie u konsumenta.
 describe('typy ze schematu bazy', () => {
-  it('Strzelnica ma identyfikator, slug, nazwę, strefę i reguły czasowe', () => {
+  it('Strzelnica ma slug, strefę, reguły czasowe i domeny osadzenia', () => {
     const strzelnica: Tables<'facilities'> = {
       id: '00000000-0000-0000-0000-000000000001',
       slug: 'strzelnica-demo',
@@ -14,6 +14,7 @@ describe('typy ze schematu bazy', () => {
       booking_horizon_days: 30,
       min_lead_minutes: 120,
       cancellation_window_hours: 24,
+      allowed_origins: ['https://klient.example.pl'],
       created_at: '2026-01-01T00:00:00Z',
     }
 

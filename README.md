@@ -26,8 +26,9 @@ pnpm db:env          # zapisuje adres i klucz anonimowy do .env
 pnpm dev             # Widget na :5173, Panel na :5174
 ```
 
-Widget potrzebuje wskazania Strzelnicy — bierze je z adresu, dopóki nie robi
-tego skrypt osadzający: <http://localhost:5173/?strzelnica=strzelnica-demo>.
+Widget potrzebuje wskazania Strzelnicy — bierze je z adresu ramki, który
+składa skrypt osadzający. Otwarty wprost działa tak samo:
+<http://localhost:5173/?strzelnica=strzelnica-demo>.
 
 Playwright potrzebuje jednorazowo przeglądarki:
 
@@ -61,11 +62,50 @@ Ma pokazać `http://localhost/_ping`. Wersja z `http://./_ping` znaczy, że skry
 nie zadziałał — najczęściej dlatego, że `rdctl reset --factory` usunął katalog
 `provisioning`.
 
+## Osadzenie na obcej stronie
+
+Strzelnica wkleja u siebie jeden znacznik; ramkę z Widgetem tworzy skrypt
+`embed.js` serwowany z naszej domeny (ADR 0002):
+
+```html
+<script src="https://widget.example.pl/embed.js" data-strzelnica="strzelnica-demo"></script>
+```
+
+Ramka dopasowuje wysokość do treści i przewija stronę gospodarza do swojej
+góry przy zmianie widoku — Widget podaje jedno i drugie przez `postMessage`.
+
+Osadzać wolno wyłącznie na domenach z listy `facilities.allowed_origins`. Z niej
+budowany jest nagłówek `Content-Security-Policy: frame-ancestors …` podawany
+razem z dokumentem Widgetu; osadzenie gdzie indziej blokuje przeglądarka. Pusta
+lista znaczy „nigdzie". Nagłówek liczy `frameAncestors` z `packages/shared`,
+a podaje go wtyczka [`apps/widget/naglowek-osadzenia.ts`](apps/widget/naglowek-osadzenia.ts)
+— w pracy lokalnej, w `vite preview` i w testach przeglądarkowych. Na produkcji
+ten sam nagłówek musi wystawić hosting: statyczna lista nagłówków Cloudflare
+Pages nie różnicuje po parametrze adresu, więc potrzebna jest funkcja brzegowa
+czytająca `?strzelnica=` i licząca wartość tą samą `frameAncestors`. Wdrożenia
+w repozytorium jeszcze nie ma.
+
+Strona demonstracyjna gospodarza mieszka w `apps/widget/demo`. Sięga po
+`embed.js` z `dist`, więc serwer deweloperski jej nie obsłuży — potrzebny jest
+build i `preview`, w dwóch terminalach:
+
+```bash
+pnpm build && pnpm --filter @strzelnica/widget preview --port 5173 --strictPort
+```
+
+```bash
+pnpm demo
+```
+
+Strona staje na <http://localhost:5175> — porcie, który seed wpisuje
+demonstracyjnej Strzelnicy jako dozwolony. Ta sama strona podana spod innego
+portu pokazuje, jak wygląda blokada osadzenia.
+
 ## Struktura
 
 | Katalog | Zawartość |
 | --- | --- |
-| `apps/widget` | Widget — React + Vite, aplikacja ładowana w ramce |
+| `apps/widget` | Widget — React + Vite, aplikacja ładowana w ramce, i skrypt osadzający |
 | `apps/panel` | Panel — React + Vite, logowanie przez Supabase Auth |
 | `packages/shared` | typy ze schematu bazy, logika dostępności, wyliczanie Kwoty, walidacja |
 | `supabase/` | migracje, polityki RLS, seed, Edge Functions |
@@ -80,7 +120,8 @@ w `packages/shared` i są używane przez Widget, Panel oraz Edge Functions.
 | --- | --- |
 | `pnpm dev` | Widget i Panel równolegle |
 | `pnpm dev:widget` / `pnpm dev:panel` | jedna aplikacja |
-| `pnpm build` | produkcyjne buildy obu aplikacji |
+| `pnpm build` | produkcyjne buildy obu aplikacji wraz ze skryptem `embed.js` |
+| `pnpm demo` | strona demonstracyjna gospodarza z osadzonym Widgetem (:5175) |
 | `pnpm lint` | ESLint na całym repozytorium |
 | `pnpm typecheck` | `tsc` w każdym pakiecie |
 | `pnpm test` | testy jednostkowe `packages/shared` (Vitest) |
@@ -99,7 +140,8 @@ wyciągnięcia — nie do dopisania testu wyżej.
 
 `e2e/` to wąska warstwa weryfikacyjna dla tego, czego czysta funkcja nie widzi:
 wyścig o ten sam Blok, przejście całej ścieżki, izolacja Strzelnic, osadzenie
-w ramce, potwierdzenie adresu. Nie dubluje reguł pokrytych na szwie
+w ramce, potwierdzenie adresu. Wymagają wstającego Supabase (`pnpm db:start`)
+i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
 
 ## Baza danych

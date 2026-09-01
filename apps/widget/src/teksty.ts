@@ -4,9 +4,11 @@
  * Strzelnic, więc słownik jest stały, a nie ładowany.
  */
 import type { Unavailability } from '@strzelnica/shared'
+import { TYTUL_RAMKI } from '@strzelnica/shared'
 
 export const teksty = {
-  tytul: 'Rezerwacja osi',
+  /** Ta sama nazwa, którą skrypt osadzający nadaje ramce. */
+  tytul: TYTUL_RAMKI,
   wybierzOs: 'Wybierz Oś',
   pojemnosc: (ile: number) => `do ${ile} os.`,
   poprzedniDzien: 'Poprzedni dzień',
