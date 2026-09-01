@@ -55,10 +55,21 @@ Pracownik Strzelnicy nadzorujący strzelanie. Jego obecność jest **wymagana**,
 gdy Osoba rezerwująca nie deklaruje Pozwolenia na broń, i **opcjonalna**
 w pozostałych przypadkach.
 
+## Cennik
+
+Stawki, z których liczy się Kwota do zapłaty: stawka za Blok — własność Osi,
+obejmująca pierwszego Uczestnika — oraz stawka za uczestnictwo i stawka za
+Instruktora, wspólne dla całej Strzelnicy. Ceny za sztukę niosą katalogi: Typ
+broni i Rodzaj amunicji. Wszystko w groszach; waluta jedna — PLN.
+
 ## Kwota do zapłaty
 
-Wartość Rezerwacji wyliczona z cennika Strzelnicy. Moduł ją **prezentuje**,
+Wartość Rezerwacji wyliczona z Cennika Strzelnicy. Moduł ją **prezentuje**,
 ale nie pobiera — rozliczenie następuje na miejscu w Strzelnicy.
+
+Złożona Rezerwacja niesie Kwotę wraz ze stawkami i cenami, z których się
+policzyła. Zmiana Cennika nie dotyczy Rezerwacji złożonych wcześniej: klient
+płaci to, co zobaczył, a nie to, co Strzelnica ustaliła po jego zgłoszeniu.
 
 ## Widget
 

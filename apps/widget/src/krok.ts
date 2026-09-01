@@ -21,7 +21,13 @@ export type Krok =
   | { nazwa: 'kalendarz'; powrot?: BookingProblem }
   | { nazwa: 'formularz'; wybor: Wybor }
   | { nazwa: 'podsumowanie'; wybor: Wybor }
-  | { nazwa: 'potwierdzenie'; wybor: Wybor; draft: BookingDraft; id: string }
+  /**
+   * `amount` jest Kwotą zapisaną przy Rezerwacji, wziętą z odpowiedzi Edge
+   * Function — nie policzoną tu jeszcze raz. Po złożeniu Rezerwacji cennik
+   * przestaje ją dotyczyć, więc rachunek liczony u klienta mógłby już tylko
+   * skłamać.
+   */
+  | { nazwa: 'potwierdzenie'; wybor: Wybor; draft: BookingDraft; id: string; amount: number }
 
 /**
  * Puste zgłoszenie: jeden Uczestnik, bo Osoba rezerwująca zwykle jest nim sama.

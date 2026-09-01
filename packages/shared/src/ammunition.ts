@@ -13,12 +13,13 @@
 
 /**
  * Pozycja katalogu Strzelnicy (np. „9 × 19 mm Parabellum"). Bez puli —
- * inaczej niż `WeaponType`. Cena za sztukę dojdzie wraz z Kwotą do zapłaty
- * (ticket #9); to jedyne, co katalog będzie jeszcze niósł.
+ * inaczej niż `WeaponType` — ale z ceną, tak samo jak on.
  */
 export type AmmunitionKind = {
   id: string
   name: string
+  /** Cena jednej sztuki w groszach; jedyne, do czego katalog służy poza nazwą. */
+  unitPrice: number
 }
 
 /**

@@ -81,6 +81,10 @@ export type Facility = {
   timeRules: TimeRules
   /** Pula instruktorów: ilu Instruktorów Strzelnica zapewnia jednocześnie. */
   instructorPool: number
+  /** Stawka za uczestnictwo w groszach; stawka za Blok należy do Osi. */
+  participationRate: number
+  /** Stawka za Instruktora w groszach. */
+  instructorRate: number
 }
 
 /**
@@ -97,6 +101,8 @@ export type FacilityRow = Pick<
   | 'min_lead_minutes'
   | 'cancellation_window_hours'
   | 'instructor_pool'
+  | 'participation_rate_gr'
+  | 'instructor_rate_gr'
 >
 
 export function facilityFromRow(row: FacilityRow): Facility {
@@ -110,6 +116,8 @@ export function facilityFromRow(row: FacilityRow): Facility {
       cancellationWindowHours: row.cancellation_window_hours,
     },
     instructorPool: row.instructor_pool,
+    participationRate: row.participation_rate_gr,
+    instructorRate: row.instructor_rate_gr,
   }
 }
 
@@ -118,10 +126,17 @@ export type Lane = {
   id: string
   name: string
   capacity: number
+  /** Stawka za Blok na tej Osi w groszach; obejmuje pierwszego Uczestnika. */
+  blockRate: number
 }
 
 export function laneFromRow(row: Tables<'lanes'>): Lane {
-  return { id: row.id, name: row.name, capacity: row.capacity }
+  return {
+    id: row.id,
+    name: row.name,
+    capacity: row.capacity,
+    blockRate: row.block_rate_gr,
+  }
 }
 
 export class IncompleteOccupancyError extends Error {
@@ -157,7 +172,7 @@ export function occupancyFromRow(row: Tables<'lane_occupancy'>): Occupancy {
 
 /** Pozycja katalogu w kształcie, w jakim potrzebuje jej formularz i dostępność. */
 export function weaponTypeFromRow(row: Tables<'weapon_types'>): WeaponType {
-  return { id: row.id, name: row.name, pool: row.pool }
+  return { id: row.id, name: row.name, pool: row.pool, unitPrice: row.unit_price_gr }
 }
 
 /**
@@ -166,7 +181,7 @@ export function weaponTypeFromRow(row: Tables<'weapon_types'>): WeaponType {
  * więc nie ma widoku, z którego trzeba by liczyć, ile zostało.
  */
 export function ammunitionKindFromRow(row: Tables<'ammunition_kinds'>): AmmunitionKind {
-  return { id: row.id, name: row.name }
+  return { id: row.id, name: row.name, unitPrice: row.unit_price_gr }
 }
 
 /**

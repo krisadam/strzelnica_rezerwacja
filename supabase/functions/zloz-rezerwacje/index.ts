@@ -29,6 +29,8 @@ import {
   occupancyFromRow,
   occupancyWindow,
   openingHoursFromRow,
+  priceBooking,
+  ratesFor,
   readBookingRequest,
   rowsOrThrow,
   scheduleForDay,
@@ -98,7 +100,7 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   const { data: facilityRow, error } = await client
     .from('facilities')
     .select(
-      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, instructor_pool, allowed_origins',
+      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, instructor_pool, participation_rate_gr, instructor_rate_gr, allowed_origins',
     )
     .eq('slug', request.facilitySlug)
     .maybeSingle()
@@ -163,6 +165,12 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
       client.from('ammunition_kinds').select('*').eq('facility_id', facility.id),
     ])
 
+  // Katalogi odczytane raz i podane obu regułom, które ich potrzebują:
+  // dostępności Bloku i wycenie. Dwa odczyty tych samych wierszy dałyby się
+  // rozejść przy pierwszej poprawce jednego z nich.
+  const weaponTypes = rowsOrThrow(katalog).map(weaponTypeFromRow)
+  const ammunitionKinds = rowsOrThrow(rodzaje).map(ammunitionKindFromRow)
+
   const grafik = scheduleForDay({
     day: request.day,
     laneId: lane.id,
@@ -177,7 +185,7 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),
     closedDates: rowsOrThrow(exceptions).map(closedDateFromRow),
     occupancies: rowsOrThrow(zajetosc).map(occupancyFromRow),
-    weaponTypes: rowsOrThrow(katalog).map(weaponTypeFromRow),
+    weaponTypes,
     weaponOccupancies: rowsOrThrow(wypozyczone).map(weaponOccupancyFromRow),
     now: new Date(),
   })
@@ -187,7 +195,7 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     draft: request,
     lane,
     block,
-    ammunitionKinds: rowsOrThrow(rodzaje).map(ammunitionKindFromRow),
+    ammunitionKinds,
   })
   // Pierwsze zastrzeżenie wystarczy: formularz pokazał resztę, więc tutaj
   // wychodzi już tylko to, czego klient nie mógł zobaczyć. Warunek na `block`
@@ -196,6 +204,23 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   if (problems[0] || !block) {
     return outcome({ ok: false, problem: problems[0] ?? 'termin-niedostepny' }, origin)
   }
+
+  // Kwota liczona tutaj od nowa, z cennika odczytanego z bazy rolą serwisową.
+  // Zgłoszenie nie ma pola na Kwotę i mieć nie będzie: liczba przysłana przez
+  // klienta byłaby ceną, którą sam sobie ustala. Liczy ją ta sama czysta
+  // funkcja, która pokazała rozbicie w formularzu, więc Osoba rezerwująca
+  // płaci to, co zobaczyła — chyba że Strzelnica zmieniła w międzyczasie
+  // cennik, i wtedy obowiązuje jej cennik, nie stara kopia u klienta.
+  //
+  // Wycena daje jedno i drugie: Kwotę i ceny pozycji, po których się policzyła.
+  // Oba idą do zapisu, żeby Rezerwacja dała się przeliczyć po podwyżce.
+  const rates = ratesFor(facility, lane)
+  const wycena = priceBooking({
+    rates,
+    draft: request,
+    weaponTypes,
+    ammunitionKinds,
+  })
 
   // Rezerwacja i jej Wypożyczenia powstają jednym wywołaniem, bo powstają albo
   // razem, albo wcale: Rezerwacja bez zamówionej broni kazałaby Strzelnicy
@@ -218,12 +243,29 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     // więc do bazy idzie sam fakt. `instructorAttends` liczy to tak samo, jak
     // policzyła to dostępność chwilę wcześniej.
     p_with_instructor: instructorAttends(request),
-    p_rentals: request.rentals,
+    // Pozycje idą z wyceny, a nie ze zgłoszenia: te same sztuki, ale z ceną
+    // dołożoną z katalogu. Zapisane przy pozycji, bo Kwota ma dać się
+    // przeliczyć także po zmianie cennika.
+    p_rentals: wycena.rentals.map(({ weaponTypeId, quantity, unitPrice }) => ({
+      weaponTypeId,
+      quantity,
+      unitPriceGr: unitPrice,
+    })),
     // Zapotrzebowanie jedzie tą samą drogą i z tego samego powodu — pozycje
     // Rezerwacji powstają razem z nią. Niczego przy tym nie pilnuje: Rodzaj
     // amunicji nie ma puli (ADR 0004), więc nie ma warunku do naruszenia
     // i nie ma odmowy, którą trzeba by tu rozpoznać.
-    p_ammunition: request.ammunition,
+    p_ammunition: wycena.ammunition.map(({ ammunitionKindId, quantity, unitPrice }) => ({
+      ammunitionKindId,
+      quantity,
+      unitPriceGr: unitPrice,
+    })),
+    p_amount_gr: wycena.amount.total,
+    // Stawki zapisane razem z Kwotą: bez nich Rezerwacja niosłaby liczbę,
+    // której nikt nie umie wytłumaczyć klientowi stojącemu przy kasie.
+    p_block_rate_gr: rates.blockRate,
+    p_participation_rate_gr: rates.participationRate,
+    p_instructor_rate_gr: rates.instructorRate,
   })
 
   // Dwa zgłoszenia na ten sam Blok w tej samej chwili widzą Blok wolny oba —
@@ -240,7 +282,9 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   }
   if (zapis.error) throw new Error(zapis.error.message)
 
-  return outcome({ ok: true, id: zapis.data }, origin)
+  // Kwota wraca razem z numerem: Osoba rezerwująca ma zobaczyć na
+  // potwierdzeniu tę zapisaną, a nie policzoną u siebie po raz drugi.
+  return outcome({ ok: true, id: zapis.data, amount: wycena.amount.total }, origin)
 }
 
 Deno.serve(async (req: Request) => {

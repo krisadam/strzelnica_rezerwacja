@@ -6,7 +6,7 @@ import type {
   Lane,
   SupabaseConfig,
 } from '@strzelnica/shared'
-import { dayIn } from '@strzelnica/shared'
+import { dayIn, priceBooking, ratesFor } from '@strzelnica/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Formularz } from './Formularz.js'
 import type { Grafik } from './grafik.js'
@@ -122,6 +122,24 @@ export function Rezerwacja({
     return { ...wybor, block: block ?? { ...wybor.block, available: false } }
   }
 
+  /**
+   * Kwota do zapłaty dla wskazanego terminu i tego, co stoi w zgłoszeniu.
+   * Liczona tutaj, a nie w każdym kroku z osobna: formularz i podsumowanie
+   * pokazują jedną Kwotę, więc mają ją dostać z jednego wyliczenia. Stawka za
+   * Blok należy do Osi, a Oś przychodzi z wyborem — stąd wybór na wejściu,
+   * tak samo jak w `odswiezony`.
+   *
+   * Przelicza się przy każdym renderze, więc nadąża za każdą zmianą
+   * formularza sama: zgłoszenie jest stanem tego komponentu.
+   */
+  const kwotaDla = (wybor: Wybor) =>
+    priceBooking({
+      rates: ratesFor(facility, wybor.lane),
+      draft,
+      weaponTypes: grafik.weaponTypes,
+      ammunitionKinds: grafik.ammunitionKinds,
+    }).amount
+
   const wybierz = (block: Block) => {
     if (!lane) return
     setZastrzezenie(null)
@@ -159,7 +177,7 @@ export function Rezerwacja({
       setZajetosc(await pobierzZajetosc())
 
       if (wynik.ok) {
-        setKrok({ nazwa: 'potwierdzenie', wybor, draft, id: wynik.id })
+        setKrok({ nazwa: 'potwierdzenie', wybor, draft, id: wynik.id, amount: wynik.amount })
       } else if (wynik.problem === 'termin-niedostepny') {
         // Jedyne zastrzeżenie, którego na podsumowaniu nie da się naprawić —
         // wraca się po nie do kalendarza, już bez tego Bloku.
@@ -182,6 +200,7 @@ export function Rezerwacja({
       <Formularz
         wybor={odswiezony(krok.wybor)}
         timeZone={facility.timeZone}
+        kwota={kwotaDla(krok.wybor)}
         weaponTypes={grafik.weaponTypes}
         weaponOccupancies={zajetosc.weapons}
         ammunitionKinds={grafik.ammunitionKinds}
@@ -198,6 +217,7 @@ export function Rezerwacja({
       <Podsumowanie
         wybor={odswiezony(krok.wybor)}
         timeZone={facility.timeZone}
+        kwota={kwotaDla(krok.wybor)}
         weaponTypes={grafik.weaponTypes}
         ammunitionKinds={grafik.ammunitionKinds}
         draft={draft}
@@ -219,6 +239,7 @@ export function Rezerwacja({
         ammunitionKinds={grafik.ammunitionKinds}
         draft={krok.draft}
         id={krok.id}
+        amount={krok.amount}
         onWroc={() => {
           setDraft(PUSTY_DRAFT)
           doKalendarza()

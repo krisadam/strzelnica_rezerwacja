@@ -98,9 +98,14 @@ export function concernsTheTerm(problem: BookingProblem): boolean {
   return Object.values(TERM_PROBLEMS).includes(problem)
 }
 
-/** Odpowiedź Edge Function w kształcie znanym obu stronom. */
+/**
+ * Odpowiedź Edge Function w kształcie znanym obu stronom. Przyjęte zgłoszenie
+ * wraca z Kwotą — tą zapisaną, w groszach, a nie policzoną jeszcze raz
+ * u klienta: to ona jest odtąd Kwotą tej Rezerwacji, choćby cennik zmienił się
+ * między wypełnieniem formularza a zapisem.
+ */
 export type BookingOutcome =
-  | { ok: true; id: string }
+  | { ok: true; id: string; amount: number }
   | { ok: false; problem: BookingProblem }
 
 export type BookingCheck = {

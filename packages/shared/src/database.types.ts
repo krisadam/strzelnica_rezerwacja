@@ -17,6 +17,7 @@ export type Database = {
           facility_id: string
           id: string
           quantity: number
+          unit_price_gr: number
         }
         Insert: {
           ammunition_kind_id: string
@@ -25,6 +26,7 @@ export type Database = {
           facility_id: string
           id?: string
           quantity: number
+          unit_price_gr: number
         }
         Update: {
           ammunition_kind_id?: string
@@ -33,6 +35,7 @@ export type Database = {
           facility_id?: string
           id?: string
           quantity?: number
+          unit_price_gr?: number
         }
         Relationships: [
           {
@@ -64,18 +67,21 @@ export type Database = {
           facility_id: string
           id: string
           name: string
+          unit_price_gr: number
         }
         Insert: {
           created_at?: string
           facility_id: string
           id?: string
           name: string
+          unit_price_gr?: number
         }
         Update: {
           created_at?: string
           facility_id?: string
           id?: string
           name?: string
+          unit_price_gr?: number
         }
         Relationships: [
           {
@@ -134,6 +140,8 @@ export type Database = {
       }
       bookings: {
         Row: {
+          amount_gr: number
+          block_rate_gr: number
           consented_at: string
           contact_email: string
           contact_name: string
@@ -143,13 +151,17 @@ export type Database = {
           facility_id: string
           has_permit: boolean
           id: string
+          instructor_rate_gr: number
           lane_id: string
           participants: number
+          participation_rate_gr: number
           starts_at: string
           status: Database["public"]["Enums"]["booking_status"]
           with_instructor: boolean
         }
         Insert: {
+          amount_gr: number
+          block_rate_gr: number
           consented_at?: string
           contact_email: string
           contact_name: string
@@ -159,13 +171,17 @@ export type Database = {
           facility_id: string
           has_permit: boolean
           id?: string
+          instructor_rate_gr: number
           lane_id: string
           participants: number
+          participation_rate_gr: number
           starts_at: string
           status: Database["public"]["Enums"]["booking_status"]
           with_instructor: boolean
         }
         Update: {
+          amount_gr?: number
+          block_rate_gr?: number
           consented_at?: string
           contact_email?: string
           contact_name?: string
@@ -175,8 +191,10 @@ export type Database = {
           facility_id?: string
           has_permit?: boolean
           id?: string
+          instructor_rate_gr?: number
           lane_id?: string
           participants?: number
+          participation_rate_gr?: number
           starts_at?: string
           status?: Database["public"]["Enums"]["booking_status"]
           with_instructor?: boolean
@@ -238,8 +256,10 @@ export type Database = {
           created_at: string
           id: string
           instructor_pool: number
+          instructor_rate_gr: number
           min_lead_minutes: number
           name: string
+          participation_rate_gr: number
           slug: string
           timezone: string
         }
@@ -250,8 +270,10 @@ export type Database = {
           created_at?: string
           id?: string
           instructor_pool?: number
+          instructor_rate_gr?: number
           min_lead_minutes?: number
           name: string
+          participation_rate_gr?: number
           slug: string
           timezone?: string
         }
@@ -262,8 +284,10 @@ export type Database = {
           created_at?: string
           id?: string
           instructor_pool?: number
+          instructor_rate_gr?: number
           min_lead_minutes?: number
           name?: string
+          participation_rate_gr?: number
           slug?: string
           timezone?: string
         }
@@ -271,6 +295,7 @@ export type Database = {
       }
       lanes: {
         Row: {
+          block_rate_gr: number
           capacity: number
           created_at: string
           facility_id: string
@@ -278,6 +303,7 @@ export type Database = {
           name: string
         }
         Insert: {
+          block_rate_gr?: number
           capacity: number
           created_at?: string
           facility_id: string
@@ -285,6 +311,7 @@ export type Database = {
           name: string
         }
         Update: {
+          block_rate_gr?: number
           capacity?: number
           created_at?: string
           facility_id?: string
@@ -343,6 +370,7 @@ export type Database = {
           facility_id: string
           id: string
           quantity: number
+          unit_price_gr: number
           weapon_type_id: string
         }
         Insert: {
@@ -351,6 +379,7 @@ export type Database = {
           facility_id: string
           id?: string
           quantity: number
+          unit_price_gr: number
           weapon_type_id: string
         }
         Update: {
@@ -359,6 +388,7 @@ export type Database = {
           facility_id?: string
           id?: string
           quantity?: number
+          unit_price_gr?: number
           weapon_type_id?: string
         }
         Relationships: [
@@ -392,6 +422,7 @@ export type Database = {
           id: string
           name: string
           pool: number
+          unit_price_gr: number
         }
         Insert: {
           created_at?: string
@@ -399,6 +430,7 @@ export type Database = {
           id?: string
           name: string
           pool: number
+          unit_price_gr?: number
         }
         Update: {
           created_at?: string
@@ -406,6 +438,7 @@ export type Database = {
           id?: string
           name?: string
           pool?: number
+          unit_price_gr?: number
         }
         Relationships: [
           {
@@ -481,14 +514,18 @@ export type Database = {
       place_booking: {
         Args: {
           p_ammunition: Json
+          p_amount_gr: number
+          p_block_rate_gr: number
           p_contact_email: string
           p_contact_name: string
           p_contact_phone: string
           p_ends_at: string
           p_facility_id: string
           p_has_permit: boolean
+          p_instructor_rate_gr: number
           p_lane_id: string
           p_participants: number
+          p_participation_rate_gr: number
           p_rentals: Json
           p_starts_at: string
           p_status: Database["public"]["Enums"]["booking_status"]

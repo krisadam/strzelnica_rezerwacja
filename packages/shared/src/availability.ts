@@ -74,6 +74,12 @@ export type WeaponType = {
   name: string
   /** Ile sztuk tego Typu Strzelnica ma w ogóle do wydania. */
   pool: number
+  /**
+   * Cena wypożyczenia jednej sztuki w groszach. Dostępności nie dotyczy —
+   * czyta ją wyliczanie Kwoty do zapłaty. Mieszka tutaj, bo katalog jest
+   * jeden: Typ z ceną trzymaną osobno dałby się wystawić bez niej.
+   */
+  unitPrice: number
 }
 
 /** Zamówienie sztuk jednego Typu: pozycja Rezerwacji, a zarazem zamierzenie. */

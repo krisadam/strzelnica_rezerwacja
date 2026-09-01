@@ -602,8 +602,11 @@ describe('Pula instruktorów', () => {
  * po sztukach, bo katalog dzieli się między Rezerwacje nakładające się w czasie.
  */
 describe('Pula sztuk Typu broni', () => {
-  const GLOCK: WeaponType = { id: 'glock', name: 'Glock 17', pool: 3 }
-  const SHADOW: WeaponType = { id: 'shadow', name: 'CZ Shadow 2', pool: 1 }
+  // Cena stoi w katalogu obok puli, ale dostępności nie dotyczy — Typ droższy
+  // nie jest przez to trudniej dostępny. Tutaj jest tylko dlatego, że katalog
+  // Strzelnicy jest jeden i niesie jedno i drugie.
+  const GLOCK: WeaponType = { id: 'glock', name: 'Glock 17', pool: 3, unitPrice: 5_000 }
+  const SHADOW: WeaponType = { id: 'shadow', name: 'CZ Shadow 2', pool: 1, unitPrice: 6_000 }
   const KATALOG = [GLOCK, SHADOW]
 
   /** Cudze Wypożyczenie w godzinach pierwszego Bloku poniedziałku. */
@@ -732,8 +735,8 @@ describe('Pula sztuk Typu broni', () => {
  */
 describe('pozostałe sztuki Typu broni', () => {
   const KATALOG: WeaponType[] = [
-    { id: 'glock', name: 'Glock 17', pool: 3 },
-    { id: 'shadow', name: 'CZ Shadow 2', pool: 1 },
+    { id: 'glock', name: 'Glock 17', pool: 3, unitPrice: 5_000 },
+    { id: 'shadow', name: 'CZ Shadow 2', pool: 1, unitPrice: 6_000 },
   ]
 
   const OD = new Date('2026-06-15T08:00:00Z')

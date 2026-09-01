@@ -1,9 +1,11 @@
 import type {
   AmmunitionKind,
+  AmountBreakdown,
   BookingDraft,
   BookingProblem,
   WeaponType,
 } from '@strzelnica/shared'
+import { Kwota } from './Kwota.js'
 import type { Wybor } from './krok.js'
 import { opisInstruktora, opisWypozyczen, opisZapotrzebowania, teksty } from './teksty.js'
 import { Wybrany } from './Wybrany.js'
@@ -17,6 +19,7 @@ import { Zastrzezenia } from './Zastrzezenia.js'
 export function Podsumowanie({
   wybor,
   timeZone,
+  kwota,
   weaponTypes,
   ammunitionKinds,
   draft,
@@ -28,6 +31,8 @@ export function Podsumowanie({
 }: {
   wybor: Wybor
   timeZone: string
+  /** Ta sama Kwota, co w formularzu, i z tego samego wyliczenia. */
+  kwota: AmountBreakdown
   weaponTypes: readonly WeaponType[]
   ammunitionKinds: readonly AmmunitionKind[]
   draft: BookingDraft
@@ -61,6 +66,10 @@ export function Podsumowanie({
         <dt>{teksty.formularz.telefon}</dt>
         <dd>{draft.contact.phone}</dd>
       </dl>
+
+      {/* Kwota jeszcze raz, przy przycisku, którym Osoba rezerwująca zajmuje
+          termin — to ostatnia chwila, w której wolno jej zmienić zdanie. */}
+      <Kwota amount={kwota} />
 
       {zastrzezenie && <Zastrzezenia problems={[zastrzezenie]} />}
       {blad && (

@@ -1,7 +1,8 @@
 -- Jedna Strzelnica do pracy lokalnej: dwie Osie, tygodniowy rozkład Bloków,
 -- godziny otwarcia i jeden wyjątek kalendarzowy. Rozkład jest tygodniowy,
 -- więc pokrywa 30 dni w przód i każde kolejne — bez przepisywania seeda.
--- Katalogi broni, cennik i Rezerwacje dochodzą w kolejnych ticketach.
+-- Cennik wypisany wprost i w okrągłych stawkach, żeby rozbicie Kwoty
+-- w Widgecie dawało się przeczytać bez kalkulatora. Wszystko w groszach.
 
 -- Reguły czasowe wypisane wprost, choć równe wartościom domyślnym: grafik
 -- demo ma pokazywać, co robi horyzont i wyprzedzenie, więc muszą być widoczne
@@ -17,7 +18,7 @@
 -- i niedostępny dla tej bez.
 insert into public.facilities (
   id, slug, name, booking_horizon_days, min_lead_minutes, cancellation_window_hours,
-  allowed_origins, instructor_pool
+  allowed_origins, instructor_pool, participation_rate_gr, instructor_rate_gr
 )
 values (
   '00000000-0000-0000-0000-000000000001',
@@ -27,23 +28,30 @@ values (
   120,
   24,
   '{http://localhost:5175}',
-  1
+  1,
+  -- 30 zł za każdego Uczestnika poza pierwszym, 80 zł za Instruktora.
+  3000,
+  8000
 )
 on conflict (id) do nothing;
 
-insert into public.lanes (id, facility_id, name, capacity)
+-- Stawki za Blok celowo różne: stawka jest własnością Osi, nie Strzelnicy,
+-- a Osoba rezerwująca ma to zobaczyć w Kwocie po przełączeniu Osi.
+insert into public.lanes (id, facility_id, name, capacity, block_rate_gr)
 values
   (
     '00000000-0000-0000-0000-0000000000a1',
     '00000000-0000-0000-0000-000000000001',
     'Oś pistoletowa nr 1',
-    4
+    4,
+    12000
   ),
   (
     '00000000-0000-0000-0000-0000000000a2',
     '00000000-0000-0000-0000-000000000001',
     'Oś karabinowa nr 2',
-    2
+    2,
+    15000
   )
 on conflict (id) do nothing;
 
@@ -129,9 +137,15 @@ on conflict (facility_id, closed_on) do nothing;
 -- Strzelnicy, bo rozkład mówi o jej zegarze, a kolumna trzyma UTC.
 -- Rezerwujący nie ma Pozwolenia, więc bierze Instruktora — i tym samym
 -- jedyne miejsce w Puli.
+-- Kwota wypisana wprost, a nie policzona zapytaniem: w bazie jest wartością
+-- zamrożoną w chwili złożenia, więc seed ma ją podać tak samo, jak podaje ją
+-- Edge Function. Rachunek tej Rezerwacji: 120 zł za Blok + 30 zł za drugiego
+-- Uczestnika + 80 zł za Instruktora + 60 zł za „CZ Shadow 2" + 200 × 0,40 zł
+-- za amunicję = 370 zł.
 insert into public.bookings (
   id, facility_id, lane_id, starts_at, ends_at, status, participants,
-  contact_name, contact_email, contact_phone, has_permit, with_instructor
+  contact_name, contact_email, contact_phone, has_permit, with_instructor,
+  amount_gr, block_rate_gr, participation_rate_gr, instructor_rate_gr
 )
 select
   '00000000-0000-0000-0000-0000000000b1',
@@ -145,7 +159,11 @@ select
   'jan@example.pl',
   '600100200',
   false,
-  true
+  true,
+  37000,
+  12000,
+  3000,
+  8000
 from public.facilities f
 cross join lateral (
   select (
@@ -159,72 +177,84 @@ on conflict (id) do nothing;
 -- Katalog Typów broni. Pule celowo różne: „Glock 17" starcza na kilka
 -- Rezerwacji naraz, a „CZ Shadow 2" jest jeden — więc Rezerwacja poniżej
 -- wyczerpuje go w swoim terminie i grafik demo pokazuje Typ niedostępny.
-insert into public.weapon_types (id, facility_id, name, pool)
+insert into public.weapon_types (id, facility_id, name, pool, unit_price_gr)
 values
   (
     '00000000-0000-0000-0000-0000000000c1',
     '00000000-0000-0000-0000-000000000001',
     'Glock 17',
-    3
+    3,
+    5000
   ),
   (
     '00000000-0000-0000-0000-0000000000c2',
     '00000000-0000-0000-0000-000000000001',
     'CZ Shadow 2',
-    1
+    1,
+    6000
   ),
   (
     '00000000-0000-0000-0000-0000000000c3',
     '00000000-0000-0000-0000-000000000001',
     'Karabinek AR-15',
-    2
+    2,
+    9000
   )
 on conflict (id) do nothing;
 
 -- Wypożyczenie przy Rezerwacji z seeda: jedyna sztuka „CZ Shadow 2". Ten sam
 -- termin na drugiej Osi zostaje więc wolny, ale bez tego Typu — dokładnie ta
 -- różnica, o której mówi spec: dostępność zależy od kształtu Rezerwacji.
-insert into public.weapon_rentals (id, facility_id, booking_id, weapon_type_id, quantity)
+insert into public.weapon_rentals (
+  id, facility_id, booking_id, weapon_type_id, quantity, unit_price_gr
+)
 values (
   '00000000-0000-0000-0000-0000000000d1',
   '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-0000000000b1',
   '00000000-0000-0000-0000-0000000000c2',
-  1
+  1,
+  6000
 )
 on conflict (id) do nothing;
 
 -- Katalog Rodzajów amunicji. Bez pul — Rodzaj amunicji ich nie ma (ADR 0004),
 -- więc żaden z nich nie bywa „wyczerpany" i grafik demo nie ma tu czego
 -- pokazywać poza samą listą.
-insert into public.ammunition_kinds (id, facility_id, name)
+insert into public.ammunition_kinds (id, facility_id, name, unit_price_gr)
 values
   (
     '00000000-0000-0000-0000-0000000000e1',
     '00000000-0000-0000-0000-000000000001',
-    '9 × 19 mm Parabellum'
+    '9 × 19 mm Parabellum',
+    150
   ),
   (
     '00000000-0000-0000-0000-0000000000e2',
     '00000000-0000-0000-0000-000000000001',
-    '.223 Remington'
+    '.223 Remington',
+    250
   ),
   (
     '00000000-0000-0000-0000-0000000000e3',
     '00000000-0000-0000-0000-000000000001',
-    '.22 Long Rifle'
+    '.22 Long Rifle',
+    40
   )
 on conflict (id) do nothing;
 
 -- Zapotrzebowanie przy Rezerwacji z seeda. Rodzaj celowo nie pasuje do
 -- kalibru wypożyczonego „CZ Shadow 2": zgodności nie sprawdzamy (ADR 0004),
 -- a dane demo mają to pokazywać, zamiast udawać walidację, której nie ma.
-insert into public.ammunition_demands (id, facility_id, booking_id, ammunition_kind_id, quantity)
+insert into public.ammunition_demands (
+  id, facility_id, booking_id, ammunition_kind_id, quantity, unit_price_gr
+)
 values (
   '00000000-0000-0000-0000-0000000000f1',
   '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-0000000000b1',
   '00000000-0000-0000-0000-0000000000e3',
-  200
+  200,
+  40
 )
 on conflict (id) do nothing;

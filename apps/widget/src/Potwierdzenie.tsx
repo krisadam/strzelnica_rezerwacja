@@ -1,5 +1,6 @@
 import type { AmmunitionKind, BookingDraft, WeaponType } from '@strzelnica/shared'
 import type { Wybor } from './krok.js'
+import { KwotaZapisana } from './Kwota.js'
 import { opisInstruktora, opisWypozyczen, opisZapotrzebowania, teksty } from './teksty.js'
 import { Wybrany } from './Wybrany.js'
 
@@ -16,6 +17,7 @@ export function Potwierdzenie({
   ammunitionKinds,
   draft,
   id,
+  amount,
   onWroc,
 }: {
   wybor: Wybor
@@ -24,6 +26,8 @@ export function Potwierdzenie({
   ammunitionKinds: readonly AmmunitionKind[]
   draft: BookingDraft
   id: string
+  /** Kwota zapisana przy Rezerwacji, w groszach; odesłana przez Edge Function. */
+  amount: number
   onWroc: () => void
 }) {
   return (
@@ -56,6 +60,8 @@ export function Potwierdzenie({
         <dt>{teksty.formularz.email}</dt>
         <dd>{draft.contact.email}</dd>
       </dl>
+
+      <KwotaZapisana amount={amount} />
 
       <p className="numer">{teksty.potwierdzenie.numer(id)}</p>
 

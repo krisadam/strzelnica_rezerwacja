@@ -36,6 +36,17 @@ export type {
   WeaponRental,
   WeaponType,
 } from './availability.ts'
+export { bookingAmount, formatAmount, priceBooking, ratesFor, UnpricedItemError } from './pricing.ts'
+export type {
+  AmountBreakdown,
+  AmountInput,
+  PricedBooking,
+  PricedBookingInput,
+  PricedDemand,
+  PricedQuantity,
+  PricedRental,
+  Rates,
+} from './pricing.ts'
 export {
   bookingProblems,
   concernsTheTerm,

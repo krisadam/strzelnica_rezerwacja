@@ -1,5 +1,6 @@
 import type {
   AmmunitionKind,
+  AmountBreakdown,
   BookingDraft,
   WeaponOccupancy,
   WeaponType,
@@ -8,6 +9,7 @@ import { bookingProblems, concernsTheTerm, remainingWeapons } from '@strzelnica/
 import { useMemo, useState } from 'react'
 import { Amunicja } from './Amunicja.js'
 import { Deklaracje } from './Deklaracje.js'
+import { Kwota } from './Kwota.js'
 import type { Wybor } from './krok.js'
 import { opisInstruktora, teksty } from './teksty.js'
 import { Wybrany } from './Wybrany.js'
@@ -29,6 +31,7 @@ import { Zastrzezenia } from './Zastrzezenia.js'
 export function Formularz({
   wybor,
   timeZone,
+  kwota,
   weaponTypes,
   weaponOccupancies,
   ammunitionKinds,
@@ -39,6 +42,8 @@ export function Formularz({
 }: {
   wybor: Wybor
   timeZone: string
+  /** Kwota dla tego, co stoi w zgłoszeniu; przeliczana przy każdej zmianie. */
+  kwota: AmountBreakdown
   weaponTypes: readonly WeaponType[]
   weaponOccupancies: readonly WeaponOccupancy[]
   ammunitionKinds: readonly AmmunitionKind[]
@@ -153,6 +158,8 @@ export function Formularz({
         />
         <span>{teksty.formularz.zgoda}</span>
       </label>
+
+      <Kwota amount={kwota} />
 
       <Zastrzezenia problems={widoczne} />
 

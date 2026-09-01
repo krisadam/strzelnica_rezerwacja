@@ -167,6 +167,14 @@ a Pula sztuk Typu broni sprawdza się pod blokadą doradczą na Strzelnicę.
 Wypożyczenia widoczne publicznie są w widoku `weapon_occupancy` — Typ, liczba
 sztuk i zakres czasu, bez danych osobowych.
 
+Kwotę do zapłaty liczy `packages/shared` i przelicza ją Edge Function po swojej
+stronie — zgłoszenie nie ma pola na Kwotę, bo liczba przysłana przez klienta
+byłaby ceną, którą sam sobie ustala. Rezerwacja zapisuje Kwotę razem ze
+stawkami i cenami pozycji, z których się policzyła, więc zmiana cennika nie
+dotyczy Rezerwacji złożonych wcześniej. Kwota wraca w odpowiedzi funkcji i to
+ją — a nie rachunek policzony w przeglądarce po raz drugi — Widget pokazuje na
+potwierdzeniu.
+
 Zapotrzebowania na amunicję takiego widoku **nie mają i mieć nie będą**. Rodzaj
 amunicji nie ma puli (ADR 0004), więc nie ma czego odliczać od cudzych
 zamówień: amunicja nigdy nie odbiera nikomu terminu, a widok wystawiałby cudze

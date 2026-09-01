@@ -137,7 +137,7 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
   const { data: row, error } = await client
     .from('facilities')
     .select(
-      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, instructor_pool',
+      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, instructor_pool, participation_rate_gr, instructor_rate_gr',
     )
     .eq('slug', slug)
     .maybeSingle()

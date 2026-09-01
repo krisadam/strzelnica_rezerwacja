@@ -7,12 +7,16 @@ import {
   readBookingRequest,
 } from './index.ts'
 
-const OS: Lane = { id: 'os-1', name: 'Oś pistoletowa nr 1', capacity: 4 }
+const OS: Lane = { id: 'os-1', name: 'Oś pistoletowa nr 1', capacity: 4, blockRate: 12_000 }
 
-/** Katalog Rodzajów amunicji Strzelnicy; identyfikatory skrócone dla czytelności. */
+/**
+ * Katalog Rodzajów amunicji Strzelnicy; identyfikatory skrócone dla
+ * czytelności. Ceny nie mają tu znaczenia — zastrzeżenie pyta katalog o to,
+ * czy zna Rodzaj, a nie ile za niego liczy.
+ */
 const KATALOG_AMUNICJI = [
-  { id: '9x19', name: '9 × 19 mm Parabellum' },
-  { id: '22lr', name: '.22 Long Rifle' },
+  { id: '9x19', name: '9 × 19 mm Parabellum', unitPrice: 150 },
+  { id: '22lr', name: '.22 Long Rifle', unitPrice: 40 },
 ]
 
 function blok(nadpisania: Partial<Block> = {}): Block {

@@ -65,7 +65,7 @@ describe('wiersze bazy jako pojęcia domeny', () => {
     })
   })
 
-  it('Strzelnica niesie strefę i komplet reguł czasowych', () => {
+  it('Strzelnica niesie strefę, reguły czasowe i swoje stawki', () => {
     const row: Tables<'facilities'> = {
       id: 'strzelnica-1',
       slug: 'strzelnica-demo',
@@ -76,6 +76,8 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       cancellation_window_hours: 24,
       allowed_origins: ['https://klient.example.pl'],
       instructor_pool: 2,
+      participation_rate_gr: 3000,
+      instructor_rate_gr: 8000,
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -85,15 +87,18 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       timeZone: 'Europe/Warsaw',
       timeRules: { horizonDays: 30, minLeadMinutes: 120, cancellationWindowHours: 24 },
       instructorPool: 2,
+      participationRate: 3000,
+      instructorRate: 8000,
     })
   })
 
-  it('Oś zachowuje nazwę i pojemność', () => {
+  it('Oś zachowuje nazwę, pojemność i stawkę za Blok', () => {
     const row: Tables<'lanes'> = {
       id: 'os-1',
       facility_id: 'strzelnica-1',
       name: 'Oś pistoletowa nr 1',
       capacity: 4,
+      block_rate_gr: 12000,
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -101,6 +106,7 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       id: 'os-1',
       name: 'Oś pistoletowa nr 1',
       capacity: 4,
+      blockRate: 12000,
     })
   })
 })
@@ -140,16 +146,22 @@ describe('zajętość Osi z wiersza widoku', () => {
 })
 
 describe('Typ broni z wiersza katalogu', () => {
-  it('bierze z wiersza nazwę i pulę sztuk', () => {
+  it('bierze z wiersza nazwę, pulę sztuk i cenę', () => {
     expect(
       weaponTypeFromRow({
         id: '00000000-0000-0000-0000-0000000000c1',
         facility_id: '00000000-0000-0000-0000-000000000001',
         name: 'Glock 17',
         pool: 3,
+        unit_price_gr: 5000,
         created_at: '2026-01-01T00:00:00Z',
       }),
-    ).toEqual({ id: '00000000-0000-0000-0000-0000000000c1', name: 'Glock 17', pool: 3 })
+    ).toEqual({
+      id: '00000000-0000-0000-0000-0000000000c1',
+      name: 'Glock 17',
+      pool: 3,
+      unitPrice: 5000,
+    })
   })
 })
 
@@ -162,9 +174,14 @@ describe('Rodzaj amunicji z wiersza katalogu', () => {
         id: '00000000-0000-0000-0000-0000000000e1',
         facility_id: '00000000-0000-0000-0000-000000000001',
         name: '9 × 19 mm Parabellum',
+        unit_price_gr: 150,
         created_at: '2026-01-01T00:00:00Z',
       }),
-    ).toEqual({ id: '00000000-0000-0000-0000-0000000000e1', name: '9 × 19 mm Parabellum' })
+    ).toEqual({
+      id: '00000000-0000-0000-0000-0000000000e1',
+      name: '9 × 19 mm Parabellum',
+      unitPrice: 150,
+    })
   })
 })
 

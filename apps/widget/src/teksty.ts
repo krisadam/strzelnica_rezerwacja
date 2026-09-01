@@ -94,6 +94,26 @@ export const teksty = {
     etykieta: 'Amunicja',
     wlasnaAmunicja: 'brak — własna albo kupiona na miejscu',
   },
+  /**
+   * Kwota do zapłaty. Etykiety składników są nazwami z CONTEXT.md, a nie
+   * skrótami: Osoba rezerwująca czyta rachunek raz i ma go zrozumieć bez
+   * wracania do reszty formularza.
+   *
+   * Zdanie o płatności na miejscu stoi przy każdej Kwocie. Moduł Kwotę
+   * wyłącznie prezentuje — nie ma płatności online, zadatku ani faktury —
+   * a formularz, który liczy pieniądze i nie mówi, gdzie się je płaci, każe
+   * szukać pola karty do samego końca.
+   */
+  kwota: {
+    naglowek: 'Kwota do zapłaty',
+    blok: 'Blok na Osi',
+    uczestnictwo: 'Opłata za uczestnictwo',
+    instruktor: 'Instruktor',
+    bron: 'Wypożyczenie broni',
+    amunicja: 'Amunicja',
+    razem: 'Razem',
+    naMiejscu: 'Płatność na miejscu w Strzelnicy — tutaj nic nie pobieramy.',
+  },
   pozwolenie: {
     etykieta: 'Pozwolenie na broń',
     mam: 'deklaruję, że posiadam',
@@ -129,6 +149,10 @@ export const teksty = {
   potwierdzenie: {
     naglowek: 'Termin jest Twój',
     tresc: 'Zapisaliśmy Rezerwację. Strzelnica ma już Twoje zgłoszenie.',
+    // Zamrożenie Kwoty jest obietnicą wobec klienta, więc mówi się o nim
+    // wprost, i to dopiero tutaj: przed złożeniem Rezerwacji nie ma jeszcze
+    // czego zamrażać, a cennik do tej chwili wolno Strzelnicy zmienić.
+    kwotaZamrozona: 'Ta Kwota już się nie zmieni, także gdy Strzelnica zmieni cennik.',
     numer: (id: string) => `Numer Rezerwacji: ${id}`,
     wrocDoKalendarza: 'Wróć do kalendarza',
   },

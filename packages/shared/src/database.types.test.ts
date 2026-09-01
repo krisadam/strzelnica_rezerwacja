@@ -16,6 +16,8 @@ describe('typy ze schematu bazy', () => {
       cancellation_window_hours: 24,
       allowed_origins: ['https://klient.example.pl'],
       instructor_pool: 2,
+      participation_rate_gr: 3000,
+      instructor_rate_gr: 8000,
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -35,18 +37,25 @@ describe('typy ze schematu bazy', () => {
     expect(nowa.min_lead_minutes).toBeUndefined()
     expect(nowa.cancellation_window_hours).toBeUndefined()
     expect(nowa.instructor_pool).toBeUndefined()
+    // Stawki tak samo: Strzelnica bez cennika liczy zero, a nie kwotę zmyśloną
+    // za nią przez migracje.
+    expect(nowa.participation_rate_gr).toBeUndefined()
+    expect(nowa.instructor_rate_gr).toBeUndefined()
   })
 
-  it('Oś niesie identyfikator Strzelnicy i pojemność', () => {
+  it('Oś niesie identyfikator Strzelnicy, pojemność i stawkę za Blok', () => {
     const os: Tables<'lanes'> = {
       id: '00000000-0000-0000-0000-0000000000a1',
       facility_id: '00000000-0000-0000-0000-000000000001',
       name: 'Oś pistoletowa nr 1',
       capacity: 4,
+      block_rate_gr: 12000,
       created_at: '2026-01-01T00:00:00Z',
     }
 
     expect(os.capacity).toBe(4)
+    // Stawka za Blok jest własnością Osi, nie Strzelnicy.
+    expect(os.block_rate_gr).toBe(12000)
   })
 
   it('pozycja rozkładu wiąże Oś z dniem tygodnia i minutą początku', () => {
@@ -97,26 +106,37 @@ describe('typy ze schematu bazy', () => {
       contact_phone: '600100200',
       has_permit: false,
       with_instructor: true,
+      amount_gr: 37000,
+      block_rate_gr: 12000,
+      participation_rate_gr: 3000,
+      instructor_rate_gr: 8000,
     }
 
     expect(rezerwacja.status).toBe('potwierdzona')
     // Deklaracja i obecność Instruktora podawane wprost: kolumny straciły
     // wartości domyślne, żeby wpis nie mógł o nich milczkiem zapomnieć.
     expect(rezerwacja.with_instructor).toBe(true)
+    // Kwota i stawki, z których się policzyła, podawane wprost i bez wartości
+    // domyślnych: Rezerwacja zapisana bez nich byłaby rachunkiem, którego nikt
+    // nie umie wytłumaczyć — i Kwotą, którą przeliczyłaby przyszła podwyżka.
+    expect(rezerwacja.amount_gr).toBe(37000)
+    expect(rezerwacja.block_rate_gr).toBe(12000)
     // Moment akceptacji regulaminu uzupełnia baza, tak jak datę utworzenia.
     expect(rezerwacja.consented_at).toBeUndefined()
   })
 
-  it('Typ broni niesie pulę sztuk', () => {
+  it('Typ broni niesie pulę sztuk i cenę za sztukę', () => {
     const typ: Tables<'weapon_types'> = {
       id: '00000000-0000-0000-0000-0000000000c1',
       facility_id: '00000000-0000-0000-0000-000000000001',
       name: 'Glock 17',
       pool: 3,
+      unit_price_gr: 5000,
       created_at: '2026-01-01T00:00:00Z',
     }
 
     expect(typ.pool).toBe(3)
+    expect(typ.unit_price_gr).toBe(5000)
   })
 
   it('Wypożyczenie wiąże Rezerwację z Typem broni i liczbą sztuk', () => {
@@ -125,22 +145,34 @@ describe('typy ze schematu bazy', () => {
       booking_id: '00000000-0000-0000-0000-0000000000b1',
       weapon_type_id: '00000000-0000-0000-0000-0000000000c1',
       quantity: 2,
+      unit_price_gr: 5000,
     }
 
     expect(wypozyczenie.quantity).toBe(2)
+    // Cena przy pozycji, a nie odczytywana z katalogu przy pokazywaniu Kwoty:
+    // inaczej podwyżka przeliczyłaby Rezerwacje złożone przed nią.
+    expect(wypozyczenie.unit_price_gr).toBe(5000)
   })
 
   // Rodzaj amunicji nie ma puli — i to jest treść, nie brak. Gdyby kolumna
-  // doszła, ten test przestałby się kompilować razem z ADR 0004.
-  it('Rodzaj amunicji niesie samą nazwę, bez puli', () => {
+  // doszła, ten test przestałby się kompilować razem z ADR 0004. Cena za
+  // sztukę pulą nie jest: mówi, ile amunicja kosztuje, a nie ile jej zostało.
+  it('Rodzaj amunicji niesie nazwę i cenę za sztukę, bez puli', () => {
     const rodzaj: Tables<'ammunition_kinds'> = {
       id: '00000000-0000-0000-0000-0000000000e1',
       facility_id: '00000000-0000-0000-0000-000000000001',
       name: '9 × 19 mm Parabellum',
+      unit_price_gr: 150,
       created_at: '2026-01-01T00:00:00Z',
     }
 
-    expect(Object.keys(rodzaj)).toEqual(['id', 'facility_id', 'name', 'created_at'])
+    expect(Object.keys(rodzaj)).toEqual([
+      'id',
+      'facility_id',
+      'name',
+      'unit_price_gr',
+      'created_at',
+    ])
   })
 
   it('Zapotrzebowanie wiąże Rezerwację z Rodzajem amunicji i liczbą sztuk', () => {
@@ -149,9 +181,11 @@ describe('typy ze schematu bazy', () => {
       booking_id: '00000000-0000-0000-0000-0000000000b1',
       ammunition_kind_id: '00000000-0000-0000-0000-0000000000e1',
       quantity: 200,
+      unit_price_gr: 150,
     }
 
     expect(zapotrzebowanie.quantity).toBe(200)
+    expect(zapotrzebowanie.unit_price_gr).toBe(150)
   })
 
   // Publiczny odczyt Wypożyczeń idzie wyłącznie tędy: ile sztuk którego Typu
