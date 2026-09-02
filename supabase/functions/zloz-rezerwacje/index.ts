@@ -42,16 +42,7 @@ import {
 import { connect } from '../_shared/baza.ts'
 import { corsHeaders, json, outcome } from '../_shared/http.ts'
 import { wyslijPoczte } from '../_shared/poczta.ts'
-
-/**
- * Źródło, spod którego serwowany jest sam Widget. Nie jest domeną osadzenia —
- * te wskazuje Strzelnica — tylko domeną naszą, jednakową dla wszystkich
- * Strzelnic, więc mieszka w konfiguracji platformy, a nie w jej danych.
- *
- * Prowadzi do niej także link potwierdzający adres: e-mail otwiera się poza
- * witryną Strzelnicy, a Widget umie stanąć samodzielnie.
- */
-const WIDGET_ORIGIN = Deno.env.get('WIDGET_ORIGIN')
+import { widgetOrigin } from '../_shared/srodowisko.ts'
 
 /** Naruszenie ograniczenia wyłączności Osi w Postgresie. */
 const EXCLUSION_VIOLATION = '23P01'
@@ -77,7 +68,10 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   // jest nim nasza własna domena; dla żądania sklejonego na cudzej stronie —
   // jej domena, i wtedy rozstrzyga lista Strzelnicy. Żądanie bez `Origin` nie
   // przyszło z przeglądarki, więc żadna lista go nie opisuje.
-  const allowed = [...facilityRow.allowed_origins, ...(WIDGET_ORIGIN ? [WIDGET_ORIGIN] : [])]
+  // Nasza własna domena dochodzi do listy Strzelnicy: żądanie z Widgetu
+  // otwartego wprost — a tak otwiera się go z e-maila i w pracy lokalnej —
+  // przychodzi spod niej, a nie spod domeny osadzenia.
+  const allowed = [...facilityRow.allowed_origins, widgetOrigin()]
   if (!origin || !allowed.includes(origin)) {
     return json({ error: 'Ta domena nie ma zgody na rezerwacje tej Strzelnicy.' }, 403, origin)
   }
@@ -262,7 +256,6 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   // E-mail wychodzi zaraz po zapisie i synchronicznie — kolejki w tej fazie
   // nie ma, a link jest jedynym, co czyni Rezerwację trwałą.
   try {
-    if (!WIDGET_ORIGIN) throw new Error('Brak WIDGET_ORIGIN w środowisku funkcji.')
     await wyslijPoczte(
       client,
       confirmationEmail({
@@ -278,7 +271,7 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
         // co zobaczył w e-mailu.
         amount: wycena.amount.total,
         url: confirmationUrl({
-          widgetOrigin: WIDGET_ORIGIN,
+          widgetOrigin: widgetOrigin(),
           facilitySlug: request.facilitySlug,
           token,
         }),

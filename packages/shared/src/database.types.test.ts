@@ -18,10 +18,14 @@ describe('typy ze schematu bazy', () => {
       instructor_pool: 2,
       participation_rate_gr: 3000,
       instructor_rate_gr: 8000,
+      notification_email: 'recepcja@example.pl',
       created_at: '2026-01-01T00:00:00Z',
     }
 
     expect(strzelnica.timezone).toBe('Europe/Warsaw')
+    // Adres powiadomień jest polem Strzelnicy, a nie stałą platformy: jedna
+    // czyta pocztę na recepcji, druga u kierownika.
+    expect(strzelnica.notification_email).toBe('recepcja@example.pl')
   })
 
   it('zapis Strzelnicy wymaga tylko slug i nazwy — resztę uzupełnia baza', () => {
@@ -41,6 +45,9 @@ describe('typy ze schematu bazy', () => {
     // za nią przez migracje.
     expect(nowa.participation_rate_gr).toBeUndefined()
     expect(nowa.instructor_rate_gr).toBeUndefined()
+    // Adres powiadomień wolno zostawić pustym — Strzelnica, która ich nie chce,
+    // jest odpowiedzią, a nie konfiguracją niedokończoną.
+    expect(nowa.notification_email).toBeUndefined()
   })
 
   it('Oś niesie identyfikator Strzelnicy, pojemność i stawkę za Blok', () => {

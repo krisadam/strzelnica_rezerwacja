@@ -156,6 +156,7 @@ export type Database = {
           id: string
           instructor_rate_gr: number
           lane_id: string
+          management_token: string
           participants: number
           participation_rate_gr: number
           starts_at: string
@@ -179,6 +180,7 @@ export type Database = {
           id?: string
           instructor_rate_gr: number
           lane_id: string
+          management_token?: string
           participants: number
           participation_rate_gr: number
           starts_at: string
@@ -202,6 +204,7 @@ export type Database = {
           id?: string
           instructor_rate_gr?: number
           lane_id?: string
+          management_token?: string
           participants?: number
           participation_rate_gr?: number
           starts_at?: string
@@ -268,6 +271,7 @@ export type Database = {
           instructor_rate_gr: number
           min_lead_minutes: number
           name: string
+          notification_email: string | null
           participation_rate_gr: number
           slug: string
           timezone: string
@@ -282,6 +286,7 @@ export type Database = {
           instructor_rate_gr?: number
           min_lead_minutes?: number
           name: string
+          notification_email?: string | null
           participation_rate_gr?: number
           slug: string
           timezone?: string
@@ -296,6 +301,7 @@ export type Database = {
           instructor_rate_gr?: number
           min_lead_minutes?: number
           name?: string
+          notification_email?: string | null
           participation_rate_gr?: number
           slug?: string
           timezone?: string
@@ -578,6 +584,7 @@ export type Database = {
       confirm_booking: {
         Args: { p_token: string }
         Returns: {
+          booking_id: string
           final_status: Database["public"]["Enums"]["booking_status"]
           just_confirmed: boolean
         }[]

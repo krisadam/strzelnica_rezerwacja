@@ -18,7 +18,8 @@
 -- i niedostępny dla tej bez.
 insert into public.facilities (
   id, slug, name, booking_horizon_days, min_lead_minutes, cancellation_window_hours,
-  allowed_origins, instructor_pool, participation_rate_gr, instructor_rate_gr
+  allowed_origins, instructor_pool, participation_rate_gr, instructor_rate_gr,
+  notification_email
 )
 values (
   '00000000-0000-0000-0000-000000000001',
@@ -31,7 +32,9 @@ values (
   1,
   -- 30 zł za każdego Uczestnika poza pierwszym, 80 zł za Instruktora.
   3000,
-  8000
+  8000,
+  -- Adres powiadomień: tu Strzelnica dowiaduje się o nowej Rezerwacji.
+  'recepcja@strzelnica-demo.example.pl'
 )
 on conflict (id) do nothing;
 

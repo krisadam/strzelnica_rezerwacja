@@ -5,6 +5,8 @@
  * zmiana stanu należy do bazy, bo tylko tam jest jeden zegar i jedna kolejka.
  */
 import type { Database } from './database.types.ts'
+import { widgetLink } from './links.ts'
+import type { WidgetLinkInput } from './links.ts'
 
 /**
  * Ile czasu Rezerwacja czeka na potwierdzenie adresu. Nie jest polem
@@ -68,33 +70,19 @@ export function confirmationOutcome(result: ConfirmationResult | null): Confirma
   }
 }
 
-export type ConfirmationUrlInput = {
-  /**
-   * Źródło, spod którego serwowany jest Widget — nie domena osadzenia.
-   * **Źródło**, czyli schemat, host i port, bez ścieżki: ta sama wartość, którą
-   * Edge Function porównuje z nagłówkiem `Origin`, a ten ścieżki nie niesie
-   * nigdy. Ścieżka wpisana tutaj zostaje odrzucona, tak jak odrzuciłoby ją
-   * porównanie źródeł.
-   */
-  widgetOrigin: string
-  facilitySlug: string
-  token: string
-}
+/** Wejście `confirmationUrl` — kształt wspólny wszystkim linkom Widgetu. */
+export type ConfirmationUrlInput = WidgetLinkInput
 
 /**
  * Link z e-maila. Prowadzi do Widgetu podanego wprost, a nie do ramki na
  * stronie Strzelnicy: e-mail otwiera się poza jej witryną, a Widget umie stanąć
  * samodzielnie — na tym samym adresie stoi praca lokalna.
+ *
+ * Działa raz i nie robi nic więcej: potwierdza Rezerwację oczekującą. Powrót do
+ * własnej Rezerwacji ma osobny link i osobny token — zobacz `managementUrl`.
  */
-export function confirmationUrl({
-  widgetOrigin,
-  facilitySlug,
-  token,
-}: ConfirmationUrlInput): string {
-  const url = new URL('/', widgetOrigin)
-  url.searchParams.set('strzelnica', facilitySlug)
-  url.searchParams.set(CONFIRMATION_PARAM, token)
-  return url.toString()
+export function confirmationUrl(input: ConfirmationUrlInput): string {
+  return widgetLink(CONFIRMATION_PARAM, input)
 }
 
 /** Token z adresu Widgetu; `null` znaczy zwykłe wejście do kalendarza. */

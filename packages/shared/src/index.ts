@@ -61,8 +61,17 @@ export type {
   ConfirmationResult,
   ConfirmationUrlInput,
 } from './confirmation.ts'
-export { confirmationEmail } from './mail.ts'
-export type { ConfirmationEmailInput, MailMessage } from './mail.ts'
+export { MANAGEMENT_PARAM, managementUrl } from './management.ts'
+export type { ManagementUrlInput } from './management.ts'
+export { bookingSummaryEmail, confirmationEmail, facilityNotificationEmail } from './mail.ts'
+export type {
+  BookingSummary,
+  BookingSummaryEmailInput,
+  ConfirmationEmailInput,
+  FacilityNotificationEmailInput,
+  MailMessage,
+  OrderedItem,
+} from './mail.ts'
 export {
   bookingProblems,
   concernsTheTerm,
@@ -81,6 +90,7 @@ export {
   ammunitionKindFromRow,
   asWeekday,
   blockScheduleFromRow,
+  bookingSummaryFromRows,
   closedDateFromRow,
   facilityFromRow,
   IncompleteOccupancyError,
@@ -89,10 +99,17 @@ export {
   occupancyFromRow,
   openingHoursFromRow,
   rowsOrThrow,
+  UnknownCatalogItemError,
   weaponOccupancyFromRow,
   weaponTypeFromRow,
 } from './rows.ts'
-export type { Facility, FacilityRow, Lane, QueryResult } from './rows.ts'
+export type {
+  BookingSummaryRows,
+  Facility,
+  FacilityRow,
+  Lane,
+  QueryResult,
+} from './rows.ts'
 export {
   frameAncestors,
   heightMessage,

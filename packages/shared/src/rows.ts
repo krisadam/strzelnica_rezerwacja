@@ -13,8 +13,10 @@ import type {
   WeaponOccupancy,
   WeaponType,
 } from './availability.ts'
+import { dayIn } from './calendar.ts'
 import type { CalendarDay, Weekday } from './calendar.ts'
 import type { Tables } from './database.types.ts'
+import type { BookingSummary, OrderedItem } from './mail.ts'
 
 /**
  * Kształt odpowiedzi PostgREST-a: dane albo błąd, nigdy wyjątek. Widget, Panel
@@ -203,5 +205,116 @@ export function weaponOccupancyFromRow(row: Tables<'weapon_occupancy'>): WeaponO
     quantity: row.quantity,
     startsAt: new Date(row.starts_at),
     endsAt: new Date(row.ends_at),
+  }
+}
+
+export class UnknownCatalogItemError extends Error {
+  constructor(id: string) {
+    super(`Pozycja ${id} nie ma odpowiednika w katalogu Strzelnicy.`)
+    this.name = 'UnknownCatalogItemError'
+  }
+}
+
+/** Pozycja Rezerwacji tak, jak leży w bazie: identyfikator katalogu i liczba sztuk. */
+type CatalogQuantityRow = {
+  id: string
+  quantity: number
+}
+
+/** Pozycja katalogu sprowadzona do tego, czego potrzebuje opis Rezerwacji. */
+type NamedCatalogRow = {
+  id: string
+  name: string
+}
+
+/**
+ * Pozycje Rezerwacji z nazwami z katalogu. Wypożyczenia i Zapotrzebowanie
+ * przechodzą tą samą drogą, bo w opisie różnią się tylko nagłówkiem listy.
+ *
+ * Pozycji spoza katalogu nie ma i być nie może — pilnuje tego klucz obcy przy
+ * zapisie. Gdyby jednak trafiła się tutaj, opis nie powstaje wcale: lista
+ * z pozycją bez nazwy kazałaby obsłudze zgadywać, co przygotować.
+ */
+function namedItems(
+  items: readonly CatalogQuantityRow[],
+  catalog: readonly NamedCatalogRow[],
+): OrderedItem[] {
+  const names = new Map(catalog.map((entry) => [entry.id, entry.name]))
+  return items.map((item) => {
+    const name = names.get(item.id)
+    if (!name) throw new UnknownCatalogItemError(item.id)
+    return { name, quantity: item.quantity }
+  })
+}
+
+/**
+ * Wiersze, z których składa się opis Rezerwacji na piśmie. Katalogi przychodzą
+ * osobno i całe, bo schemat wiąże z nimi pozycje kluczem złożonym (pozycja,
+ * Strzelnica), a stąd potrzebna jest z nich tylko nazwa.
+ */
+export type BookingSummaryRows = {
+  booking: Pick<
+    Tables<'bookings'>,
+    | 'starts_at'
+    | 'ends_at'
+    | 'participants'
+    | 'has_permit'
+    | 'with_instructor'
+    | 'amount_gr'
+    | 'contact_name'
+    | 'contact_email'
+    | 'contact_phone'
+  >
+  facility: Pick<Tables<'facilities'>, 'name' | 'timezone'>
+  lane: Pick<Tables<'lanes'>, 'name'>
+  rentals: readonly Pick<Tables<'weapon_rentals'>, 'weapon_type_id' | 'quantity'>[]
+  ammunition: readonly Pick<Tables<'ammunition_demands'>, 'ammunition_kind_id' | 'quantity'>[]
+  weaponTypes: readonly NamedCatalogRow[]
+  ammunitionKinds: readonly NamedCatalogRow[]
+}
+
+/**
+ * Rezerwacja w kształcie, w jakim opisuje się ją w liście. Przejście z wierszy
+ * na pojęcia domeny należy tutaj, a nie do Edge Function: „Glock 17" w miejsce
+ * identyfikatora katalogu i dzień w strefie Strzelnicy w miejsce momentu w UTC
+ * to reguły, które dają się wyrazić czystą funkcją — i są nią wyrażone.
+ */
+export function bookingSummaryFromRows({
+  booking,
+  facility,
+  lane,
+  rentals,
+  ammunition,
+  weaponTypes,
+  ammunitionKinds,
+}: BookingSummaryRows): BookingSummary {
+  const startsAt = new Date(booking.starts_at)
+
+  return {
+    facilityName: facility.name,
+    laneName: lane.name,
+    // Dzień liczony w strefie Strzelnicy, a nie w UTC: Blok kończący się po
+    // północy czasu uniwersalnego wciąż należy do soboty, na którą go sprzedano.
+    day: dayIn(facility.timezone, startsAt),
+    startsAt,
+    endsAt: new Date(booking.ends_at),
+    timeZone: facility.timezone,
+    participants: booking.participants,
+    hasPermit: booking.has_permit,
+    withInstructor: booking.with_instructor,
+    rentals: namedItems(
+      rentals.map((row) => ({ id: row.weapon_type_id, quantity: row.quantity })),
+      weaponTypes,
+    ),
+    ammunition: namedItems(
+      ammunition.map((row) => ({ id: row.ammunition_kind_id, quantity: row.quantity })),
+      ammunitionKinds,
+    ),
+    amount: booking.amount_gr,
+    contact: {
+      name: booking.contact_name,
+      email: booking.contact_email,
+      phone: booking.contact_phone,
+    },
   }
 }

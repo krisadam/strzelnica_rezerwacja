@@ -47,6 +47,13 @@ znaczy Rezerwację **wygasłą** — termin wraca do puli, bo zmyślony adres ni
 blokować soboty. Link działa raz: potwierdza Rezerwację oczekującą i nie robi
 nic więcej.
 
+## Link do zarządzania
+
+Adres, pod którym Osoba rezerwująca wraca do własnej Rezerwacji — po szczegóły
+i po anulowanie. Bez konta jest jedynym dowodem, że Rezerwacja jest jej, więc
+żyje tak długo jak ona. Odrębny od linku potwierdzającego adres: tamten działa
+raz i nie robi nic więcej.
+
 ## Czas na potwierdzenie
 
 Ile czasu Osoba rezerwująca ma na kliknięcie linku, licząc od złożenia
@@ -161,6 +168,13 @@ Deklarowany przez Osobę rezerwującą rodzaj i liczba sztuk amunicji. Jest
 **zapowiedzią dla Strzelnicy**, nie rezerwacją towaru: system nie prowadzi
 stanu magazynowego i nigdy nie odmawia z powodu braku amunicji. Służy do
 wyliczenia Kwoty do zapłaty i do przygotowania się Strzelnicy.
+
+## Adres powiadomień
+
+Skrzynka, pod którą Strzelnica dowiaduje się o Rezerwacjach swoich Osi bez
+zaglądania do Panelu. Jej ustawienie — jak Horyzont rezerwacji czy Okno
+anulowania. Pusty znaczy Strzelnicę, która powiadomień nie chce, a nie
+konfigurację niedokończoną.
 
 ## Użytkownik panelu
 
