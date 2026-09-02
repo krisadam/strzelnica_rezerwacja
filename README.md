@@ -212,16 +212,54 @@ doradczą na Strzelnicę). Zestawienie liczone wprost z `bookings` musi używać
 `booking_holds_term`, a nie własnej listy stanów.
 
 Jednorazowość linku bierze się ze stanu, nie z kasowania tokenu: drugie wejście
-trafia na Rezerwację już potwierdzoną, niczego nie zmienia i mówi o tym wprost.
+trafia na Rezerwację już potwierdzoną, niczego nie zmienia i mówi o tym wprost —
+a skoro niczego nie zmienia, nie wysyła też drugiego kompletu powiadomień.
 Rezerwacja, której e-maila nie udało się wysłać, jest zdejmowana od razu —
 inaczej termin stałby zajęty pół godziny za list, którego nie ma.
+
+## Powiadomienia o Rezerwacji
+
+Po potwierdzeniu adresu — i **wyłącznie** wtedy — wychodzą dwa listy:
+podsumowanie do Osoby rezerwującej i powiadomienie do Strzelnicy. Wysyła je
+`potwierdz-rezerwacje`, a nie zapis: Rezerwacja oczekująca bywa zmyślona, więc
+podsumowanie wysłane od razu obiecywałoby termin wracający za pół godziny do
+puli, a Strzelnica przygotowywałaby sprzęt dla gościa, którego nie ma.
+
+Oba listy niosą ten sam opis Rezerwacji — Oś, termin, Uczestników, zamówiony
+sprzęt, Instruktora i Kwotę — bo obsługa przygotowuje stanowisko z tego samego
+opisu, który klient dostaje na piśmie. Różnią się tym, co która strona ma prawo
+wiedzieć: Strzelnica dostaje dane kontaktowe, klient — link do zarządzania
+Rezerwacją.
+
+Link do zarządzania ma własny token (`bookings.management_token`, losowany
+wartością domyślną kolumny) i własny parametr adresu `?rezerwacja=`. Nie jest
+tokenem potwierdzającym: tamten działa raz, ten żyje tak długo jak Rezerwacja,
+więc jeden token dla obu spraw znaczyłby, że adres zużyty przy potwierdzeniu
+nadal daje pełen dostęp. Widok, do którego link prowadzi, powstaje z anulowaniem.
+
+Adres powiadomień Strzelnicy stoi w `facilities.notification_email` — jest jej
+polem konfiguracyjnym, jak Horyzont rezerwacji. Pusty znaczy Strzelnicę, która
+powiadomień nie chce; list do klienta od tej kolumny nie zależy. Każdy list ma
+własne niepowodzenie i żadne nie unieważnia potwierdzenia: Rezerwacja już stoi,
+a „nie potwierdziliśmy" byłoby zdaniem nieprawdziwym — zostaje wpis
+w dzienniku.
+
+Skrzynka obsługi jest daną kontaktową pracownika, więc nie wychodzi publicznie.
+Polityka RLS o kolumnach nie mówi nic, a uprawnienie na całą tabelę przesłania
+każde zawężenie, więc `facilities` ma odebrane `select` na tabelę i nadane
+kolumnami — dokładnie tymi, które czyta Widget (`FacilityRow`). Kolumna
+dołożona do tej tabeli jest odtąd domyślnie prywatna: wystawienie jej wymaga
+dopisania do `grant select (…)` w nowej migracji.
 
 ## Poczta
 
 Szablony wiadomości mieszkają w `packages/shared/src/mail.ts` jako czyste
-funkcje — treść jest częścią modułu tak samo jak teksty Widgetu. Wysyłką
-zajmuje się `supabase/functions/_shared/poczta.ts` i wybiera drogę obecnością
-klucza dostawcy:
+funkcje — treść jest częścią modułu tak samo jak teksty Widgetu. Wszystkie
+zdania stoją tam w jednym słowniku `TEKSTY`, a szablon jest już tylko listą
+odcinków; wersja tekstowa i HTML powstają z tej samej listy, więc nie ma jak
+obiecać jednego w podglądzie, a drugiego po włączeniu HTML-a. Wysyłką zajmuje
+się `supabase/functions/_shared/poczta.ts` i wybiera drogę obecnością klucza
+dostawcy:
 
 | Środowisko | Co się dzieje |
 | --- | --- |

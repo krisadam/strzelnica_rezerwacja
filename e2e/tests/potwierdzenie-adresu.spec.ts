@@ -1,8 +1,11 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 import {
+  ADRES_POWIADOMIEN,
   czasBloku,
   juzWygasla,
+  LINK_ZARZADZANIA,
+  listyDo,
   otworzWidget,
   OS_KARABINOWA,
   przechwyconyList,
@@ -34,6 +37,7 @@ import {
  */
 const DZIEN_POTWIERDZENIA = 16
 const DZIEN_WYGASNIECIA = 22
+const DZIEN_POWIADOMIEN = 27
 
 /** Ile dni od swojego początku test przegląda w poszukiwaniu wolnego Bloku. */
 const DNI_SZUKANIA = 5
@@ -45,8 +49,23 @@ const DNI_SZUKANIA = 5
  */
 type Termin = { czas: string; dni: number }
 
+/**
+ * Sprzęt zamawiany tam, gdzie test ogląda listy. Nie po to, żeby sprawdzić
+ * wyliczenie — to należy do szwu czystych funkcji — a po to, żeby przejść
+ * odczyt katalogów, z których podsumowanie bierze nazwy pozycji.
+ */
+type Sprzet = {
+  bron: { typ: string; sztuki: number }
+  amunicja: { rodzaj: string; sztuki: number }
+}
+
 /** Złożenie Rezerwacji na pierwszym wolnym Bloku Osi karabinowej od wskazanego dnia. */
-async function zlozRezerwacje(page: Page, email: string, odDnia: number): Promise<Termin> {
+async function zlozRezerwacje(
+  page: Page,
+  email: string,
+  odDnia: number,
+  sprzet?: Sprzet,
+): Promise<Termin> {
   await otworzWidget(page)
   await zadeklarujPozwolenie(page)
 
@@ -68,6 +87,7 @@ async function zlozRezerwacje(page: Page, email: string, odDnia: number): Promis
     imie: 'Celina Nowak',
     email,
     telefon: '600300400',
+    ...sprzet,
   })
   await page.getByRole('button', { name: 'Rezerwuję' }).click()
 
@@ -76,6 +96,17 @@ async function zlozRezerwacje(page: Page, email: string, odDnia: number): Promis
   })
 
   return { czas, dni }
+}
+
+/**
+ * Powiadomienia Strzelnicy o Rezerwacjach tego jednego klienta. Skrzynka
+ * Strzelnicy jest wspólna dla wszystkich testów jadących równolegle, więc
+ * jedynym, co wydziela z niej listy tego przebiegu, jest adres klienta w treści.
+ */
+function powiadomieniaOKliencie(email: string) {
+  return listyDo(ADRES_POWIADOMIEN).then((listy) =>
+    listy.filter((wiadomosc) => wiadomosc.tresc.includes(email)),
+  )
 }
 
 test('link z e-maila potwierdza adres, a drugie wejście już niczego nie zmienia', async ({
@@ -122,4 +153,50 @@ test('Rezerwacja niepotwierdzona wygasa, zwalnia termin i unieważnia link', asy
     timeout: ZIMNY_START_MS,
   })
   await expect(page.getByText('wrócił do puli')).toBeVisible()
+})
+
+test('powiadomienia wychodzą dopiero po potwierdzeniu adresu — do klienta i do Strzelnicy', async ({
+  page,
+}) => {
+  const email = 'celina.powiadomiona@example.pl'
+  await zlozRezerwacje(page, email, DZIEN_POWIADOMIEN, {
+    bron: { typ: 'Glock 17', sztuki: 1 },
+    amunicja: { rodzaj: '9 × 19 mm Parabellum', sztuki: 50 },
+  })
+
+  // Do tej pory poszedł jeden list: ten z linkiem. Rezerwacja oczekująca bywa
+  // zmyślona, więc nie ma czego podsumowywać ani czym zawracać głowy obsłudze.
+  const doPotwierdzenia = await listyDo(email)
+  expect(doPotwierdzenia).toHaveLength(1)
+  expect(doPotwierdzenia[0]?.tresc).not.toMatch(LINK_ZARZADZANIA)
+  expect(await powiadomieniaOKliencie(email)).toHaveLength(0)
+
+  const list = await przechwyconyList(email)
+  await page.goto(list.link)
+  await expect(page.getByRole('heading', { name: 'Termin jest Twój' })).toBeVisible({
+    timeout: ZIMNY_START_MS,
+  })
+
+  // Klient dostaje list z podsumowaniem, a w nim link do swojej Rezerwacji.
+  // Same zdania i wyliczenie sprzętu są pokryte na szwie czystych funkcji —
+  // tutaj chodzi o to, że list w ogóle wyszedł i prowadzi tam, gdzie trzeba.
+  const podsumowanie = (await listyDo(email)).find((wiadomosc) =>
+    wiadomosc.temat.includes('Rezerwacja potwierdzona'),
+  )
+  expect(podsumowanie?.tresc).toMatch(LINK_ZARZADZANIA)
+
+  // Strzelnica dowiaduje się o Rezerwacji bez zaglądania do Panelu — pod
+  // adresem, który ma w konfiguracji. Link do zarządzania jest uprawnieniem
+  // klienta, nie jej: przesłany Strzelnicy pozwalałby anulować cudzą
+  // Rezerwację jej ręką i z pominięciem Okna anulowania.
+  const powiadomienia = await powiadomieniaOKliencie(email)
+  expect(powiadomienia).toHaveLength(1)
+  expect(powiadomienia[0]?.tresc).not.toMatch(LINK_ZARZADZANIA)
+
+  // Drugie wejście w link niczego nie zmienia, więc nie wysyła też drugiego
+  // kompletu listów — ani klientowi, ani Strzelnicy.
+  await page.goto(list.link)
+  await expect(page.getByText('Ten adres był już potwierdzony')).toBeVisible()
+  expect(await listyDo(email)).toHaveLength(2)
+  expect(await powiadomieniaOKliencie(email)).toHaveLength(1)
 })

@@ -6,6 +6,9 @@ export const STRZELNICA = 'strzelnica-demo'
 export const OS_PISTOLETOWA = 'Oś pistoletowa nr 1'
 export const OS_KARABINOWA = 'Oś karabinowa nr 2'
 
+/** Adres powiadomień Strzelnicy demonstracyjnej — jej pole konfiguracyjne z seeda. */
+export const ADRES_POWIADOMIEN = 'recepcja@strzelnica-demo.example.pl'
+
 /**
  * Ile dni w przód wolno szukać wolnego terminu. Rozkład seeda ma Bloki
  * codziennie, więc kilka dni wystarcza z zapasem na dzień zamknięty, minimalne
@@ -112,41 +115,56 @@ export async function wypelnijFormularz(
 }
 
 /** Wiadomość przechwycona zamiast wysłanej, sprowadzona do tego, co w niej ważne. */
-export type PrzechwyconyList = {
+export type PrzechwyconaWiadomosc = {
   /** Rezerwacja, której list dotyczy — stąd bierze się dostęp do jej wiersza. */
   bookingId: string
-  /** Link potwierdzający, wyjęty z treści tak, jak wyjąłby go czytelnik. */
-  link: string
+  temat: string
+  tresc: string
 }
 
 /**
- * Link w treści listu, rozpoznawany po nazwie parametru. Wzorzec wpisany tu
- * wprost, a nie zbudowany ze stałej `CONFIRMATION_PARAM` — test przeglądarkowy
- * ogląda system z zewnątrz, jak czytelnik listu, i ma zauważyć zmianę kształtu
- * linku zamiast podążać za nią po cichu.
+ * Listy, które poszły pod wskazany adres — od najnowszego. W środowisku bez
+ * dostawcy poczty Edge Function zapisuje wiadomość do `mail_outbox` zamiast ją
+ * wysyłać, i to jest jedyne miejsce, w którym test widzi, co komu wyszło.
+ * Wiadomość powstaje jeszcze przed odpowiedzią dla Widgetu, więc gdy widać
+ * skutek na ekranie, list już leży.
  */
-const LINK_W_TRESCI = /https?:\/\/\S*potwierdzenie=[0-9a-f]+/
-
-/**
- * List, który poszedł na wskazany adres. W środowisku bez dostawcy poczty
- * Edge Function zapisuje wiadomość do `mail_outbox` zamiast ją wysyłać — i to
- * jest jedyne miejsce, w którym test może zobaczyć link. Wiadomość powstaje
- * jeszcze przed odpowiedzią dla Widgetu, więc gdy widać potwierdzenie na
- * ekranie, list już leży.
- */
-export async function przechwyconyList(email: string): Promise<PrzechwyconyList> {
-  const wiersze = await baza<{ booking_id: string; body_text: string }[]>(
+export async function listyDo(email: string): Promise<PrzechwyconaWiadomosc[]> {
+  const wiersze = await baza<{ booking_id: string; subject: string; body_text: string }[]>(
     `mail_outbox?recipient=eq.${encodeURIComponent(email)}` +
-      '&select=booking_id,body_text&order=created_at.desc&limit=1',
+      '&select=booking_id,subject,body_text&order=created_at.desc',
   )
 
-  const list = wiersze[0]
+  return wiersze.map((wiersz) => ({
+    bookingId: wiersz.booking_id,
+    temat: wiersz.subject,
+    tresc: wiersz.body_text,
+  }))
+}
+
+/** Wiadomość wraz z linkiem wyjętym z jej treści — tak, jak wyjąłby go czytelnik. */
+export type ListZLinkiem = PrzechwyconaWiadomosc & { link: string }
+
+/**
+ * Link w treści listu, rozpoznawany po nazwie parametru. Wzorce wpisane tu
+ * wprost, a nie zbudowane ze stałych `CONFIRMATION_PARAM` i `MANAGEMENT_PARAM`
+ * — test przeglądarkowy ogląda system z zewnątrz, jak czytelnik listu, i ma
+ * zauważyć zmianę kształtu linku zamiast podążać za nią po cichu.
+ */
+const LINK_POTWIERDZAJACY = /https?:\/\/\S*potwierdzenie=[0-9a-f]+/
+
+/** Link do zarządzania Rezerwacją; niesie go dopiero list z podsumowaniem. */
+export const LINK_ZARZADZANIA = /https?:\/\/\S*rezerwacja=[0-9a-f]+/
+
+/** Najnowszy list na wskazany adres wraz z wyjętym z niego linkiem potwierdzającym. */
+export async function przechwyconyList(email: string): Promise<ListZLinkiem> {
+  const list = (await listyDo(email))[0]
   if (!list) throw new Error(`Na adres ${email} nie poszedł żaden list.`)
 
-  const link = LINK_W_TRESCI.exec(list.body_text)?.[0]
+  const link = LINK_POTWIERDZAJACY.exec(list.tresc)?.[0]
   if (!link) throw new Error(`List na adres ${email} nie niesie linku potwierdzającego.`)
 
-  return { bookingId: list.booking_id, link }
+  return { ...list, link }
 }
 
 /**

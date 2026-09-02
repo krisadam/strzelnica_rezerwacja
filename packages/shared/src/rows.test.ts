@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { Tables } from './index.ts'
+import type { BookingSummaryRows, Tables } from './index.ts'
 import {
   ammunitionKindFromRow,
   asWeekday,
   blockScheduleFromRow,
+  bookingSummaryFromRows,
   facilityFromRow,
   IncompleteOccupancyError,
   InvalidWeekdayError,
@@ -11,6 +12,7 @@ import {
   occupancyFromRow,
   openingHoursFromRow,
   rowsOrThrow,
+  UnknownCatalogItemError,
   weaponOccupancyFromRow,
   weaponTypeFromRow,
 } from './index.ts'
@@ -78,6 +80,9 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       instructor_pool: 2,
       participation_rate_gr: 3000,
       instructor_rate_gr: 8000,
+      // Adres powiadomień Strzelnicy nie przechodzi do domeny: nie ma go
+      // w `FacilityRow`, bo klucz anonimowy nie ma po co go czytać.
+      notification_email: 'recepcja@example.pl',
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -227,6 +232,77 @@ describe('rozpakowanie odpowiedzi zapytania', () => {
   it('rzuca komunikatem bazy, zamiast zwracać pustkę', () => {
     expect(() => rowsOrThrow({ data: null, error: { message: 'brak uprawnień' } })).toThrow(
       'brak uprawnień',
+    )
+  })
+})
+
+describe('opis Rezerwacji na piśmie', () => {
+  const WIERSZE: BookingSummaryRows = {
+    booking: {
+      starts_at: '2026-06-15T08:00:00Z',
+      ends_at: '2026-06-15T10:00:00Z',
+      participants: 3,
+      has_permit: false,
+      with_instructor: true,
+      amount_gr: 37000,
+      contact_name: 'Anna Kowalska',
+      contact_email: 'anna@example.pl',
+      contact_phone: '600100200',
+    },
+    facility: { name: 'Strzelnica Demo', timezone: 'Europe/Warsaw' },
+    lane: { name: 'Oś pistoletowa nr 1' },
+    rentals: [{ weapon_type_id: 'typ-1', quantity: 2 }],
+    ammunition: [{ ammunition_kind_id: 'rodzaj-1', quantity: 100 }],
+    weaponTypes: [{ id: 'typ-1', name: 'Glock 17' }],
+    ammunitionKinds: [{ id: 'rodzaj-1', name: '9 × 19 mm Parabellum' }],
+  }
+
+  it('zamienia identyfikatory katalogu na nazwy, bo list czyta człowiek', () => {
+    const opis = bookingSummaryFromRows(WIERSZE)
+
+    expect(opis.rentals).toEqual([{ name: 'Glock 17', quantity: 2 }])
+    expect(opis.ammunition).toEqual([{ name: '9 × 19 mm Parabellum', quantity: 100 }])
+  })
+
+  // Blok o 08:00 UTC zaczyna się o 10:00 w Warszawie i należy do 15 czerwca
+  // jej kalendarza — a to ten dzień stoi w nagłówku listu.
+  it('liczy dzień w strefie Strzelnicy, a nie w UTC', () => {
+    expect(
+      bookingSummaryFromRows({
+        ...WIERSZE,
+        booking: { ...WIERSZE.booking, starts_at: '2026-06-15T22:30:00Z' },
+      }).day,
+    ).toBe('2026-06-16')
+  })
+
+  it('przenosi termin, Uczestników, deklaracje, Kwotę i kontakt', () => {
+    const opis = bookingSummaryFromRows(WIERSZE)
+
+    expect(opis.laneName).toBe('Oś pistoletowa nr 1')
+    expect(opis.startsAt.toISOString()).toBe('2026-06-15T08:00:00.000Z')
+    expect(opis.participants).toBe(3)
+    expect(opis.hasPermit).toBe(false)
+    expect(opis.withInstructor).toBe(true)
+    expect(opis.amount).toBe(37000)
+    expect(opis.contact).toEqual({
+      name: 'Anna Kowalska',
+      email: 'anna@example.pl',
+      phone: '600100200',
+    })
+  })
+
+  it('Rezerwacja bez zamówionego sprzętu daje puste listy, a nie brak', () => {
+    const opis = bookingSummaryFromRows({ ...WIERSZE, rentals: [], ammunition: [] })
+
+    expect(opis.rentals).toEqual([])
+    expect(opis.ammunition).toEqual([])
+  })
+
+  // Pozycja bez odpowiednika w katalogu zatrzymuje cały opis. List z pozycją
+  // bez nazwy kazałby obsłudze zgadywać, co przygotować na stanowisko.
+  it('nie przepuszcza pozycji spoza katalogu', () => {
+    expect(() => bookingSummaryFromRows({ ...WIERSZE, weaponTypes: [] })).toThrow(
+      UnknownCatalogItemError,
     )
   })
 })
