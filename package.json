@@ -20,7 +20,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --local --schema public > packages/shared/src/database.types.ts",
-    "db:env": "supabase status -o env --override-name api.url=VITE_SUPABASE_URL --override-name auth.anon_key=VITE_SUPABASE_ANON_KEY > .env"
+    "db:env": "supabase status -o env --override-name api.url=VITE_SUPABASE_URL --override-name auth.anon_key=VITE_SUPABASE_ANON_KEY --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY > .env"
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",

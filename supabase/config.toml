@@ -40,3 +40,10 @@ enabled = true
 
 [edge_runtime.secrets]
 WIDGET_ORIGIN = "http://localhost:5173"
+# Nadawca poczty. Konfiguracja platformy, nie danych Strzelnicy: adres musi
+# stać w domenie zweryfikowanej u dostawcy, a tę mamy jedną dla wszystkich.
+MAIL_FROM = "Strzelnica <rezerwacje@localhost>"
+# RESEND_API_KEY celowo nie stoi tutaj i nie ma go w repozytorium. Bez niego
+# Edge Function nie ma czym wysyłać, więc zapisuje wiadomość do `mail_outbox` —
+# i to jest przechwytywanie wysyłki, którego wymaga spec dla środowiska
+# testowego. Na produkcji: `supabase secrets set RESEND_API_KEY=...`.

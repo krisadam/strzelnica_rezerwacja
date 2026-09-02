@@ -87,7 +87,7 @@ test('dwa zgłoszenia o ostatnią sztukę broni — dokładnie jedno wygrywa', a
     borys.getByRole('button', { name: 'Rezerwuję' }).click(),
   ])
 
-  const potwierdzenie = (page: Page) => page.getByRole('heading', { name: 'Termin jest Twój' })
+  const potwierdzenie = (page: Page) => page.getByRole('heading', { name: 'Sprawdź skrzynkę' })
   const odmowa = (page: Page) => page.getByText('nie ma tylu sztuk zamawianej broni')
 
   await expect(potwierdzenie(anna).or(odmowa(anna))).toBeVisible({ timeout: ZIMNY_START_MS })

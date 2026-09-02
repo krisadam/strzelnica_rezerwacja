@@ -8,6 +8,7 @@ import type {
   AmmunitionKind,
   BookingDraft,
   BookingProblem,
+  ConfirmationProblem,
   Unavailability,
   WeaponRental,
   WeaponType,
@@ -146,15 +147,49 @@ export const teksty = {
     rezerwuje: 'Rezerwuję',
     wysylanie: 'Wysyłam zgłoszenie…',
   },
+  /**
+   * Ekran po wysłaniu zgłoszenia. Termin jest już zajęty, ale jeszcze nie na
+   * dobre: mówimy o tym wprost, bo Osoba rezerwująca, która zamknie tę stronę
+   * przekonana, że sprawa załatwiona, straci termin bez ostrzeżenia.
+   */
   potwierdzenie: {
-    naglowek: 'Termin jest Twój',
-    tresc: 'Zapisaliśmy Rezerwację. Strzelnica ma już Twoje zgłoszenie.',
+    naglowek: 'Sprawdź skrzynkę',
+    tresc: (minuty: number) =>
+      `Wysłaliśmy link potwierdzający na Twój adres. Kliknij w niego w ciągu ${minuty} minut — ` +
+      'do tego czasu trzymamy dla Ciebie ten termin. Potem wraca do puli.',
     // Zamrożenie Kwoty jest obietnicą wobec klienta, więc mówi się o nim
     // wprost, i to dopiero tutaj: przed złożeniem Rezerwacji nie ma jeszcze
     // czego zamrażać, a cennik do tej chwili wolno Strzelnicy zmienić.
     kwotaZamrozona: 'Ta Kwota już się nie zmieni, także gdy Strzelnica zmieni cennik.',
     numer: (id: string) => `Numer Rezerwacji: ${id}`,
     wrocDoKalendarza: 'Wróć do kalendarza',
+  },
+  /**
+   * Ekran, na który prowadzi link z e-maila. Osoba rezerwująca trafia tu wprost
+   * ze skrzynki, więc każde zdanie musi dać się przeczytać bez pamięci o tym,
+   * co działo się w formularzu pół godziny wcześniej.
+   */
+  potwierdzenieAdresu: {
+    wczytywanie: 'Potwierdzamy Twój adres…',
+    naglowek: 'Termin jest Twój',
+    tresc: 'Adres potwierdzony, Rezerwacja jest trwała. Strzelnica czeka.',
+    // Drugie wejście w ten sam link. Niczego nie zmienia — i właśnie dlatego
+    // nie ma czym straszyć: Rezerwacja jest w porządku.
+    juzPotwierdzona: 'Ten adres był już potwierdzony. Twoja Rezerwacja jest w mocy.',
+    odmowa: 'Nie potwierdziliśmy adresu',
+    powod: {
+      'link-nieznany':
+        'Nie znamy tego linku. Sprawdź, czy wkleiłeś go w całości — bywa, ' +
+        'że klient poczty łamie długie adresy.',
+      'rezerwacja-wygasla':
+        'Ten termin czekał na potwierdzenie i się nie doczekał — wrócił do puli. ' +
+        'Wybierz go jeszcze raz, jeśli wciąż jest wolny.',
+      'rezerwacja-nieaktualna':
+        'Ta Rezerwacja nie czeka już na potwierdzenie. Jeśli to pomyłka, ' +
+        'skontaktuj się ze Strzelnicą.',
+    } satisfies Record<ConfirmationProblem, string>,
+    blad: 'Nie udało się potwierdzić adresu. Spróbuj jeszcze raz za chwilę.',
+    doKalendarza: 'Zarezerwuj termin',
   },
   /**
    * Zastrzeżenia liczy `bookingProblems` z `@strzelnica/shared` — ta sama

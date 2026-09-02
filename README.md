@@ -22,7 +22,7 @@ cd strzelnica_rezerwacja
 corepack enable pnpm
 pnpm install
 pnpm db:start        # lokalny Supabase w Dockerze
-pnpm db:env          # zapisuje adres i klucz anonimowy do .env
+pnpm db:env          # zapisuje adres oraz klucze lokalnego Supabase do .env
 pnpm dev             # Widget na :5173, Panel na :5174
 ```
 
@@ -132,7 +132,7 @@ importuje.
 | `pnpm test` | testy jednostkowe `packages/shared` (Vitest) |
 | `pnpm test:e2e` | testy przeglądarkowe (Playwright, sam startuje `vite preview`) |
 | `pnpm db:start` / `pnpm db:stop` | lokalny Supabase |
-| `pnpm db:env` | zapisanie adresu i klucza lokalnego Supabase do `.env` |
+| `pnpm db:env` | zapisanie adresu i kluczy lokalnego Supabase do `.env` |
 | `pnpm db:reset` | odtworzenie bazy z migracji i wykonanie seeda |
 | `pnpm db:types` | regeneracja `packages/shared/src/database.types.ts` ze schematu |
 
@@ -149,9 +149,17 @@ w ramce, potwierdzenie adresu. Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
 
+Testy potwierdzenia sięgają do bazy rolą serwisową — po przechwyconą pocztę
+i po przesunięcie terminu wygaśnięcia, bo czekania trzydziestu minut nie da się
+w teście odbyć, a zegara nie zamrażamy. Klucz bierze się z `SUPABASE_SERVICE_ROLE_KEY`
+w `.env`, zapisywanego przez `pnpm db:env`. Osi są dwie, a testów rezerwujących
+więcej, więc każdy z nich celuje w inny fragment horyzontu: wyścigi biorą
+terminy najbliższe, bo obie ich strony muszą trafić na ten sam Blok.
+
 ## Rezerwacje
 
-Rezerwację zapisuje wyłącznie Edge Function `zloz-rezerwacje` (ADR 0003).
+Rezerwację zapisuje wyłącznie Edge Function `zloz-rezerwacje`, a potwierdza
+`potwierdz-rezerwacje` (ADR 0003).
 Klucz anonimowy nie ma do tabeli `bookings` żadnej polityki RLS: nie zapisze
 do niej niczego i nie odczyta z niej niczego. Kalendarz czyta zajętość
 z widoku `lane_occupancy` — Oś i zakres czasu, bez danych osobowych.
@@ -185,6 +193,49 @@ powiększonych o domenę samego Widgetu. Ta ostatnia jest jednakowa dla
 wszystkich Strzelnic, więc jest konfiguracją platformy: lokalnie stoi
 w `supabase/config.toml` jako `[edge_runtime.secrets] WIDGET_ORIGIN`, a na
 produkcji ustawia się ją przez `supabase secrets set WIDGET_ORIGIN=…`.
+
+## Potwierdzenie adresu i wygasanie
+
+Rezerwacja powstaje **oczekująca** i trzyma termin na wyłączność tak samo jak
+potwierdzona — ale tylko przez czas na potwierdzenie (`HOLD_MINUTES`
+w `packages/shared`, 30 minut). Zaraz po zapisie Edge Function wysyła
+e-mail z linkiem; wejście w link przenosi Rezerwację w stan **potwierdzona**.
+Link prowadzi do Widgetu podanego wprost — `?strzelnica=…&potwierdzenie=token`
+— bo e-mail otwiera się poza witryną Strzelnicy.
+
+Adres niepotwierdzony w tym czasie znaczy Rezerwację wygasłą i termin z powrotem
+w puli. Nie ma tu żadnego zadania cyklicznego (ADR 0006): dla odczytu wygaśnięcie
+liczy się zegarem w chwili patrzenia — widoki `lane_occupancy` i `weapon_occupancy`
+filtrują przez `booking_holds_term` — a wiersz zmienia stan przy pierwszym
+zapisie, który o ten termin zahacza (`expire_stale_bookings` pod blokadą
+doradczą na Strzelnicę). Zestawienie liczone wprost z `bookings` musi używać
+`booking_holds_term`, a nie własnej listy stanów.
+
+Jednorazowość linku bierze się ze stanu, nie z kasowania tokenu: drugie wejście
+trafia na Rezerwację już potwierdzoną, niczego nie zmienia i mówi o tym wprost.
+Rezerwacja, której e-maila nie udało się wysłać, jest zdejmowana od razu —
+inaczej termin stałby zajęty pół godziny za list, którego nie ma.
+
+## Poczta
+
+Szablony wiadomości mieszkają w `packages/shared/src/mail.ts` jako czyste
+funkcje — treść jest częścią modułu tak samo jak teksty Widgetu. Wysyłką
+zajmuje się `supabase/functions/_shared/poczta.ts` i wybiera drogę obecnością
+klucza dostawcy:
+
+| Środowisko | Co się dzieje |
+| --- | --- |
+| `RESEND_API_KEY` ustawiony | wiadomość idzie do Resend, nadawca z `MAIL_FROM` |
+| bez klucza (lokalnie, CI) | wiadomość ląduje w tabeli `mail_outbox` |
+
+Ta druga droga jest przechwytywaniem wysyłki, którego wymaga spec dla
+środowiska testowego — i jedynym miejscem, w którym test przeglądarkowy widzi
+link. Nie ma osobnego przełącznika „tryb testowy": jest brak dostawcy.
+
+Na produkcji klucz ustawia się przez `supabase secrets set RESEND_API_KEY=…`,
+tak samo jak `WIDGET_ORIGIN`; lokalnie `MAIL_FROM` stoi w `supabase/config.toml`.
+Tabela `mail_outbox` niesie dane osobowe, więc — jak `bookings` — ma włączone
+RLS i zero polityk: klucz anonimowy nie czyta z niej nic.
 
 ## Baza danych
 
