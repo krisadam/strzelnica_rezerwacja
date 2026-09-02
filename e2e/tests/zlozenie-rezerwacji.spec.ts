@@ -64,7 +64,7 @@ test('od kalendarza do potwierdzenia i z powrotem, już bez tego terminu', async
 
   await page.getByRole('button', { name: 'Rezerwuję' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Termin jest Twój' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Sprawdź skrzynkę' })).toBeVisible({
     timeout: ZIMNY_START_MS,
   })
 

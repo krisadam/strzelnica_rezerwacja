@@ -46,7 +46,7 @@ test('dwa zgłoszenia na ten sam Blok — dokładnie jedno wygrywa', async ({ br
   ])
 
   const potwierdzenie = (page: Page) =>
-    page.getByRole('heading', { name: 'Termin jest Twój' })
+    page.getByRole('heading', { name: 'Sprawdź skrzynkę' })
   const odmowa = (page: Page) => page.getByText('Ten termin nie jest już dostępny')
 
   await expect(potwierdzenie(anna).or(odmowa(anna))).toBeVisible({ timeout: ZIMNY_START_MS })

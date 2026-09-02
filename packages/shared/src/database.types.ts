@@ -142,12 +142,15 @@ export type Database = {
         Row: {
           amount_gr: number
           block_rate_gr: number
+          confirmation_token: string | null
+          confirmed_at: string | null
           consented_at: string
           contact_email: string
           contact_name: string
           contact_phone: string
           created_at: string
           ends_at: string
+          expires_at: string | null
           facility_id: string
           has_permit: boolean
           id: string
@@ -162,12 +165,15 @@ export type Database = {
         Insert: {
           amount_gr: number
           block_rate_gr: number
+          confirmation_token?: string | null
+          confirmed_at?: string | null
           consented_at?: string
           contact_email: string
           contact_name: string
           contact_phone: string
           created_at?: string
           ends_at: string
+          expires_at?: string | null
           facility_id: string
           has_permit: boolean
           id?: string
@@ -182,12 +188,15 @@ export type Database = {
         Update: {
           amount_gr?: number
           block_rate_gr?: number
+          confirmation_token?: string | null
+          confirmed_at?: string | null
           consented_at?: string
           contact_email?: string
           contact_name?: string
           contact_phone?: string
           created_at?: string
           ends_at?: string
+          expires_at?: string | null
           facility_id?: string
           has_permit?: boolean
           id?: string
@@ -321,6 +330,54 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "lanes_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mail_outbox: {
+        Row: {
+          body_html: string
+          body_text: string
+          booking_id: string | null
+          created_at: string
+          facility_id: string
+          id: string
+          recipient: string
+          subject: string
+        }
+        Insert: {
+          body_html: string
+          body_text: string
+          booking_id?: string | null
+          created_at?: string
+          facility_id: string
+          id?: string
+          recipient: string
+          subject: string
+        }
+        Update: {
+          body_html?: string
+          body_text?: string
+          booking_id?: string | null
+          created_at?: string
+          facility_id?: string
+          id?: string
+          recipient?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mail_outbox_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mail_outbox_facility_id_fkey"
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
@@ -511,17 +568,37 @@ export type Database = {
       }
     }
     Functions: {
+      booking_holds_term: {
+        Args: {
+          p_expires_at: string
+          p_status: Database["public"]["Enums"]["booking_status"]
+        }
+        Returns: boolean
+      }
+      confirm_booking: {
+        Args: { p_token: string }
+        Returns: {
+          final_status: Database["public"]["Enums"]["booking_status"]
+          just_confirmed: boolean
+        }[]
+      }
+      expire_stale_bookings: {
+        Args: { p_facility_id: string }
+        Returns: number
+      }
       place_booking: {
         Args: {
           p_ammunition: Json
           p_amount_gr: number
           p_block_rate_gr: number
+          p_confirmation_token: string
           p_contact_email: string
           p_contact_name: string
           p_contact_phone: string
           p_ends_at: string
           p_facility_id: string
           p_has_permit: boolean
+          p_hold_minutes: number
           p_instructor_rate_gr: number
           p_lane_id: string
           p_participants: number

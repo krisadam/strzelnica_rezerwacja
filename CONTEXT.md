@@ -38,6 +38,21 @@ adresem e-mail, a dostęp do własnej Rezerwacji uzyskuje przez podpisany link.
 Odrębna od Uczestnika: Osoba rezerwująca zwykle jest jednym z Uczestników,
 ale system śledzi tylko ją.
 
+## Potwierdzenie adresu
+
+Kliknięcie przez Osobę rezerwującą linku przysłanego na podany przez nią adres.
+Do tej chwili Rezerwacja jest **oczekująca**: zajmuje Oś tak samo jak każda
+inna, ale tylko przez czas na potwierdzenie. Adres niepotwierdzony w tym czasie
+znaczy Rezerwację **wygasłą** — termin wraca do puli, bo zmyślony adres nie ma
+blokować soboty. Link działa raz: potwierdza Rezerwację oczekującą i nie robi
+nic więcej.
+
+## Czas na potwierdzenie
+
+Ile czasu Osoba rezerwująca ma na kliknięcie linku, licząc od złożenia
+Rezerwacji. Jednakowy dla wszystkich Strzelnic — inaczej niż Horyzont
+rezerwacji czy Okno anulowania, nie jest ustawieniem Strzelnicy.
+
 ## Uczestnik
 
 Osoba fizycznie obecna na Osi podczas Rezerwacji. System zna wyłącznie ich

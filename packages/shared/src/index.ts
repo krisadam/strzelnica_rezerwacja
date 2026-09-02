@@ -48,6 +48,22 @@ export type {
   Rates,
 } from './pricing.ts'
 export {
+  CONFIRMATION_PARAM,
+  confirmationOutcome,
+  confirmationUrl,
+  HOLD_MINUTES,
+  newConfirmationToken,
+  readConfirmationToken,
+} from './confirmation.ts'
+export type {
+  ConfirmationOutcome,
+  ConfirmationProblem,
+  ConfirmationResult,
+  ConfirmationUrlInput,
+} from './confirmation.ts'
+export { confirmationEmail } from './mail.ts'
+export type { ConfirmationEmailInput, MailMessage } from './mail.ts'
+export {
   bookingProblems,
   concernsTheTerm,
   MalformedBookingRequestError,

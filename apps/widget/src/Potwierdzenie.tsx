@@ -1,14 +1,16 @@
 import type { AmmunitionKind, BookingDraft, WeaponType } from '@strzelnica/shared'
+import { HOLD_MINUTES } from '@strzelnica/shared'
 import type { Wybor } from './krok.js'
 import { KwotaZapisana } from './Kwota.js'
 import { opisInstruktora, opisWypozyczen, opisZapotrzebowania, teksty } from './teksty.js'
 import { Wybrany } from './Wybrany.js'
 
 /**
- * Potwierdzenie po zapisie. Numer Rezerwacji jest jedynym, co Osoba
- * rezerwująca dostaje na ręce w tej fazie — e-mail z podsumowaniem dochodzi
- * wraz z powiadomieniami (ticket #11), a link do własnej Rezerwacji wraz
- * z zarządzaniem nią (ticket #12).
+ * Ekran po zapisie. Rezerwacja istnieje i trzyma termin, ale czeka na
+ * potwierdzenie adresu — i to jest tutaj najważniejsze zdanie, ważniejsze niż
+ * numer Rezerwacji. E-mail z podsumowaniem dochodzi wraz z powiadomieniami
+ * (ticket #11), a link do własnej Rezerwacji wraz z zarządzaniem nią
+ * (ticket #12).
  */
 export function Potwierdzenie({
   wybor,
@@ -33,7 +35,7 @@ export function Potwierdzenie({
   return (
     <section className="krok krok--potwierdzenie">
       <h2>{teksty.potwierdzenie.naglowek}</h2>
-      <p>{teksty.potwierdzenie.tresc}</p>
+      <p>{teksty.potwierdzenie.tresc(HOLD_MINUTES)}</p>
 
       <Wybrany wybor={wybor} timeZone={timeZone} />
       <dl className="wybrany">

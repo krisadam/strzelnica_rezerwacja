@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
+import { baza } from './srodowisko.js'
 
 export const STRZELNICA = 'strzelnica-demo'
 export const OS_PISTOLETOWA = 'Oś pistoletowa nr 1'
@@ -108,4 +109,56 @@ export async function wypelnijFormularz(
   await page.getByLabel('Akceptuję regulamin').check()
   await page.getByRole('button', { name: 'Dalej' }).click()
   await expect(page.getByRole('heading', { name: 'Sprawdź, zanim wyślesz' })).toBeVisible()
+}
+
+/** Wiadomość przechwycona zamiast wysłanej, sprowadzona do tego, co w niej ważne. */
+export type PrzechwyconyList = {
+  /** Rezerwacja, której list dotyczy — stąd bierze się dostęp do jej wiersza. */
+  bookingId: string
+  /** Link potwierdzający, wyjęty z treści tak, jak wyjąłby go czytelnik. */
+  link: string
+}
+
+/**
+ * Link w treści listu, rozpoznawany po nazwie parametru. Wzorzec wpisany tu
+ * wprost, a nie zbudowany ze stałej `CONFIRMATION_PARAM` — test przeglądarkowy
+ * ogląda system z zewnątrz, jak czytelnik listu, i ma zauważyć zmianę kształtu
+ * linku zamiast podążać za nią po cichu.
+ */
+const LINK_W_TRESCI = /https?:\/\/\S*potwierdzenie=[0-9a-f]+/
+
+/**
+ * List, który poszedł na wskazany adres. W środowisku bez dostawcy poczty
+ * Edge Function zapisuje wiadomość do `mail_outbox` zamiast ją wysyłać — i to
+ * jest jedyne miejsce, w którym test może zobaczyć link. Wiadomość powstaje
+ * jeszcze przed odpowiedzią dla Widgetu, więc gdy widać potwierdzenie na
+ * ekranie, list już leży.
+ */
+export async function przechwyconyList(email: string): Promise<PrzechwyconyList> {
+  const wiersze = await baza<{ booking_id: string; body_text: string }[]>(
+    `mail_outbox?recipient=eq.${encodeURIComponent(email)}` +
+      '&select=booking_id,body_text&order=created_at.desc&limit=1',
+  )
+
+  const list = wiersze[0]
+  if (!list) throw new Error(`Na adres ${email} nie poszedł żaden list.`)
+
+  const link = LINK_W_TRESCI.exec(list.body_text)?.[0]
+  if (!link) throw new Error(`List na adres ${email} nie niesie linku potwierdzającego.`)
+
+  return { bookingId: list.booking_id, link }
+}
+
+/**
+ * Przesunięcie terminu wygaśnięcia w przeszłość — jedyny sposób, żeby test
+ * zobaczył wygaśnięcie. Czekania trzydziestu minut nie da się odbyć, a zegara
+ * nie zamrażamy: zamrożenie w przeglądarce nie zamraża zegara bazy, a to on
+ * rozstrzyga o wygaśnięciu. Skoro nie da się przesunąć „teraz", przesuwa się
+ * termin — skutek jest ten sam, a mierzy go ten sam zegar, co na produkcji.
+ */
+export async function juzWygasla(bookingId: string): Promise<void> {
+  await baza(`bookings?id=eq.${bookingId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ expires_at: new Date(Date.now() - 5 * 60_000).toISOString() }),
+  })
 }

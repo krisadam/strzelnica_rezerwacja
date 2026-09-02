@@ -11,21 +11,23 @@
  * Import sięga wprost do źródeł `packages/shared`; Supabase CLI podmontowuje
  * do kontenera dokładnie te pliki, które funkcja importuje.
  */
-import { createClient } from 'npm:@supabase/supabase-js@2.112.4'
 import type {
   BookingOutcome,
   BookingRequest,
-  Database,
 } from '../../../packages/shared/src/index.ts'
 import {
   ammunitionKindFromRow,
   blockScheduleFromRow,
   bookingProblems,
   closedDateFromRow,
+  confirmationEmail,
+  confirmationUrl,
   facilityFromRow,
+  HOLD_MINUTES,
   instructorAttends,
   laneFromRow,
   MalformedBookingRequestError,
+  newConfirmationToken,
   occupancyFromRow,
   occupancyWindow,
   openingHoursFromRow,
@@ -37,11 +39,17 @@ import {
   weaponOccupancyFromRow,
   weaponTypeFromRow,
 } from '../../../packages/shared/src/index.ts'
+import { connect } from '../_shared/baza.ts'
+import { corsHeaders, json, outcome } from '../_shared/http.ts'
+import { wyslijPoczte } from '../_shared/poczta.ts'
 
 /**
  * Źródło, spod którego serwowany jest sam Widget. Nie jest domeną osadzenia —
  * te wskazuje Strzelnica — tylko domeną naszą, jednakową dla wszystkich
  * Strzelnic, więc mieszka w konfiguracji platformy, a nie w jej danych.
+ *
+ * Prowadzi do niej także link potwierdzający adres: e-mail otwiera się poza
+ * witryną Strzelnicy, a Widget umie stanąć samodzielnie.
  */
 const WIDGET_ORIGIN = Deno.env.get('WIDGET_ORIGIN')
 
@@ -50,49 +58,6 @@ const EXCLUSION_VIOLATION = '23P01'
 
 /** Naruszenie Puli sztuk Typu broni; własny SQLSTATE `place_booking`. */
 const WEAPON_POOL_VIOLATION = 'WP001'
-
-/**
- * Nagłówki CORS. Nie są tu żadnym zabezpieczeniem i nie należy ich za takie
- * brać: brama Supabase i tak dokłada własne `Access-Control-Allow-Origin: *`,
- * więc zawężanie ich tutaj niczego by nie zamknęło. Bramką jest sprawdzenie
- * nagłówka `Origin` względem domen Strzelnicy — wykonane, zanim cokolwiek
- * zostanie zapisane. CORS jest tu po to, żeby żądanie Widgetu w ogóle ruszyło.
- */
-function corsHeaders(origin: string | null): Record<string, string> {
-  return {
-    'Access-Control-Allow-Origin': origin ?? '*',
-    'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    Vary: 'Origin',
-  }
-}
-
-function json(body: unknown, status: number, origin: string | null): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) },
-  })
-}
-
-/**
- * Wynik dziedzinowy — przyjęto albo odmówiono z powodu, który Osoba
- * rezerwująca może naprawić — jedzie zawsze z kodem 200. Kody spoza dwustu
- * zostają dla sytuacji, w których w ogóle nie doszło do rozpatrzenia zgłoszenia.
- */
-function outcome(value: BookingOutcome, origin: string | null): Response {
-  return json(value, 200, origin)
-}
-
-type Client = ReturnType<typeof createClient<Database>>
-
-function connect(): Client {
-  const url = Deno.env.get('SUPABASE_URL')
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!url || !serviceRoleKey) {
-    throw new Error('Brak SUPABASE_URL lub SUPABASE_SERVICE_ROLE_KEY w środowisku funkcji.')
-  }
-  return createClient<Database>(url, serviceRoleKey, { auth: { persistSession: false } })
-}
 
 async function handle(request: BookingRequest, origin: string | null): Promise<Response> {
   const client = connect()
@@ -202,7 +167,7 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   // powtarza to, co `bookingProblems` właśnie orzekło — bez niego kontrola
   // typów nie wie, że dalej Blok na pewno jest.
   if (problems[0] || !block) {
-    return outcome({ ok: false, problem: problems[0] ?? 'termin-niedostepny' }, origin)
+    return outcome<BookingOutcome>({ ok: false, problem: problems[0] ?? 'termin-niedostepny' }, origin)
   }
 
   // Kwota liczona tutaj od nowa, z cennika odczytanego z bazy rolą serwisową.
@@ -222,6 +187,10 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     ammunitionKinds,
   })
 
+  // Token losowany tutaj, a nie w bazie: za chwilę wkleja go ta sama funkcja
+  // do e-maila, więc nie ma powodu, żeby wracał osobnym odczytem.
+  const token = newConfirmationToken()
+
   // Rezerwacja i jej Wypożyczenia powstają jednym wywołaniem, bo powstają albo
   // razem, albo wcale: Rezerwacja bez zamówionej broni kazałaby Strzelnicy
   // przygotować puste stanowisko. Funkcja pilnuje przy tym Puli sztuk, której
@@ -232,8 +201,10 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     p_lane_id: lane.id,
     p_starts_at: block.startsAt.toISOString(),
     p_ends_at: block.endsAt.toISOString(),
-    // Potwierdzenie adresu (ticket #10) przestawi to na „oczekująca".
-    p_status: 'potwierdzona',
+    // Rezerwacja czeka na potwierdzenie adresu. Termin trzyma tak samo, jak
+    // trzymałaby potwierdzona — ale tylko przez `HOLD_MINUTES`, bo zmyślony
+    // adres nie ma blokować soboty.
+    p_status: 'oczekujaca',
     p_participants: request.participants,
     p_contact_name: request.contact.name,
     p_contact_email: request.contact.email,
@@ -266,25 +237,71 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     p_block_rate_gr: rates.blockRate,
     p_participation_rate_gr: rates.participationRate,
     p_instructor_rate_gr: rates.instructorRate,
+    p_confirmation_token: token,
+    // Chwilę wygaśnięcia liczy baza, z tej liczby i ze swojego zegara. Zegar
+    // środowiska brzegowego bywa innym zegarem, a termin ma być jeden.
+    p_hold_minutes: HOLD_MINUTES,
   })
 
   // Dwa zgłoszenia na ten sam Blok w tej samej chwili widzą Blok wolny oba —
   // rozstrzyga dopiero ograniczenie wyłączności Osi. Przegrany dostaje ten sam
   // powód, co ktoś, kto zwlekał: termin jest zajęty.
   if (zapis.error?.code === EXCLUSION_VIOLATION) {
-    return outcome({ ok: false, problem: 'termin-niedostepny' }, origin)
+    return outcome<BookingOutcome>({ ok: false, problem: 'termin-niedostepny' }, origin)
   }
   // Wyścig o ostatnią sztukę broni kończy się inaczej niż wyścig o Oś: termin
   // zostaje wolny, tylko nie dla tego zamówienia. Osoba rezerwująca ma o tym
   // usłyszeć wprost, bo naprawia to mniejszym zamówieniem, a nie innym dniem.
   if (zapis.error?.code === WEAPON_POOL_VIOLATION) {
-    return outcome({ ok: false, problem: 'brak-sztuk-broni' }, origin)
+    return outcome<BookingOutcome>({ ok: false, problem: 'brak-sztuk-broni' }, origin)
   }
   if (zapis.error) throw new Error(zapis.error.message)
 
+  const bookingId = zapis.data
+
+  // E-mail wychodzi zaraz po zapisie i synchronicznie — kolejki w tej fazie
+  // nie ma, a link jest jedynym, co czyni Rezerwację trwałą.
+  try {
+    if (!WIDGET_ORIGIN) throw new Error('Brak WIDGET_ORIGIN w środowisku funkcji.')
+    await wyslijPoczte(
+      client,
+      confirmationEmail({
+        facilityName: facility.name,
+        recipientName: request.contact.name,
+        recipientEmail: request.contact.email,
+        laneName: lane.name,
+        day: request.day,
+        startsAt: block.startsAt,
+        endsAt: block.endsAt,
+        timeZone: facility.timeZone,
+        // Kwota z wyceny, czyli ta zapisana przy Rezerwacji: klient płaci to,
+        // co zobaczył w e-mailu.
+        amount: wycena.amount.total,
+        url: confirmationUrl({
+          widgetOrigin: WIDGET_ORIGIN,
+          facilitySlug: request.facilitySlug,
+          token,
+        }),
+        holdMinutes: HOLD_MINUTES,
+      }),
+      { facilityId: facility.id, bookingId },
+    )
+  } catch (powod) {
+    // Rezerwacja jest już zapisana i nie sprzątamy jej stąd: to, że termin
+    // przestanie być zajęty, jest właśnie tym, co ta Rezerwacja obiecuje sama
+    // sobie — bez potwierdzenia wygaśnie po `HOLD_MINUTES` i zwolni Blok.
+    // Kasowanie wiersza dokładałoby drugą drogę do tego samego skutku,
+    // a Rezerwacja znikająca bez śladu nie mówi obsłudze, że coś padło.
+    //
+    // Klientowi mówimy o niepowodzeniu wprost. „Sprawdź skrzynkę" po nieudanej
+    // wysyłce byłoby najgorszym z wyjść: kazałoby czekać na list, którego nie ma.
+    console.error(powod)
+    return json({ error: 'Nie udało się wysłać e-maila z potwierdzeniem.' }, 502, origin)
+  }
+
   // Kwota wraca razem z numerem: Osoba rezerwująca ma zobaczyć na
   // potwierdzeniu tę zapisaną, a nie policzoną u siebie po raz drugi.
-  return outcome({ ok: true, id: zapis.data, amount: wycena.amount.total }, origin)
+  return outcome<BookingOutcome>({ ok: true, id: bookingId, amount: wycena.amount.total }, origin)
 }
 
 Deno.serve(async (req: Request) => {
