@@ -1,0 +1,249 @@
+/* Wygląd Panelu. Osobny arkusz od Widgetu i celowo inny w układzie: Widget
+   prowadzi jedną osobę przez jeden formularz, a Panel pokazuje obsłudze cały
+   dzień naraz — stąd szerokość na pełny ekran i Osie obok siebie. Kolory te
+   same, bo to jeden moduł. */
+:root {
+  --tlo: #ffffff;
+  --tlo-drugie: #f5f6f8;
+  --tekst: #16181d;
+  --przygaszony: #5d636e;
+  --ramka: #d5d9e0;
+  --wolny: #1f7a3f;
+  --blad: #a3232b;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--tekst);
+  background: var(--tlo);
+}
+
+body {
+  margin: 0;
+}
+
+.panel {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.panel h1 {
+  font-size: 1.35rem;
+  margin: 0 0 1.25rem;
+}
+
+.panel h2 {
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+}
+
+.panel h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem;
+}
+
+.naglowek {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  margin: 0 0 1.5rem;
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  background: var(--tlo-drugie);
+}
+
+.naglowek__konto {
+  color: var(--przygaszony);
+  font-size: 0.85rem;
+  margin-left: 0.75rem;
+}
+
+.komunikat {
+  color: var(--przygaszony);
+  margin: 0.5rem 0;
+}
+
+.komunikat--blad {
+  color: var(--blad);
+}
+
+.przycisk {
+  font: inherit;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--ramka);
+  border-radius: 0.35rem;
+  background: var(--tlo);
+  cursor: pointer;
+}
+
+.przycisk:disabled {
+  color: var(--przygaszony);
+  cursor: default;
+}
+
+.pole {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0 0 0.75rem;
+}
+
+.pole input,
+.pole select {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--ramka);
+  border-radius: 0.35rem;
+}
+
+.logowanie {
+  max-width: 22rem;
+}
+
+/* Dzień i przyciski wędrówki po kalendarzu — ten sam układ, co w Widgecie:
+   data pośrodku, dni po bokach. */
+.dzien {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.dzien__etykieta {
+  text-align: center;
+}
+
+/* Wybór daty wprost — obok wędrówki krok po kroku, a nie zamiast niej. */
+.dzien--wybor {
+  justify-content: flex-start;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.dzien--wybor .pole {
+  margin: 0;
+}
+
+/* Osie obok siebie, bo Oś jest wyłączna: kolumna to wszystko, co się na niej
+   dzieje. Na wąskim ekranie schodzą pod siebie — pierwszeństwo ma czytelność
+   pojedynczej Osi, a nie widok całego obiektu naraz. */
+.osie {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+
+.os {
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.os__wpisy {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wpis {
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--ramka);
+  border-left: 3px solid var(--wolny);
+  border-radius: 0.35rem;
+  background: var(--tlo-drugie);
+  cursor: pointer;
+}
+
+.wpis__czas {
+  font-weight: 600;
+}
+
+.wpis__bok {
+  color: var(--przygaszony);
+  font-size: 0.85rem;
+}
+
+.kalendarz__strefa {
+  color: var(--przygaszony);
+  font-size: 0.8rem;
+  margin: 0.75rem 0 0;
+}
+
+.lista {
+  margin: 2rem 0 0;
+}
+
+.filtry {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.5rem;
+}
+
+.lista__ile {
+  color: var(--przygaszony);
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tabela th,
+.tabela td {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--ramka);
+  vertical-align: top;
+}
+
+.tabela th {
+  font-size: 0.85rem;
+  color: var(--przygaszony);
+}
+
+/* Termin otwiera szczegóły. Przycisk, a nie odnośnik: Panel nie ma adresów
+   podstron, a odnośnik prowadzący donikąd kłamie o tym, co się stanie. */
+.tabela__link {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.szczegoly {
+  max-width: 44rem;
+}
+
+.opis {
+  display: grid;
+  grid-template-columns: minmax(10rem, auto) 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.opis dt {
+  color: var(--przygaszony);
+}
+
+.opis dd {
+  margin: 0;
+}

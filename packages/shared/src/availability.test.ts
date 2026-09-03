@@ -12,6 +12,8 @@ import type {
 import {
   addDays,
   bookingHorizon,
+  instructorAttends,
+  instructorPresence,
   occupancyWindow,
   remainingWeapons,
   scheduleForDay,
@@ -783,5 +785,36 @@ describe('pozostałe sztuki Typu broni', () => {
       'glock',
       'shadow',
     ])
+  })
+})
+
+describe('obecność Instruktora przy zapisanej Rezerwacji', () => {
+  it('brak Pozwolenia znaczy Instruktora wymaganego', () => {
+    expect(instructorPresence({ hasPermit: false, withInstructor: true })).toBe('wymagany')
+  })
+
+  it('Pozwolenie i Instruktor razem znaczą Instruktora zamówionego dobrowolnie', () => {
+    expect(instructorPresence({ hasPermit: true, withInstructor: true })).toBe('zamowiony')
+  })
+
+  it('bez Instruktora powód nie ma znaczenia', () => {
+    expect(instructorPresence({ hasPermit: true, withInstructor: false })).toBe('brak')
+  })
+
+  /**
+   * Ta sama reguła, co w `instructorAttends`, tylko czytana z zapisu zamiast
+   * z zamierzeń: Rezerwacja, przy której Instruktor miał być, ma go po zapisie
+   * mieć — i odwrotnie. Rozjazd znaczyłby Rezerwację zapisaną jako „bez
+   * Instruktora" i opisaną w liście jako „z Instruktorem".
+   */
+  it('zgadza się z regułą liczoną przed zapisem', () => {
+    for (const hasPermit of [true, false]) {
+      for (const wantsInstructor of [true, false]) {
+        const withInstructor = instructorAttends({ hasPermit, wantsInstructor, rentals: [] })
+        expect(instructorPresence({ hasPermit, withInstructor })).toBe(
+          withInstructor ? (hasPermit ? 'zamowiony' : 'wymagany') : 'brak',
+        )
+      }
+    }
   })
 })

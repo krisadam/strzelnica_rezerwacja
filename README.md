@@ -117,7 +117,10 @@ Edge Functions importują je wprost ze źródeł — dlatego wewnętrzne importy
 `packages/shared` mają rozszerzenie `.ts`, a nie `.js`: Deno rozwiązuje
 ścieżki lokalne dosłownie i sam nie podmieni jednego na drugie. Supabase CLI
 podmontowuje do środowiska brzegowego dokładnie te pliki, które funkcja
-importuje.
+importuje, a graf importów liczy raz — przy `supabase start`. **Nowy** plik
+w `packages/shared` wciągnięty przez `index.ts` wymaga więc pełnego restartu
+lokalnego Supabase; sam `pnpm db:reset` go nie podmontuje, a każda funkcja
+odpowie wtedy `worker boot error … Module not found`.
 
 ## Polecenia
 
@@ -145,7 +148,8 @@ wyciągnięcia — nie do dopisania testu wyżej.
 
 `e2e/` to wąska warstwa weryfikacyjna dla tego, czego czysta funkcja nie widzi:
 wyścig o ten sam Blok, przejście całej ścieżki, izolacja Strzelnic, osadzenie
-w ramce, potwierdzenie adresu, anulowanie przez link. Wymagają wstającego Supabase (`pnpm db:start`)
+w ramce, potwierdzenie adresu, anulowanie przez link, logowanie do Panelu.
+Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
 
@@ -289,6 +293,62 @@ Widok jedzie do przeglądarki jako `ManagementViewWire` — momenty tekstem, bo
 `readManagementView`) mieszka w `packages/shared` i jest tam pokryta jako
 tożsamość: rozjazd między nadawcą a odbiorcą znaczyłby ekran z terminem innym
 niż w bazie i nikt by tego nie zauważył.
+
+## Panel
+
+Wejście do Panelu daje konto Supabase Auth powiązane z jedną Strzelnicą przez
+tabelę `panel_users`. Ról nie ma: wszyscy Użytkownicy panelu danej Strzelnicy
+mają identyczne uprawnienia, więc powiązanie ze Strzelnicą jest całą treścią tej
+tabeli. Rejestracji też nie ma — `enable_signup = false` zamyka ją w GoTrue,
+a konta zakłada operator platformy razem ze Strzelnicą.
+
+Rezerwacje Panel czyta widokiem `panel_bookings`, a nie polityką na `bookings`
+(ADR 0008): tabela niesie tokeny Osoby rezerwującej, a polityka RLS o kolumnach
+nie mówi nic. Widok wystawia dokładnie te kolumny, których Panel potrzebuje,
+i dokłada `holds_term` — czy Rezerwacja trzyma jeszcze termin — liczone tą samą
+funkcją `booking_holds_term`, co widoki zajętości Widgetu. Kalendarz Panelu
+pokazuje wyłącznie Rezerwacje trzymające termin, lista — wszystkie, ze stanem
+w kolumnie.
+
+Osie i katalogi są ofertą i RLS wpuszcza tam do wierszy wszystkich Strzelnic
+(czyta je anonimowo każdy Widget), więc **te** zapytania Panel zawęża sam,
+warunkiem na `facility_id`. Rezerwacji i ich pozycji nie zawęża po Strzelnicy:
+odcina ją baza, a drugi warunek w kodzie byłby drugą granicą — tą, o której się
+zapomina.
+
+Zawęża je natomiast **po czasie**: Panel czyta okno liczone od dzisiaj —
+tydzień wstecz i po horyzont Strzelnicy włącznie (`panelWindow`). Odczyt bez
+granicy urwałby się kiedyś na `max_rows` PostgREST-a bez słowa, a przy porządku
+rosnącym urwałby przyszłość, czyli dokładnie to, po co obsługa tu zagląda. Tym
+samym oknem ograniczone są pola wyboru daty na obu ekranach: filtr, którym da
+się wskazać dzień spoza okna, odpowiadałby „brak Rezerwacji" na dzień, o który
+nikt nie zapytał bazy. Pozycje Rezerwacji zawężają się tym samym oknem, sięgając
+przez `panel_bookings` do terminu swojej Rezerwacji — własne kolumny nie mówią
+o nim nic.
+
+Widoki są **oknami wyłącznie do odczytu**, i wymaga to osobnego zdania w SQL-u:
+prosty widok nad jedną tabelą jest w Postgresie zapisywalny sam z siebie,
+a Supabase nadaje domyślnie komplet praw każdej nowej relacji w `public`. Bez
+`revoke all` klucz anonimowy kasowałby Rezerwacje przez `lane_occupancy`,
+a Panel pisałby do `bookings` przez `panel_bookings` z pominięciem Edge
+Functions. Pilnuje tego test przeglądarkowy — uprawnienia nie są regułą, którą
+zobaczy czysta funkcja.
+
+Ekran odświeża się co minutę. Rezerwacje przychodzą z Widgetu przez cały dzień,
+a obsługa trzyma Panel otwarty od rana; tą samą drogą gasną Rezerwacje
+oczekujące, bo `holds_term` liczy zegar bazy w chwili odczytu.
+
+Seed zakłada dwa konta, po jednym na Strzelnicę, oba z hasłem `panel-demo-123`:
+
+| Konto | Strzelnica |
+| --- | --- |
+| `obsluga@strzelnica-demo.example.pl` | Strzelnica Demo |
+| `obsluga@strzelnica-druga.example.pl` | Strzelnica Druga |
+
+Druga Strzelnica istnieje w seedzie po to, żeby „nie widzę cudzych Rezerwacji"
+dało się w ogóle sprawdzić — przy jednej Strzelnicy to zdanie jest prawdziwe
+z braku czegokolwiek obcego. Jej Rezerwacja celuje w to samo okno czasu, co
+Rezerwacja demo.
 
 ## Poczta
 

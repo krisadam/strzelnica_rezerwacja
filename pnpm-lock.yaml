@@ -35,6 +35,9 @@ importers:
       '@strzelnica/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@supabase/supabase-js':
+        specifier: ^2.112.4
+        version: 2.112.4
       react:
         specifier: ^19.1.1
         version: 19.2.8

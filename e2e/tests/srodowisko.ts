@@ -73,3 +73,47 @@ export async function baza<T>(
   }
   return (await odpowiedz.json()) as T
 }
+
+/**
+ * To samo zapytanie kluczem anonimowym — tym, który stoi w kodzie Widgetu
+ * i w każdej przeglądarce świata. Zwraca surową odpowiedź, a nie wiersze, bo
+ * właśnie o odmowę tu chodzi: test pyta, czy klucz publiczny czegoś **nie**
+ * dostaje, a odmowa nie jest tu awarią do rzucenia wyjątkiem.
+ */
+export function bazaAnonimowo(sciezka: string, init: RequestInit = {}): Promise<Response> {
+  const klucz = wymagana('VITE_SUPABASE_ANON_KEY')
+  return fetch(new URL(`/rest/v1/${sciezka}`, wymagana('VITE_SUPABASE_URL')), {
+    ...init,
+    headers: { apikey: klucz, Authorization: `Bearer ${klucz}`, ...init.headers },
+  })
+}
+
+/**
+ * Zapytanie kluczem anonimowym, ale z tokenem zalogowanego Użytkownika panelu
+ * — czyli dokładnie tym, czym pyta Panel w przeglądarce. Zwraca surową
+ * odpowiedź z tego samego powodu, co wyżej: sprawdzamy tu odmowy.
+ */
+export async function bazaJakoUzytkownikPanelu(
+  email: string,
+  haslo: string,
+  sciezka: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const klucz = wymagana('VITE_SUPABASE_ANON_KEY')
+  const adres = wymagana('VITE_SUPABASE_URL')
+
+  const logowanie = await fetch(new URL('/auth/v1/token?grant_type=password', adres), {
+    method: 'POST',
+    headers: { apikey: klucz, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password: haslo }),
+  })
+  if (!logowanie.ok) {
+    throw new Error(`Logowanie ${email} nie powiodło się: ${await logowanie.text()}`)
+  }
+  const { access_token: token } = (await logowanie.json()) as { access_token: string }
+
+  return fetch(new URL(`/rest/v1/${sciezka}`, adres), {
+    ...init,
+    headers: { apikey: klucz, Authorization: `Bearer ${token}`, ...init.headers },
+  })
+}

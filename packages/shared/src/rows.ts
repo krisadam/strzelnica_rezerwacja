@@ -18,6 +18,7 @@ import type { CalendarDay, Weekday } from './calendar.ts'
 import type { Tables } from './database.types.ts'
 import type { FacilityContact } from './management.ts'
 import type { BookingSummary, OrderedItem } from './mail.ts'
+import type { PanelBooking } from './panel.ts'
 
 /**
  * Kształt odpowiedzi PostgREST-a: dane albo błąd, nigdy wyjątek. Widget, Panel
@@ -335,4 +336,125 @@ export function bookingSummaryFromRows({
       phone: booking.contact_phone,
     },
   }
+}
+
+export class IncompletePanelBookingError extends Error {
+  constructor(column: string) {
+    super(`Wiersz Rezerwacji Panelu nie ma kolumny ${column}.`)
+    this.name = 'IncompletePanelBookingError'
+  }
+}
+
+export class UnknownLaneError extends Error {
+  constructor(id: string) {
+    super(`Oś ${id} nie należy do Osi tej Strzelnicy.`)
+    this.name = 'UnknownLaneError'
+  }
+}
+
+/**
+ * Wiersze, z których Panel składa swoje Rezerwacje. Katalogi, Osie i sama
+ * Strzelnica przychodzą osobno i całe — Rezerwacji jest wiele, a nazw kilka,
+ * więc powtarzanie ich przy każdym wierszu byłoby tym samym pytaniem zadanym
+ * tyle razy, ile Rezerwacji ma Strzelnica.
+ */
+export type PanelBookingRows = {
+  bookings: readonly Tables<'panel_bookings'>[]
+  facility: Pick<Tables<'facilities'>, 'name' | 'timezone'>
+  lanes: readonly NamedCatalogRow[]
+  rentals: readonly Pick<
+    Tables<'weapon_rentals'>,
+    'booking_id' | 'weapon_type_id' | 'quantity'
+  >[]
+  ammunition: readonly Pick<
+    Tables<'ammunition_demands'>,
+    'booking_id' | 'ammunition_kind_id' | 'quantity'
+  >[]
+  weaponTypes: readonly NamedCatalogRow[]
+  ammunitionKinds: readonly NamedCatalogRow[]
+}
+
+/** Pozycje Rezerwacji rozdzielone po Rezerwacjach, do których należą. */
+function poRezerwacjach<T extends { booking_id: string }>(
+  items: readonly T[],
+): Map<string, T[]> {
+  const wedlug = new Map<string, T[]>()
+  for (const item of items) {
+    const dotad = wedlug.get(item.booking_id)
+    if (dotad) dotad.push(item)
+    else wedlug.set(item.booking_id, [item])
+  }
+  return wedlug
+}
+
+/**
+ * Rezerwacje Strzelnicy w kształcie, w jakim ogląda je Panel. Kolumny widoku
+ * `panel_bookings` są w wygenerowanych typach dopuszczalnie puste — Postgres
+ * nie umie o widoku powiedzieć więcej — więc brak zatrzymuje się tutaj,
+ * zamiast zamieniać się w Rezerwację bez terminu albo bez Kwoty.
+ *
+ * Opis powstaje tą samą funkcją, co opis w liście: obsługa przygotowuje
+ * stanowisko z tego samego opisu, który klient dostaje na piśmie.
+ */
+export function panelBookingsFromRows({
+  bookings,
+  facility,
+  lanes,
+  rentals,
+  ammunition,
+  weaponTypes,
+  ammunitionKinds,
+}: PanelBookingRows): PanelBooking[] {
+  const wypozyczenia = poRezerwacjach(rentals)
+  const zapotrzebowania = poRezerwacjach(ammunition)
+  const osie = new Map(lanes.map((lane) => [lane.id, lane]))
+
+  return bookings.map((row) => {
+    if (!row.id) throw new IncompletePanelBookingError('id')
+    if (!row.lane_id) throw new IncompletePanelBookingError('lane_id')
+    if (!row.starts_at) throw new IncompletePanelBookingError('starts_at')
+    if (!row.ends_at) throw new IncompletePanelBookingError('ends_at')
+    if (!row.status) throw new IncompletePanelBookingError('status')
+    if (!row.contact_name) throw new IncompletePanelBookingError('contact_name')
+    if (!row.contact_email) throw new IncompletePanelBookingError('contact_email')
+    if (!row.contact_phone) throw new IncompletePanelBookingError('contact_phone')
+    // Sprawdzane wprost, bo `false` i zero są tu wartościami, a nie brakiem:
+    // Rezerwacja bez Instruktora i Rezerwacja za darmo mają przejść.
+    if (row.participants === null) throw new IncompletePanelBookingError('participants')
+    if (row.has_permit === null) throw new IncompletePanelBookingError('has_permit')
+    if (row.with_instructor === null) {
+      throw new IncompletePanelBookingError('with_instructor')
+    }
+    if (row.amount_gr === null) throw new IncompletePanelBookingError('amount_gr')
+    if (row.holds_term === null) throw new IncompletePanelBookingError('holds_term')
+
+    const lane = osie.get(row.lane_id)
+    if (!lane) throw new UnknownLaneError(row.lane_id)
+
+    return {
+      id: row.id,
+      laneId: row.lane_id,
+      status: row.status,
+      holdsTerm: row.holds_term,
+      booking: bookingSummaryFromRows({
+        booking: {
+          starts_at: row.starts_at,
+          ends_at: row.ends_at,
+          participants: row.participants,
+          has_permit: row.has_permit,
+          with_instructor: row.with_instructor,
+          amount_gr: row.amount_gr,
+          contact_name: row.contact_name,
+          contact_email: row.contact_email,
+          contact_phone: row.contact_phone,
+        },
+        facility,
+        lane,
+        rentals: wypozyczenia.get(row.id) ?? [],
+        ammunition: zapotrzebowania.get(row.id) ?? [],
+        weaponTypes,
+        ammunitionKinds,
+      }),
+    }
+  })
 }

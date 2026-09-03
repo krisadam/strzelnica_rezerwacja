@@ -9,6 +9,7 @@ import {
   formatDayLabel,
   formatMoment,
   formatTimeRange,
+  instructorPresence,
   readManagementView,
 } from '@strzelnica/shared'
 import { useCallback, useEffect, useState } from 'react'
@@ -43,7 +44,7 @@ function Szczegoly({ booking }: { booking: BookingSummary }) {
       <dt>{teksty.pozwolenie.etykieta}</dt>
       <dd>{booking.hasPermit ? teksty.pozwolenie.mam : teksty.pozwolenie.nieMam}</dd>
       <dt>{teksty.instruktor.etykieta}</dt>
-      <dd>{opisInstruktora(booking)}</dd>
+      <dd>{teksty.instruktor[instructorPresence(booking)]}</dd>
       <dt>{teksty.wypozyczenie.etykieta}</dt>
       <dd>{opisZamowionych(booking.rentals, teksty.wypozyczenie.wlasnaBron)}</dd>
       <dt>{teksty.amunicja.etykieta}</dt>
@@ -56,16 +57,6 @@ function Szczegoly({ booking }: { booking: BookingSummary }) {
       <dd>{booking.contact.phone}</dd>
     </dl>
   )
-}
-
-/**
- * Skąd wziął się Instruktor — albo dlaczego go nie ma. Siostrzana wobec
- * `opisInstruktora` z `teksty.ts`, ale pyta zapisaną Rezerwację, a nie
- * zgłoszenie w formularzu: tam były deklaracje, tu jest fakt.
- */
-function opisInstruktora(booking: BookingSummary): string {
-  if (!booking.withInstructor) return teksty.instruktor.brak
-  return booking.hasPermit ? teksty.instruktor.zamowiony : teksty.instruktor.wymagany
 }
 
 /**

@@ -46,6 +46,13 @@ export type Database = {
             referencedColumns: ["id", "facility_id"]
           },
           {
+            foreignKeyName: "ammunition_demands_booking_fkey"
+            columns: ["booking_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "panel_bookings"
+            referencedColumns: ["id", "facility_id"]
+          },
+          {
             foreignKeyName: "ammunition_demands_facility_id_fkey"
             columns: ["facility_id"]
             isOneToOne: false
@@ -392,6 +399,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "mail_outbox_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "panel_bookings"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mail_outbox_facility_id_fkey"
             columns: ["facility_id"]
             isOneToOne: false
@@ -435,6 +449,32 @@ export type Database = {
           },
         ]
       }
+      panel_users: {
+        Row: {
+          created_at: string
+          facility_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          facility_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          facility_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "panel_users_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       weapon_rentals: {
         Row: {
           booking_id: string
@@ -469,6 +509,13 @@ export type Database = {
             columns: ["booking_id", "facility_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id", "facility_id"]
+          },
+          {
+            foreignKeyName: "weapon_rentals_booking_fkey"
+            columns: ["booking_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "panel_bookings"
             referencedColumns: ["id", "facility_id"]
           },
           {
@@ -563,6 +610,72 @@ export type Database = {
           },
         ]
       }
+      panel_bookings: {
+        Row: {
+          amount_gr: number | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          ends_at: string | null
+          facility_id: string | null
+          has_permit: boolean | null
+          holds_term: boolean | null
+          id: string | null
+          lane_id: string | null
+          participants: number | null
+          starts_at: string | null
+          status: Database["public"]["Enums"]["booking_status"] | null
+          with_instructor: boolean | null
+        }
+        Insert: {
+          amount_gr?: number | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          ends_at?: string | null
+          facility_id?: string | null
+          has_permit?: boolean | null
+          holds_term?: never
+          id?: string | null
+          lane_id?: string | null
+          participants?: number | null
+          starts_at?: string | null
+          status?: Database["public"]["Enums"]["booking_status"] | null
+          with_instructor?: boolean | null
+        }
+        Update: {
+          amount_gr?: number | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          ends_at?: string | null
+          facility_id?: string | null
+          has_permit?: boolean | null
+          holds_term?: never
+          id?: string | null
+          lane_id?: string | null
+          participants?: number | null
+          starts_at?: string | null
+          status?: Database["public"]["Enums"]["booking_status"] | null
+          with_instructor?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_lane_fkey"
+            columns: ["lane_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "lanes"
+            referencedColumns: ["id", "facility_id"]
+          },
+        ]
+      }
       weapon_occupancy: {
         Row: {
           ends_at: string | null
@@ -609,6 +722,7 @@ export type Database = {
         Args: { p_facility_id: string }
         Returns: number
       }
+      panel_facility: { Args: never; Returns: string }
       place_booking: {
         Args: {
           p_ammunition: Json

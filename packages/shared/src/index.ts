@@ -16,6 +16,7 @@ export type { CalendarDay, Weekday } from './calendar.ts'
 export {
   bookingHorizon,
   instructorAttends,
+  instructorPresence,
   occupancyWindow,
   remainingWeapons,
   scheduleForDay,
@@ -26,6 +27,8 @@ export type {
   BookingHorizonInput,
   DayAvailabilityInput,
   DaySchedule,
+  InstructorPresence,
+  InstructorPresenceInput,
   Intent,
   Occupancy,
   OpeningHours,
@@ -119,6 +122,15 @@ export type {
   BookingProblem,
   BookingRequest,
 } from './booking.ts'
+export { dayAgenda, filterBookings, PANEL_DAYS_BACK, panelWindow } from './panel.ts'
+export type {
+  BookingFilter,
+  DayAgendaInput,
+  LaneAgenda,
+  PanelBooking,
+  PanelWindow,
+  PanelWindowInput,
+} from './panel.ts'
 export {
   ammunitionKindFromRow,
   asWeekday,
@@ -128,12 +140,15 @@ export {
   facilityContactFromRow,
   facilityFromRow,
   IncompleteOccupancyError,
+  IncompletePanelBookingError,
   InvalidWeekdayError,
   laneFromRow,
   occupancyFromRow,
   openingHoursFromRow,
+  panelBookingsFromRows,
   rowsOrThrow,
   UnknownCatalogItemError,
+  UnknownLaneError,
   weaponOccupancyFromRow,
   weaponTypeFromRow,
 } from './rows.ts'
@@ -143,6 +158,7 @@ export type {
   FacilityContactRow,
   FacilityRow,
   Lane,
+  PanelBookingRows,
   QueryResult,
 } from './rows.ts'
 export {

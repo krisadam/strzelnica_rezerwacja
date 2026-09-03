@@ -265,3 +265,133 @@ values (
   40
 )
 on conflict (id) do nothing;
+
+-- Druga Strzelnica: minimum, na którym widać rozdzielenie danych. Bez rozkładu
+-- Bloków i bez dozwolonych domen — Widgetu nikt tu nie osadza, a Panel niczego
+-- z rozkładu nie czyta. Jest tu po to, żeby „nie widzę cudzych Rezerwacji"
+-- dało się w ogóle sprawdzić: jedna Strzelnica w bazie czyni to zdanie
+-- prawdziwym z braku czegokolwiek obcego.
+insert into public.facilities (
+  id, slug, name, allowed_origins, contact_email, contact_phone
+)
+values (
+  '00000000-0000-0000-0000-000000000002',
+  'strzelnica-druga',
+  'Strzelnica Druga',
+  '{}',
+  'kontakt@strzelnica-druga.example.pl',
+  '+48 987 654 321'
+)
+on conflict (id) do nothing;
+
+insert into public.lanes (id, facility_id, name, capacity, block_rate_gr)
+values (
+  '00000000-0000-0000-0000-0000000000a3',
+  '00000000-0000-0000-0000-000000000002',
+  'Oś obcej Strzelnicy',
+  3,
+  9000
+)
+on conflict (id) do nothing;
+
+-- Rezerwacja obcej Strzelnicy, celowo w tym samym oknie czasu, co ta z demo:
+-- gdyby Panel filtrował po dacie zamiast po Strzelnicy, wypadłaby na ekran
+-- razem z tamtą i byłoby to widać.
+insert into public.bookings (
+  id, facility_id, lane_id, starts_at, ends_at, status, participants,
+  contact_name, contact_email, contact_phone, has_permit, with_instructor,
+  amount_gr, block_rate_gr, participation_rate_gr, instructor_rate_gr
+)
+select
+  '00000000-0000-0000-0000-0000000000b2',
+  f.id,
+  '00000000-0000-0000-0000-0000000000a3',
+  poczatek,
+  poczatek + interval '120 minutes',
+  'potwierdzona',
+  1,
+  'Obcy Klient',
+  'obcy@example.pl',
+  '600900800',
+  true,
+  false,
+  9000,
+  9000,
+  0,
+  0
+from public.facilities f
+cross join lateral (
+  select (
+    (current_date + 14 + ((8 - extract(isodow from current_date + 14)::int) % 7))::timestamp
+      + interval '600 minutes'
+  ) at time zone f.timezone as poczatek
+) t
+where f.id = '00000000-0000-0000-0000-000000000002'
+on conflict (id) do nothing;
+
+-- Konta do Panelu. Tworzone wprost w `auth.users`, bo rejestracji nie ma
+-- i nie będzie: Strzelnice zakłada operator platformy skryptem (spec,
+-- historia 60), a `enable_signup = false` w `supabase/config.toml` zamyka
+-- drogę przez formularz. Hasło jedno dla obu i wypisane wprost — to seed
+-- pracy lokalnej, ta baza nie wychodzi poza `localhost`.
+--
+-- Wiersz w `auth.identities` jest częścią konta, a nie ozdobą: GoTrue szuka
+-- tożsamości dostawcy „email" przy logowaniu hasłem i konto bez niej odmawia
+-- wpuszczenia, mimo poprawnego hasła w `auth.users`.
+--
+-- Puste ciągi w kolumnach tokenów jednorazowych nie są ozdobą: GoTrue czyta je
+-- jako `string`, więc konto z `null` w którejkolwiek z nich wywraca logowanie
+-- błędem serwera, zamiast odmówić albo wpuścić.
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+  confirmation_token, recovery_token, email_change_token_new,
+  email_change_token_current, email_change, phone_change, phone_change_token,
+  reauthentication_token,
+  created_at, updated_at
+)
+select
+  '00000000-0000-0000-0000-000000000000',
+  konto.id,
+  'authenticated',
+  'authenticated',
+  konto.email,
+  extensions.crypt('panel-demo-123', extensions.gen_salt('bf')),
+  now(),
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{}'::jsonb,
+  '', '', '', '', '', '', '', '',
+  now(),
+  now()
+from (
+  values
+    ('00000000-0000-0000-0000-000000000101'::uuid, 'obsluga@strzelnica-demo.example.pl'),
+    ('00000000-0000-0000-0000-000000000102'::uuid, 'obsluga@strzelnica-druga.example.pl')
+) as konto (id, email)
+on conflict (id) do nothing;
+
+insert into auth.identities (
+  provider_id, user_id, identity_data, provider, created_at, updated_at
+)
+select
+  u.id::text,
+  u.id,
+  jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true),
+  'email',
+  now(),
+  now()
+from auth.users u
+where u.id in (
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000102'
+)
+on conflict (provider, provider_id) do nothing;
+
+-- Powiązanie konta ze Strzelnicą — jedyna treść Użytkownika panelu. Dwa konta
+-- w dwóch różnych Strzelnicach, bo dopiero para pokazuje, że powiązanie
+-- cokolwiek odcina.
+insert into public.panel_users (user_id, facility_id)
+values
+  ('00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000002')
+on conflict (user_id) do nothing;
