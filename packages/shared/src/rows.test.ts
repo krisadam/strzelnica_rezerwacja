@@ -5,6 +5,7 @@ import {
   asWeekday,
   blockScheduleFromRow,
   bookingSummaryFromRows,
+  facilityContactFromRow,
   facilityFromRow,
   IncompleteOccupancyError,
   InvalidWeekdayError,
@@ -83,6 +84,10 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       // Adres powiadomień Strzelnicy nie przechodzi do domeny: nie ma go
       // w `FacilityRow`, bo klucz anonimowy nie ma po co go czytać.
       notification_email: 'recepcja@example.pl',
+      // Kontakt dla klientów tak samo: czyta go Edge Function i podaje razem
+      // z Rezerwacją, której dotyczy.
+      contact_email: 'kontakt@example.pl',
+      contact_phone: '+48 123 456 789',
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -95,6 +100,16 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       participationRate: 3000,
       instructorRate: 8000,
     })
+  })
+
+  // Kontakt do Strzelnicy pokazywany klientowi, gdy okno anulowania się
+  // domknęło. Brak jest tu odpowiedzią, a nie wierszem niepełnym: Strzelnica
+  // bez wpisanego kontaktu ma zostawić ekran bez telefonu, a nie zatrzymać go
+  // wyjątkiem.
+  it('kontakt do Strzelnicy przechodzi razem z brakami', () => {
+    expect(
+      facilityContactFromRow({ contact_email: 'kontakt@example.pl', contact_phone: null }),
+    ).toEqual({ email: 'kontakt@example.pl', phone: null })
   })
 
   it('Oś zachowuje nazwę, pojemność i stawkę za Blok', () => {

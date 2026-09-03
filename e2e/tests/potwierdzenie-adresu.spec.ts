@@ -1,8 +1,6 @@
-import type { Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 import {
   ADRES_POWIADOMIEN,
-  czasBloku,
   juzWygasla,
   LINK_ZARZADZANIA,
   listyDo,
@@ -10,8 +8,8 @@ import {
   OS_KARABINOWA,
   przechwyconyList,
   wolnyBlokPoDniach,
-  wypelnijFormularz,
   zadeklarujPozwolenie,
+  zlozRezerwacje,
   ZIMNY_START_MS,
 } from './pomocniki.js'
 
@@ -29,74 +27,12 @@ import {
  */
 
 /**
- * Dni, od których te dwa testy zaczynają szukać terminu. Osi są dwie, a testów
- * rezerwujących więcej — wyścigi o Blok i o sztukę broni biorą terminy
- * najbliższe, bo obie strony wyścigu muszą trafić na ten sam. Odsuwamy się
- * więc w głąb horyzontu, każdy test na własną wysokość: inaczej zabralibyśmy
- * wyścigowi Blok sprzed nosa i to on by padał, a nie my.
+ * Dni, od których te testy zaczynają szukać terminu — każdy na własnej
+ * wysokości horyzontu; powód stoi przy `zlozRezerwacje`.
  */
 const DZIEN_POTWIERDZENIA = 16
 const DZIEN_WYGASNIECIA = 22
 const DZIEN_POWIADOMIEN = 27
-
-/** Ile dni od swojego początku test przegląda w poszukiwaniu wolnego Bloku. */
-const DNI_SZUKANIA = 5
-
-/**
- * Termin Rezerwacji zapamiętany tak, żeby dało się do niego wrócić po
- * przeładowaniu strony: sama godzina nie wystarczy, bo kalendarz wstaje na
- * dzisiaj, a wolny Blok bywa za kilka dni.
- */
-type Termin = { czas: string; dni: number }
-
-/**
- * Sprzęt zamawiany tam, gdzie test ogląda listy. Nie po to, żeby sprawdzić
- * wyliczenie — to należy do szwu czystych funkcji — a po to, żeby przejść
- * odczyt katalogów, z których podsumowanie bierze nazwy pozycji.
- */
-type Sprzet = {
-  bron: { typ: string; sztuki: number }
-  amunicja: { rodzaj: string; sztuki: number }
-}
-
-/** Złożenie Rezerwacji na pierwszym wolnym Bloku Osi karabinowej od wskazanego dnia. */
-async function zlozRezerwacje(
-  page: Page,
-  email: string,
-  odDnia: number,
-  sprzet?: Sprzet,
-): Promise<Termin> {
-  await otworzWidget(page)
-  await zadeklarujPozwolenie(page)
-
-  // Pierwszy dzień z wolnym Blokiem, liczony w krokach od dzisiaj — bo do tego
-  // samego dnia trzeba będzie potem wrócić po przeładowaniu strony.
-  let dni = odDnia
-  let blok = await wolnyBlokPoDniach(page, OS_KARABINOWA, odDnia)
-  while (!blok && dni < odDnia + DNI_SZUKANIA) {
-    dni += 1
-    blok = await wolnyBlokPoDniach(page, OS_KARABINOWA, 1)
-  }
-  if (!blok) throw new Error(`Oś „${OS_KARABINOWA}" nie ma wolnego Bloku w oknie szukania.`)
-
-  const czas = await czasBloku(blok)
-  await blok.click()
-
-  await wypelnijFormularz(page, {
-    uczestnicy: 1,
-    imie: 'Celina Nowak',
-    email,
-    telefon: '600300400',
-    ...sprzet,
-  })
-  await page.getByRole('button', { name: 'Rezerwuję' }).click()
-
-  await expect(page.getByRole('heading', { name: 'Sprawdź skrzynkę' })).toBeVisible({
-    timeout: ZIMNY_START_MS,
-  })
-
-  return { czas, dni }
-}
 
 /**
  * Powiadomienia Strzelnicy o Rezerwacjach tego jednego klienta. Skrzynka
@@ -113,7 +49,7 @@ test('link z e-maila potwierdza adres, a drugie wejście już niczego nie zmieni
   page,
 }) => {
   const email = 'celina.potwierdza@example.pl'
-  await zlozRezerwacje(page, email, DZIEN_POTWIERDZENIA)
+  await zlozRezerwacje(page, { os: OS_KARABINOWA, email, odDnia: DZIEN_POTWIERDZENIA })
 
   const list = await przechwyconyList(email)
 
@@ -130,7 +66,11 @@ test('link z e-maila potwierdza adres, a drugie wejście już niczego nie zmieni
 
 test('Rezerwacja niepotwierdzona wygasa, zwalnia termin i unieważnia link', async ({ page }) => {
   const email = 'celina.zwleka@example.pl'
-  const termin = await zlozRezerwacje(page, email, DZIEN_WYGASNIECIA)
+  const termin = await zlozRezerwacje(page, {
+    os: OS_KARABINOWA,
+    email,
+    odDnia: DZIEN_WYGASNIECIA,
+  })
   const list = await przechwyconyList(email)
 
   // Termin jest zajęty tak samo, jak zajęłaby go Rezerwacja potwierdzona —
@@ -159,9 +99,14 @@ test('powiadomienia wychodzą dopiero po potwierdzeniu adresu — do klienta i d
   page,
 }) => {
   const email = 'celina.powiadomiona@example.pl'
-  await zlozRezerwacje(page, email, DZIEN_POWIADOMIEN, {
-    bron: { typ: 'Glock 17', sztuki: 1 },
-    amunicja: { rodzaj: '9 × 19 mm Parabellum', sztuki: 50 },
+  await zlozRezerwacje(page, {
+    os: OS_KARABINOWA,
+    email,
+    odDnia: DZIEN_POWIADOMIEN,
+    sprzet: {
+      bron: { typ: 'Glock 17', sztuki: 1 },
+      amunicja: { rodzaj: '9 × 19 mm Parabellum', sztuki: 50 },
+    },
   })
 
   // Do tej pory poszedł jeden list: ten z linkiem. Rezerwacja oczekująca bywa

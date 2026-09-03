@@ -142,6 +142,7 @@ export type Database = {
         Row: {
           amount_gr: number
           block_rate_gr: number
+          cancelled_at: string | null
           confirmation_token: string | null
           confirmed_at: string | null
           consented_at: string
@@ -166,6 +167,7 @@ export type Database = {
         Insert: {
           amount_gr: number
           block_rate_gr: number
+          cancelled_at?: string | null
           confirmation_token?: string | null
           confirmed_at?: string | null
           consented_at?: string
@@ -190,6 +192,7 @@ export type Database = {
         Update: {
           amount_gr?: number
           block_rate_gr?: number
+          cancelled_at?: string | null
           confirmation_token?: string | null
           confirmed_at?: string | null
           consented_at?: string
@@ -265,6 +268,8 @@ export type Database = {
           allowed_origins: string[]
           booking_horizon_days: number
           cancellation_window_hours: number
+          contact_email: string | null
+          contact_phone: string | null
           created_at: string
           id: string
           instructor_pool: number
@@ -280,6 +285,8 @@ export type Database = {
           allowed_origins?: string[]
           booking_horizon_days?: number
           cancellation_window_hours?: number
+          contact_email?: string | null
+          contact_phone?: string | null
           created_at?: string
           id?: string
           instructor_pool?: number
@@ -295,6 +302,8 @@ export type Database = {
           allowed_origins?: string[]
           booking_horizon_days?: number
           cancellation_window_hours?: number
+          contact_email?: string | null
+          contact_phone?: string | null
           created_at?: string
           id?: string
           instructor_pool?: number
@@ -580,6 +589,13 @@ export type Database = {
           p_status: Database["public"]["Enums"]["booking_status"]
         }
         Returns: boolean
+      }
+      cancel_booking: {
+        Args: { p_deadline: string; p_token: string }
+        Returns: {
+          final_status: Database["public"]["Enums"]["booking_status"]
+          just_cancelled: boolean
+        }[]
       }
       confirm_booking: {
         Args: { p_token: string }

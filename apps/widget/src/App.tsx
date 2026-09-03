@@ -2,6 +2,7 @@ import type { Environment, SupabaseConfig } from '@strzelnica/shared'
 import {
   MissingSupabaseConfigError,
   readConfirmationToken,
+  readManagementToken,
   readSupabaseConfig,
 } from '@strzelnica/shared'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -14,6 +15,7 @@ import { Rezerwacja } from './Rezerwacja.js'
 import type { StrzelnicaClient } from './supabase.js'
 import { createStrzelnicaClient } from './supabase.js'
 import { teksty } from './teksty.js'
+import { MojaRezerwacja } from './MojaRezerwacja.js'
 
 /**
  * Identyfikator Strzelnicy przychodzi z adresu ramki; wpisuje go tam skrypt
@@ -62,9 +64,9 @@ function Komunikat({ powod }: { powod: string }) {
 
 /**
  * Ścieżka rezerwacji: grafik Strzelnicy i wszystko, co się z niego bierze.
- * Wejście z linku potwierdzającego nie przechodzi tędy — tam nie ma czego
+ * Wejścia z linków w e-mailach nie przechodzą tędy — tam nie ma czego
  * pokazywać w kalendarzu, a niepotrzebny odczyt grafiku mógłby przesłonić
- * potwierdzenie własnym błędem.
+ * sprawę, po którą klient przyszedł, własnym błędem.
  */
 function Rezerwowanie({ slug }: { slug: string }) {
   const [stan, setStan] = useState<Stan>({ faza: 'wczytywanie' })
@@ -123,18 +125,26 @@ function Rezerwowanie({ slug }: { slug: string }) {
 type Konfiguracja = { config: SupabaseConfig } | { powod: string }
 
 /**
- * Wejście z linku z e-maila. Potrzebuje samego połączenia — resztę wie token.
+ * Połączenie z bazą dla ekranów otwieranych linkiem z e-maila. Resztę wie
+ * token, więc grafiku tu nie czytamy — niepotrzebny odczyt mógłby przesłonić
+ * sprawę, po którą klient przyszedł, własnym błędem.
+ *
  * Konfiguracja czytana raz i zapamiętana: wpadłaby w pętlę, gdyby przy każdym
- * renderze była nowym obiektem, bo od niej zależy samo potwierdzenie.
+ * renderze była nowym obiektem, bo od niej zależą same żądania.
  */
-function Potwierdzanie({ slug, token }: { slug: string; token: string }) {
-  const konfiguracja = useMemo<Konfiguracja>(() => {
+function useKonfiguracja(): Konfiguracja {
+  return useMemo<Konfiguracja>(() => {
     try {
       return { config: readSupabaseConfig(srodowisko()) }
     } catch (powod: unknown) {
       return { powod: komunikatBledu(powod) }
     }
   }, [])
+}
+
+/** Wejście z linku potwierdzającego adres. Działa raz i nie robi nic więcej. */
+function Potwierdzanie({ slug, token }: { slug: string; token: string }) {
+  const konfiguracja = useKonfiguracja()
 
   const doKalendarza = useCallback(() => {
     // Ten sam Widget, ta sama Strzelnica, tylko bez tokenu — czyli zwyczajny
@@ -153,19 +163,45 @@ function Potwierdzanie({ slug, token }: { slug: string; token: string }) {
   )
 }
 
+/**
+ * Wejście z linku do zarządzania Rezerwacją. Odrębne od potwierdzania, bo
+ * odrębne są uprawnienia: tamten token działa raz, ten żyje tak długo jak
+ * Rezerwacja i to nim się ją anuluje.
+ */
+function SwojaRezerwacja({ token }: { token: string }) {
+  const konfiguracja = useKonfiguracja()
+
+  if ('powod' in konfiguracja) return <Komunikat powod={konfiguracja.powod} />
+
+  return <MojaRezerwacja config={konfiguracja.config} token={token} />
+}
+
+/**
+ * Po co Osoba rezerwująca weszła — poznaje się to po parametrze adresu, bo
+ * Widget stoi pod jednym źródłem. Trzy zupełnie różne sprawy, więc trzy
+ * niezależne poddrzewa, a nie jedno ze wspólnym stanem.
+ *
+ * Link potwierdzający ma pierwszeństwo, gdyby oba tokeny trafiły do jednego
+ * adresu: bez potwierdzenia nie ma czym zarządzać.
+ */
+function Wejscie({ slug, search }: { slug: string; search: string }) {
+  const potwierdzenie = readConfirmationToken(search)
+  if (potwierdzenie) return <Potwierdzanie slug={slug} token={potwierdzenie} />
+
+  const rezerwacja = readManagementToken(search)
+  if (rezerwacja) return <SwojaRezerwacja token={rezerwacja} />
+
+  return <Rezerwowanie slug={slug} />
+}
+
 export function App() {
   const search = window.location.search
   const slug = slugStrzelnicy(search)
-  // Token w adresie znaczy wejście ze skrzynki, a nie ze strony Strzelnicy.
-  // To jedyne rozgałęzienie Widgetu — dwie zupełnie różne sprawy, więc dwa
-  // niezależne poddrzewa, a nie jedno ze wspólnym stanem.
-  const token = readConfirmationToken(search)
 
   return (
     <main className="widget">
       <h1>{teksty.tytul}</h1>
-      {!slug && <Komunikat powod={teksty.brakParametru} />}
-      {slug && (token ? <Potwierdzanie slug={slug} token={token} /> : <Rezerwowanie slug={slug} />)}
+      {slug ? <Wejscie slug={slug} search={search} /> : <Komunikat powod={teksty.brakParametru} />}
     </main>
   )
 }

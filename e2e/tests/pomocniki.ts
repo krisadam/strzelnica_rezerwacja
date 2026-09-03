@@ -168,6 +168,124 @@ export async function przechwyconyList(email: string): Promise<ListZLinkiem> {
 }
 
 /**
+ * Termin Rezerwacji zapamiętany tak, żeby dało się do niego wrócić po
+ * przeładowaniu strony: sama godzina nie wystarczy, bo kalendarz wstaje na
+ * dzisiaj, a wolny Blok bywa za kilka dni.
+ */
+export type Termin = { czas: string; dni: number }
+
+/**
+ * Sprzęt zamawiany tam, gdzie test ogląda opis Rezerwacji. Nie po to, żeby
+ * sprawdzić wyliczenie — to należy do szwu czystych funkcji — a po to, żeby
+ * przejść odczyt katalogów, z których opis bierze nazwy pozycji.
+ */
+export type Sprzet = {
+  bron: { typ: string; sztuki: number }
+  amunicja: { rodzaj: string; sztuki: number }
+}
+
+/** Ile dni od wskazanego początku test przegląda w poszukiwaniu wolnego Bloku. */
+const DNI_OD_POCZATKU = 5
+
+/**
+ * Złożenie Rezerwacji na pierwszym wolnym Bloku wskazanej Osi od wskazanego
+ * dnia. Zatrzymuje się na ekranie „Sprawdź skrzynkę" — dalej idzie się już
+ * linkiem z listu.
+ *
+ * Dzień początkowy podaje wołający, bo Osi są dwie, a testów rezerwujących
+ * więcej: wyścigi biorą terminy najbliższe, bo obie ich strony muszą trafić na
+ * ten sam Blok, więc reszta odsuwa się w głąb horyzontu, każdy na własną
+ * wysokość. Bez tego zabralibyśmy wyścigowi Blok sprzed nosa i to on by padał.
+ */
+export async function zlozRezerwacje(
+  page: Page,
+  dane: { os: string; email: string; odDnia: number; sprzet?: Sprzet },
+): Promise<Termin> {
+  await otworzWidget(page)
+  await zadeklarujPozwolenie(page)
+
+  // Pierwszy dzień z wolnym Blokiem, liczony w krokach od dzisiaj — bo do tego
+  // samego dnia trzeba będzie potem wrócić po przeładowaniu strony.
+  let dni = dane.odDnia
+  let blok = await wolnyBlokPoDniach(page, dane.os, dane.odDnia)
+  while (!blok && dni < dane.odDnia + DNI_OD_POCZATKU) {
+    dni += 1
+    blok = await wolnyBlokPoDniach(page, dane.os, 1)
+  }
+  if (!blok) throw new Error(`Oś „${dane.os}" nie ma wolnego Bloku w oknie szukania.`)
+
+  const czas = await czasBloku(blok)
+  await blok.click()
+
+  await wypelnijFormularz(page, {
+    uczestnicy: 1,
+    imie: 'Celina Nowak',
+    email: dane.email,
+    telefon: '600300400',
+    ...dane.sprzet,
+  })
+  await page.getByRole('button', { name: 'Rezerwuję' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Sprawdź skrzynkę' })).toBeVisible({
+    timeout: ZIMNY_START_MS,
+  })
+
+  return { czas, dni }
+}
+
+/**
+ * Przejście całej drogi potwierdzenia: złożenie Rezerwacji i wejście w link
+ * z listu. Zwraca termin oraz link do zarządzania — czyli to, po co testy
+ * anulowania w ogóle rezerwują.
+ */
+export async function zlozIPotwierdz(
+  page: Page,
+  dane: { os: string; email: string; odDnia: number; sprzet?: Sprzet },
+): Promise<{ termin: Termin; bookingId: string; linkZarzadzania: string }> {
+  const termin = await zlozRezerwacje(page, dane)
+  const list = await przechwyconyList(dane.email)
+
+  await page.goto(list.link)
+  await expect(page.getByRole('heading', { name: 'Termin jest Twój' })).toBeVisible({
+    timeout: ZIMNY_START_MS,
+  })
+
+  const podsumowanie = (await listyDo(dane.email)).find((wiadomosc) =>
+    wiadomosc.temat.includes('Rezerwacja potwierdzona'),
+  )
+  const link = podsumowanie && LINK_ZARZADZANIA.exec(podsumowanie.tresc)?.[0]
+  if (!link) throw new Error(`List z podsumowaniem na ${dane.email} nie niesie linku.`)
+
+  return { termin, bookingId: list.bookingId, linkZarzadzania: link }
+}
+
+/**
+ * Przesunięcie terminu Rezerwacji tak, żeby Okno anulowania było już
+ * domknięte. Czekania do dnia przed terminem nie da się w teście odbyć,
+ * a zegara nie zamrażamy — zamrożenie w przeglądarce nie zamraża zegara bazy,
+ * a to on rozstrzyga o granicy okna.
+ *
+ * Godzina wybrana z rozmysłem: minimalne wyprzedzenie Strzelnicy z seeda to
+ * dwie godziny, więc w najbliższej godzinie nikt inny nie mógł nic
+ * zarezerwować i przesunięcie nie ma jak wpaść na cudzą Rezerwację.
+ *
+ * Minuta losowa i przedział krótki, bo wyłączności Osi pilnuje ograniczenie
+ * w schemacie: dwa przesunięcia w tym samym przebiegu — choćby ponowieniem po
+ * niepowodzeniu — trafiłyby na siebie, gdyby obydwa celowały w tę samą godzinę.
+ */
+export async function juzZaPozno(bookingId: string): Promise<void> {
+  const minuta = 60 + Math.floor(Math.random() * 60)
+  const start = new Date(Date.now() + minuta * 60_000)
+  await baza(`bookings?id=eq.${bookingId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      starts_at: start.toISOString(),
+      ends_at: new Date(start.getTime() + 60_000).toISOString(),
+    }),
+  })
+}
+
+/**
  * Przesunięcie terminu wygaśnięcia w przeszłość — jedyny sposób, żeby test
  * zobaczył wygaśnięcie. Czekania trzydziestu minut nie da się odbyć, a zegara
  * nie zamrażamy: zamrożenie w przeglądarce nie zamraża zegara bazy, a to on

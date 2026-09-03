@@ -336,3 +336,11 @@ body {
   font-size: 0.85rem;
   margin: 0.5rem 0 0;
 }
+
+/* Kontakt do Strzelnicy na ekranie własnej Rezerwacji. Bez ramki i bez tła —
+   nie jest tym, po co Osoba rezerwująca tu weszła, dopóki nie okaże się, że
+   sama nie może już nic zrobić. */
+.kontakt h3 {
+  font-size: 1rem;
+  margin: 1.5rem 0 0.6rem;
+}
