@@ -3,6 +3,7 @@ import {
   addDays,
   dayIn,
   formatDayLabel,
+  formatMoment,
   formatTimeRange,
   InvalidCalendarDayError,
   weekdayOf,
@@ -78,6 +79,13 @@ describe('zapis czasu na ekranie', () => {
         WARSZAWA,
       ),
     ).toBe('23:00–01:00')
+  })
+
+  // Granica Okna anulowania jest chwilą, a nie datą kalendarza, więc dobę
+  // wyznacza jej strefa Strzelnicy: 23:30 UTC to już następny dzień w Warszawie.
+  it('pokazuje chwilę w zegarze Strzelnicy razem z jej dniem', () => {
+    expect(formatMoment(new Date('2026-06-14T08:00:00Z'), WARSZAWA)).toBe('14 czerwca 10:00')
+    expect(formatMoment(new Date('2026-06-15T23:30:00Z'), WARSZAWA)).toBe('16 czerwca 01:30')
   })
 
   it('nazywa dzień po polsku i nie przesuwa go o dobę', () => {

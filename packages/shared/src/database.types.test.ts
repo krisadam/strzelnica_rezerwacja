@@ -19,6 +19,8 @@ describe('typy ze schematu bazy', () => {
       participation_rate_gr: 3000,
       instructor_rate_gr: 8000,
       notification_email: 'recepcja@example.pl',
+      contact_email: 'kontakt@example.pl',
+      contact_phone: '+48 123 456 789',
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -26,6 +28,9 @@ describe('typy ze schematu bazy', () => {
     // Adres powiadomień jest polem Strzelnicy, a nie stałą platformy: jedna
     // czyta pocztę na recepcji, druga u kierownika.
     expect(strzelnica.notification_email).toBe('recepcja@example.pl')
+    // Kontakt podawany klientom jest osobną kolumną, bo jest osobną sprawą:
+    // skrzynka obsługi nie wychodzi publicznie, a ten kontakt właśnie ma.
+    expect(strzelnica.contact_email).not.toBe(strzelnica.notification_email)
   })
 
   it('zapis Strzelnicy wymaga tylko slug i nazwy — resztę uzupełnia baza', () => {
@@ -48,6 +53,10 @@ describe('typy ze schematu bazy', () => {
     // Adres powiadomień wolno zostawić pustym — Strzelnica, która ich nie chce,
     // jest odpowiedzią, a nie konfiguracją niedokończoną.
     expect(nowa.notification_email).toBeUndefined()
+    // Kontakt dla klientów tak samo: wpisuje go Strzelnica w Panelu, a numeru
+    // zmyślonego za nią przez migrację nikt nie chce widzieć na ekranie.
+    expect(nowa.contact_email).toBeUndefined()
+    expect(nowa.contact_phone).toBeUndefined()
   })
 
   it('Oś niesie identyfikator Strzelnicy, pojemność i stawkę za Blok', () => {
@@ -130,6 +139,8 @@ describe('typy ze schematu bazy', () => {
     expect(rezerwacja.block_rate_gr).toBe(12000)
     // Moment akceptacji regulaminu uzupełnia baza, tak jak datę utworzenia.
     expect(rezerwacja.consented_at).toBeUndefined()
+    // Rezerwacja powstaje nieodwołana; chwilę odwołania wpisuje anulowanie.
+    expect(rezerwacja.cancelled_at).toBeUndefined()
   })
 
   it('Typ broni niesie pulę sztuk i cenę za sztukę', () => {

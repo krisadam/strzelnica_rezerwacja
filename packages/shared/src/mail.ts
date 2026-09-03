@@ -124,6 +124,14 @@ const TEKSTY = {
       telefon: (numer: string) => `Telefon: ${numer}`,
     },
   },
+
+  anulowanie: {
+    temat: (strzelnica: string, dzien: string) =>
+      `Anulowana Rezerwacja — ${dzien}, Strzelnica „${strzelnica}"`,
+    wstep: 'Osoba rezerwująca anulowała swoją Rezerwację:',
+    /** Zdanie o skutku, bo cały ten list mówi o czymś, co już się stało samo. */
+    skutek: 'Termin wrócił do puli i jest znów do wzięcia — nie ma tu nic do zrobienia.',
+  },
 } as const
 
 /**
@@ -379,6 +387,42 @@ export function facilityNotificationEmail({
   return {
     to,
     subject: TEKSTY.powiadomienie.temat(booking.facilityName, formatDayLabel(booking.day)),
+    text,
+    html,
+  }
+}
+
+export type ClientCancellationEmailInput = {
+  booking: BookingSummary
+  /** Adres powiadomień Strzelnicy — jej pole konfiguracyjne, nie adres klienta. */
+  to: string
+}
+
+/**
+ * Powiadomienie Strzelnicy o Rezerwacji anulowanej przez klienta. Ten sam opis,
+ * co w powiadomieniu o nowej — obsługa zestawia go z tym, co ma zapisane,
+ * i z tej samej listy odwołuje przygotowany sprzęt.
+ *
+ * Czego tu nie ma: prośby o cokolwiek. Termin wrócił do puli sam, w tej samej
+ * transakcji, w której Rezerwacja zmieniła stan; list donosi o skutku, a nie
+ * zleca jego wywołanie.
+ */
+export function clientCancellationEmail({ booking, to }: ClientCancellationEmailInput): MailMessage {
+  const { text, html } = zloz([
+    akapit(TEKSTY.anulowanie.wstep),
+    ...szczegoly(booking),
+    akapit(
+      TEKSTY.powiadomienie.kontakt.naglowek,
+      TEKSTY.powiadomienie.kontakt.imie(booking.contact.name),
+      TEKSTY.powiadomienie.kontakt.email(booking.contact.email),
+      TEKSTY.powiadomienie.kontakt.telefon(booking.contact.phone),
+    ),
+    akapit(TEKSTY.anulowanie.skutek),
+  ])
+
+  return {
+    to,
+    subject: TEKSTY.anulowanie.temat(booking.facilityName, formatDayLabel(booking.day)),
     text,
     html,
   }

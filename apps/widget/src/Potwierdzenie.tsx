@@ -8,9 +8,9 @@ import { Wybrany } from './Wybrany.js'
 /**
  * Ekran po zapisie. Rezerwacja istnieje i trzyma termin, ale czeka na
  * potwierdzenie adresu — i to jest tutaj najważniejsze zdanie, ważniejsze niż
- * numer Rezerwacji. E-mail z podsumowaniem dochodzi wraz z powiadomieniami
- * (ticket #11), a link do własnej Rezerwacji wraz z zarządzaniem nią
- * (ticket #12).
+ * numer Rezerwacji. E-mail z podsumowaniem — i link, którym Osoba rezerwująca
+ * wróci do swojej Rezerwacji — wychodzi dopiero po potwierdzeniu adresu, więc
+ * tutaj go nie ma i być nie może.
  */
 export function Potwierdzenie({
   wybor,

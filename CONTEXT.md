@@ -34,7 +34,7 @@ ewentualne Wypożyczenie broni i amunicji oraz informacja o Instruktorze.
 ## Osoba rezerwująca
 
 Klient dokonujący Rezerwacji. Nie posiada konta w systemie — identyfikuje się
-adresem e-mail, a dostęp do własnej Rezerwacji uzyskuje przez podpisany link.
+adresem e-mail, a dostęp do własnej Rezerwacji uzyskuje przez link z tokenem.
 Odrębna od Uczestnika: Osoba rezerwująca zwykle jest jednym z Uczestników,
 ale system śledzi tylko ją.
 
@@ -175,6 +175,14 @@ Skrzynka, pod którą Strzelnica dowiaduje się o Rezerwacjach swoich Osi bez
 zaglądania do Panelu. Jej ustawienie — jak Horyzont rezerwacji czy Okno
 anulowania. Pusty znaczy Strzelnicę, która powiadomień nie chce, a nie
 konfigurację niedokończoną.
+
+## Kontakt Strzelnicy
+
+Adres i telefon, które Strzelnica podaje klientom. Odrębne od Adresu
+powiadomień: tamten jest skrzynką obsługi i nie wychodzi na zewnątrz, a to jest
+właśnie to, co ma wyjść — po upływie Okna anulowania zostaje Osobie
+rezerwującej telefon i nic więcej. Jego ustawienie — jak Horyzont rezerwacji
+czy Okno anulowania.
 
 ## Użytkownik panelu
 

@@ -16,6 +16,7 @@ import type {
 import { dayIn } from './calendar.ts'
 import type { CalendarDay, Weekday } from './calendar.ts'
 import type { Tables } from './database.types.ts'
+import type { FacilityContact } from './management.ts'
 import type { BookingSummary, OrderedItem } from './mail.ts'
 
 /**
@@ -121,6 +122,23 @@ export function facilityFromRow(row: FacilityRow): Facility {
     participationRate: row.participation_rate_gr,
     instructorRate: row.instructor_rate_gr,
   }
+}
+
+/**
+ * Kolumny kontaktu Strzelnicy. Wypisane osobno od `FacilityRow`, bo czyta je
+ * inna rola i w innym celu: `FacilityRow` to kolumny publiczne, a te idą do
+ * Osoby rezerwującej wyłącznie razem z jej własną Rezerwacją.
+ */
+export type FacilityContactRow = Pick<Tables<'facilities'>, 'contact_email' | 'contact_phone'>
+
+/**
+ * Kontakt do Strzelnicy dla ekranu Rezerwacji. Brak przechodzi jako brak —
+ * inaczej niż niepełny wiersz zajętości, który się tu zatrzymuje: Strzelnica
+ * bez wpisanego kontaktu jest konfiguracją niedokończoną, a nie danymi
+ * uszkodzonymi, i ekran ma o tym powiedzieć, a nie paść.
+ */
+export function facilityContactFromRow(row: FacilityContactRow): FacilityContact {
+  return { email: row.contact_email, phone: row.contact_phone }
 }
 
 /** Oś w kształcie, w jakim potrzebuje jej kalendarz. */

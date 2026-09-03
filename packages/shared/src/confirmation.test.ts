@@ -34,8 +34,9 @@ describe('Potwierdzenie adresu', () => {
     })
   })
 
-  // Stany odwołania zaczną powstawać wraz z anulowaniem (tickety #12 i #15).
-  // Odpowiedź „wygasła" byłaby wtedy nieprawdą, a milczenie — zagadką.
+  // Rezerwacja anulowana przez klienta już powstaje; odwołanie przez
+  // Strzelnicę dojdzie z ticketem #15. Odpowiedź „wygasła" byłaby przy nich
+  // nieprawdą, a milczenie — zagadką.
   it.each(['anulowana-przez-klienta', 'odwolana-przez-strzelnice'] as const)(
     'link Rezerwacji odwołanej (%s) mówi o odwołaniu, a nie o wygaśnięciu',
     (status) => {

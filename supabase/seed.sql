@@ -19,7 +19,7 @@
 insert into public.facilities (
   id, slug, name, booking_horizon_days, min_lead_minutes, cancellation_window_hours,
   allowed_origins, instructor_pool, participation_rate_gr, instructor_rate_gr,
-  notification_email
+  notification_email, contact_email, contact_phone
 )
 values (
   '00000000-0000-0000-0000-000000000001',
@@ -34,7 +34,11 @@ values (
   3000,
   8000,
   -- Adres powiadomień: tu Strzelnica dowiaduje się o nowej Rezerwacji.
-  'recepcja@strzelnica-demo.example.pl'
+  'recepcja@strzelnica-demo.example.pl',
+  -- Kontakt podawany klientom — inny niż skrzynka obsługi, bo to on wychodzi
+  -- na ekran po upływie Okna anulowania.
+  'kontakt@strzelnica-demo.example.pl',
+  '+48 123 456 789'
 )
 on conflict (id) do nothing;
 

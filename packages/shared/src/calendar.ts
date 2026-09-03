@@ -152,3 +152,27 @@ export function formatDayLabel(day: CalendarDay): string {
   )
   return format.format(new Date(`${day}T00:00:00Z`))
 }
+
+/**
+ * Chwila w zegarze Strzelnicy, np. „14 czerwca 10:00". Inaczej niż
+ * `formatDayLabel`, dotyczy momentu, a nie daty kalendarza, więc dobę wyznacza
+ * strefa Strzelnicy: granica Okna anulowania wypadająca po północy czasu
+ * uniwersalnego wciąż należy do dnia, który czyta klient.
+ *
+ * Bez dnia tygodnia — ta chwila nie jest terminem, na który się przyjeżdża,
+ * tylko liczbą, do której trzeba zdążyć.
+ */
+export function formatMoment(instant: Date, timeZone: string): string {
+  const format = labelFormatterFor(
+    `chwila:${timeZone}`,
+    () =>
+      new Intl.DateTimeFormat('pl-PL', {
+        timeZone,
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+  )
+  return format.format(instant)
+}

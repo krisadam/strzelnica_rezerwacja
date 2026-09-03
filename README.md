@@ -145,21 +145,25 @@ wyciągnięcia — nie do dopisania testu wyżej.
 
 `e2e/` to wąska warstwa weryfikacyjna dla tego, czego czysta funkcja nie widzi:
 wyścig o ten sam Blok, przejście całej ścieżki, izolacja Strzelnic, osadzenie
-w ramce, potwierdzenie adresu. Wymagają wstającego Supabase (`pnpm db:start`)
+w ramce, potwierdzenie adresu, anulowanie przez link. Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
 
-Testy potwierdzenia sięgają do bazy rolą serwisową — po przechwyconą pocztę
-i po przesunięcie terminu wygaśnięcia, bo czekania trzydziestu minut nie da się
-w teście odbyć, a zegara nie zamrażamy. Klucz bierze się z `SUPABASE_SERVICE_ROLE_KEY`
+Testy potwierdzenia i anulowania sięgają do bazy rolą serwisową — po
+przechwyconą pocztę i po przesunięcie terminów: czekania trzydziestu minut do
+wygaśnięcia ani doby do domknięcia Okna anulowania nie da się w teście odbyć,
+a zegara nie zamrażamy (zamrożenie w przeglądarce nie zamraża zegara bazy). Klucz bierze się z `SUPABASE_SERVICE_ROLE_KEY`
 w `.env`, zapisywanego przez `pnpm db:env`. Osi są dwie, a testów rezerwujących
 więcej, więc każdy z nich celuje w inny fragment horyzontu: wyścigi biorą
 terminy najbliższe, bo obie ich strony muszą trafić na ten sam Blok.
 
 ## Rezerwacje
 
-Rezerwację zapisuje wyłącznie Edge Function `zloz-rezerwacje`, a potwierdza
-`potwierdz-rezerwacje` (ADR 0003).
+Rezerwację zapisuje wyłącznie Edge Function `zloz-rezerwacje`, potwierdza
+`potwierdz-rezerwacje`, a anuluje `anuluj-rezerwacje` (ADR 0003). Tą samą drogą
+idzie jej **odczyt** spod linku klienta (`pokaz-rezerwacje`), choć niczego nie
+zmienia: `bookings` niesie dane osobowe, a Osoba rezerwująca nie ma konta,
+którym dałoby się jej pokazać własny wiersz i tylko własny.
 Klucz anonimowy nie ma do tabeli `bookings` żadnej polityki RLS: nie zapisze
 do niej niczego i nie odczyta z niej niczego. Kalendarz czyta zajętość
 z widoku `lane_occupancy` — Oś i zakres czasu, bez danych osobowych.
@@ -235,7 +239,7 @@ Link do zarządzania ma własny token (`bookings.management_token`, losowany
 wartością domyślną kolumny) i własny parametr adresu `?rezerwacja=`. Nie jest
 tokenem potwierdzającym: tamten działa raz, ten żyje tak długo jak Rezerwacja,
 więc jeden token dla obu spraw znaczyłby, że adres zużyty przy potwierdzeniu
-nadal daje pełen dostęp. Widok, do którego link prowadzi, powstaje z anulowaniem.
+nadal daje pełen dostęp.
 
 Adres powiadomień Strzelnicy stoi w `facilities.notification_email` — jest jej
 polem konfiguracyjnym, jak Horyzont rezerwacji. Pusty znaczy Strzelnicę, która
@@ -250,6 +254,41 @@ każde zawężenie, więc `facilities` ma odebrane `select` na tabelę i nadane
 kolumnami — dokładnie tymi, które czyta Widget (`FacilityRow`). Kolumna
 dołożona do tej tabeli jest odtąd domyślnie prywatna: wystawienie jej wymaga
 dopisania do `grant select (…)` w nowej migracji.
+
+## Zarządzanie Rezerwacją przez link
+
+Pod adresem z podsumowania Osoba rezerwująca widzi całą swoją Rezerwację wraz
+z Kwotą i może ją anulować, dopóki nie minęło Okno anulowania. Identyfikator
+Rezerwacji nie występuje tu ani w żądaniu, ani w odpowiedzi: upoważnieniem jest
+token, więc podstawienie cudzego numeru w adresie nie ma czego otworzyć
+(ADR 0007).
+
+Okno anulowania jest regułą domeny — `cancellationState` w `packages/shared`,
+pokryta testami wraz z samą granicą — a zegarem jest baza. Dlatego
+`anuluj-rezerwacje` podaje funkcji `cancel_booking` **chwilę domknięcia okna**,
+a nie gotową odpowiedź „wolno" albo „nie wolno": policzona w środowisku
+brzegowym byłaby odpowiedzią z innego zegara niż zapis, a granica ma być jedna.
+Ten sam podział, co przy `HOLD_MINUTES` i wygasaniu.
+
+Anulowanie zwalnia termin, miejsce w Puli instruktorów i sztuki broni bez
+żadnego osobnego kroku: ograniczenie wyłączności Osi obejmuje wyłącznie
+Rezerwacje oczekujące i potwierdzone, a widoki zajętości filtrują przez
+`booking_holds_term`. Blokady doradczej na Strzelnicę tu nie ma — bierze ją
+zapis i potwierdzenie, bo one termin zajmują; anulowanie wyłącznie zwalnia,
+a to jest przejście jednego wiersza pod warunkiem na jego stan.
+
+Po upływie okna klient widzi powód i **Kontakt Strzelnicy**
+(`facilities.contact_email`, `facilities.contact_phone`). Są to kolumny
+prywatne — bez `grant select` — bo czyta je Edge Function rolą serwisową
+i podaje dalej razem z Rezerwacją, której dotyczą: kontakt bez Rezerwacji nie
+jest niczyją odpowiedzią, a lista telefonów wszystkich Strzelnic tym mniej.
+Odrębne od Adresu powiadomień: tamten jest skrzynką obsługi.
+
+Widok jedzie do przeglądarki jako `ManagementViewWire` — momenty tekstem, bo
+`Date` nie przeżywa JSON-a. Zamiana w obie strony (`writeManagementView`,
+`readManagementView`) mieszka w `packages/shared` i jest tam pokryta jako
+tożsamość: rozjazd między nadawcą a odbiorcą znaczyłby ekran z terminem innym
+niż w bazie i nikt by tego nie zauważył.
 
 ## Poczta
 

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { BookingSummary, ConfirmationEmailInput } from './index.ts'
-import { bookingSummaryEmail, confirmationEmail, facilityNotificationEmail } from './index.ts'
+import {
+  bookingSummaryEmail,
+  clientCancellationEmail,
+  confirmationEmail,
+  facilityNotificationEmail,
+} from './index.ts'
 
 const ZGLOSZENIE: ConfirmationEmailInput = {
   facilityName: 'Strzelnica Demo',
@@ -95,6 +100,13 @@ function podsumowanie(nadpisania: Partial<BookingSummary> = {}) {
   return bookingSummaryEmail({
     booking: { ...REZERWACJA, ...nadpisania },
     url: LINK_ZARZADZANIA,
+  })
+}
+
+function anulowanie(nadpisania: Partial<BookingSummary> = {}) {
+  return clientCancellationEmail({
+    booking: { ...REZERWACJA, ...nadpisania },
+    to: 'recepcja@example.pl',
   })
 }
 
@@ -223,6 +235,57 @@ describe('E-mail do Strzelnicy o nowej Rezerwacji', () => {
 
   it('nie wpuszcza znaczników z formularza do wersji HTML', () => {
     const wiadomosc = powiadomienie({
+      contact: { ...REZERWACJA.contact, name: 'Anna <b>Kowalska</b>' },
+    })
+    expect(wiadomosc.html).toContain('Anna &lt;b&gt;Kowalska&lt;/b&gt;')
+    expect(wiadomosc.html).not.toContain('<b>Kowalska</b>')
+  })
+})
+
+describe('E-mail do Strzelnicy o anulowaniu przez klienta', () => {
+  it('idzie pod adres powiadomień Strzelnicy, nie do klienta', () => {
+    expect(anulowanie().to).toBe('recepcja@example.pl')
+  })
+
+  // Temat czyta się na liście, nie po otwarciu: obsługa musi od razu wiedzieć,
+  // że termin się zwolnił, i który to termin.
+  it('w temacie mówi o anulowaniu i o który dzień chodzi', () => {
+    const temat = anulowanie().subject
+    expect(temat).toContain('Anulowana Rezerwacja')
+    expect(temat).toContain('15 czerwca')
+  })
+
+  // Ten sam opis, co w powiadomieniu o nowej Rezerwacji: obsługa zestawia go
+  // z tym, co ma zapisane, a stanowisko odwołuje z tej samej listy sprzętu.
+  it.each(OBIE_WERSJE)('niesie te same szczegóły Rezerwacji (%s)', (wersja) => {
+    const tresc = anulowanie()[wersja]
+    expect(tresc).toContain('Oś pistoletowa nr 1')
+    expect(tresc).toContain('10:00–11:00')
+    expect(tresc).toContain('Glock 17')
+    expect(tresc).toMatch(/1\s*700,00/)
+  })
+
+  it.each(OBIE_WERSJE)('niesie dane kontaktowe Osoby rezerwującej (%s)', (wersja) => {
+    const tresc = anulowanie()[wersja]
+    expect(tresc).toContain('Anna Kowalska')
+    expect(tresc).toContain('anna@example.pl')
+    expect(tresc).toContain('600100200')
+  })
+
+  // Termin wrócił do puli sam — obsługa nie ma nic robić, i to jest tutaj
+  // wiadomością. List, który tego nie mówi, każe zaglądać do Panelu.
+  it.each(OBIE_WERSJE)('mówi, że termin wrócił do puli (%s)', (wersja) => {
+    expect(anulowanie()[wersja]).toContain('wrócił do puli')
+  })
+
+  // Anulował klient, nie Strzelnica: link do zarządzania jest jego
+  // uprawnieniem i nie jedzie w listach do obsługi.
+  it('nie niesie linku do zarządzania Rezerwacją', () => {
+    expect(anulowanie().text).not.toContain('rezerwacja=')
+  })
+
+  it('nie wpuszcza znaczników z formularza do wersji HTML', () => {
+    const wiadomosc = anulowanie({
       contact: { ...REZERWACJA.contact, name: 'Anna <b>Kowalska</b>' },
     })
     expect(wiadomosc.html).toContain('Anna &lt;b&gt;Kowalska&lt;/b&gt;')

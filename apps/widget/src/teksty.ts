@@ -9,6 +9,8 @@ import type {
   BookingDraft,
   BookingProblem,
   ConfirmationProblem,
+  Database,
+  OrderedItem,
   Unavailability,
   WeaponRental,
   WeaponType,
@@ -192,6 +194,67 @@ export const teksty = {
     doKalendarza: 'Zarezerwuj termin',
   },
   /**
+   * Ekran spod linku do zarządzania Rezerwacją. Osoba rezerwująca wraca tu po
+   * dniach albo tygodniach — z e-maila, nie ze strony Strzelnicy — więc ekran
+   * musi się przeczytać sam, bez pamięci o formularzu.
+   */
+  zarzadzanie: {
+    wczytywanie: 'Wczytujemy Twoją Rezerwację…',
+    naglowek: 'Szczegóły Twojej Rezerwacji',
+    /**
+     * Co znaczy stan Rezerwacji. Wszystkie stany, także te, których klient
+     * pod tym linkiem normalnie nie zobaczy: link żyje tak długo, jak
+     * Rezerwacja, więc dożyje każdego z nich.
+     */
+    stan: {
+      potwierdzona: 'Rezerwacja jest w mocy — Strzelnica czeka.',
+      oczekujaca:
+        'Ta Rezerwacja czeka jeszcze na potwierdzenie adresu. Sprawdź skrzynkę ' +
+        'i kliknij link, który tam wysłaliśmy.',
+      'anulowana-przez-klienta': 'Ta Rezerwacja jest anulowana. Termin wrócił do puli.',
+      'odwolana-przez-strzelnice':
+        'Strzelnica odwołała tę Rezerwację. Szczegóły powinny być w wiadomości od niej.',
+      wygasla:
+        'Ta Rezerwacja wygasła — adres nie został potwierdzony w czasie, a termin ' +
+        'wrócił do puli.',
+    } satisfies Record<Database['public']['Enums']['booking_status'], string>,
+    /** Zdanie przy przycisku: dopóki jest czas, mówimy, ile go zostało. */
+    doKiedy: (kiedy: string) => `Możesz anulować samodzielnie do ${kiedy}.`,
+    anuluj: 'Anuluj Rezerwację',
+    /**
+     * Anulowanie zwalnia termin nieodwracalnie i cudzy klik weźmie go w minutę,
+     * więc pytamy raz — a nie stawiamy przycisku, który działa od razu.
+     */
+    pewnie: 'Na pewno anulować? Termin od razu wróci do puli i ktoś inny może go wziąć.',
+    tak: 'Tak, anuluj',
+    nie: 'Zostawiam Rezerwację',
+    anulowanie: 'Anulujemy…',
+    anulowano: 'Anulowaliśmy Twoją Rezerwację. Termin wrócił do puli.',
+    /** Powód, dla którego przycisku nie ma. Odmowa bez powodu wygląda na usterkę. */
+    poOknie: (kiedy: string) =>
+      `Okno anulowania minęło ${kiedy} — sami nie zwolnimy już tego terminu. ` +
+      'Jeśli nie przyjedziesz, zadzwoń albo napisz do Strzelnicy.',
+    kontakt: {
+      naglowek: 'Kontakt do Strzelnicy',
+      email: 'E-mail',
+      telefon: 'Telefon',
+      brak:
+        'Ta Strzelnica nie podała nam kontaktu. Szukaj go na jej stronie — tej samej, ' +
+        'na której rezerwowałeś.',
+    },
+    /**
+     * Jedyna odmowa z własnym zdaniem. O pozostałych — oknie już domkniętym
+     * i Rezerwacji nie do anulowania — mówi widok odczytany po kliknięciu na
+     * nowo, i mówi dokładniej, bo zna stan Rezerwacji; zdanie napisane tutaj
+     * musiałoby go zgadywać i stanęłoby obok prawdziwego.
+     */
+    linkNieznany:
+      'Nie znamy tego linku. Sprawdź, czy wkleiłeś go w całości — bywa, ' +
+      'że klient poczty łamie długie adresy.',
+    blad: 'Nie udało się wczytać Rezerwacji. Spróbuj jeszcze raz za chwilę.',
+    bladAnulowania: 'Nie udało się anulować Rezerwacji. Spróbuj jeszcze raz za chwilę.',
+  },
+  /**
    * Zastrzeżenia liczy `bookingProblems` z `@strzelnica/shared` — ta sama
    * funkcja, którą pyta serwer. Tutaj są wyłącznie ich zdania po polsku.
    */
@@ -295,4 +358,20 @@ export function opisZapotrzebowania(
     kinds,
     teksty.amunicja.wlasnaAmunicja,
   )
+}
+
+/**
+ * Zamówione pozycje jednym zdaniem, gdy przychodzą już z nazwami — tak wygląda
+ * Rezerwacja odczytana z bazy, w odróżnieniu od tej składanej w formularzu,
+ * gdzie pozycje są identyfikatorami katalogu i nazwę trzeba im dopiero
+ * dołożyć (`opisWypozyczen`, `opisZapotrzebowania`).
+ *
+ * Brak mówi o sobie wprost, tak samo jak tam: pusta wartość w opisie
+ * wyglądałaby na coś, o co nikt nie zapytał.
+ */
+export function opisZamowionych(pozycje: readonly OrderedItem[], brak: string): string {
+  if (pozycje.length === 0) return brak
+  return pozycje
+    .map((pozycja) => `${pozycja.name} — ${teksty.sztuki(pozycja.quantity)}`)
+    .join(', ')
 }

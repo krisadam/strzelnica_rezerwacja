@@ -6,6 +6,7 @@ export {
   addDays,
   dayIn,
   formatDayLabel,
+  formatMoment,
   formatTimeRange,
   InvalidCalendarDayError,
   weekdayOf,
@@ -61,12 +62,44 @@ export type {
   ConfirmationResult,
   ConfirmationUrlInput,
 } from './confirmation.ts'
-export { MANAGEMENT_PARAM, managementUrl } from './management.ts'
-export type { ManagementUrlInput } from './management.ts'
-export { bookingSummaryEmail, confirmationEmail, facilityNotificationEmail } from './mail.ts'
+export {
+  cancellationDeadline,
+  cancellationOutcome,
+  cancellationState,
+} from './cancellation.ts'
+export type {
+  CancellationOutcome,
+  CancellationProblem,
+  CancellationResult,
+  CancellationState,
+  CancellationStateInput,
+} from './cancellation.ts'
+export {
+  MANAGEMENT_PARAM,
+  managementUrl,
+  managementView,
+  readManagementToken,
+  readManagementView,
+  writeManagementView,
+} from './management.ts'
+export type {
+  FacilityContact,
+  ManagementOutcome,
+  ManagementUrlInput,
+  ManagementView,
+  ManagementViewInput,
+  ManagementViewWire,
+} from './management.ts'
+export {
+  bookingSummaryEmail,
+  clientCancellationEmail,
+  confirmationEmail,
+  facilityNotificationEmail,
+} from './mail.ts'
 export type {
   BookingSummary,
   BookingSummaryEmailInput,
+  ClientCancellationEmailInput,
   ConfirmationEmailInput,
   FacilityNotificationEmailInput,
   MailMessage,
@@ -92,6 +125,7 @@ export {
   blockScheduleFromRow,
   bookingSummaryFromRows,
   closedDateFromRow,
+  facilityContactFromRow,
   facilityFromRow,
   IncompleteOccupancyError,
   InvalidWeekdayError,
@@ -106,6 +140,7 @@ export {
 export type {
   BookingSummaryRows,
   Facility,
+  FacilityContactRow,
   FacilityRow,
   Lane,
   QueryResult,
