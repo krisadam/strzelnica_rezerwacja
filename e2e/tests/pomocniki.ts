@@ -1,10 +1,33 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
+import { PANEL_URL } from '../playwright.config.js'
 import { baza } from './srodowisko.js'
 
 export const STRZELNICA = 'strzelnica-demo'
 export const OS_PISTOLETOWA = 'Oś pistoletowa nr 1'
 export const OS_KARABINOWA = 'Oś karabinowa nr 2'
+
+/** Konta Panelu z seeda — jedno na Strzelnicę, obydwa z tym samym hasłem. */
+export const OBSLUGA_DEMO = 'obsluga@strzelnica-demo.example.pl'
+export const OBSLUGA_DRUGIEJ = 'obsluga@strzelnica-druga.example.pl'
+export const HASLO_PANELU = 'panel-demo-123'
+
+/** Rezerwacja z seeda, po której poznaje się Strzelnicę demonstracyjną. */
+export const KLIENT_DEMO = 'Jan Przykładowy'
+export const REZERWACJA_DEMO = '00000000-0000-0000-0000-0000000000b1'
+
+/**
+ * Wejście do Panelu wskazanym kontem. Wspólne dla testów Panelu i testów
+ * izolacji, bo obie grupy pytają o to samo z dwóch stron: jedna, co konto
+ * widzi, druga — czego nie.
+ */
+export async function zalogujDoPanelu(page: Page, email: string): Promise<void> {
+  await page.goto(PANEL_URL)
+  await page.getByLabel('Adres e-mail').fill(email)
+  await page.getByLabel('Hasło').fill(HASLO_PANELU)
+  await page.getByRole('button', { name: 'Zaloguj' }).click()
+  await expect(page.getByRole('button', { name: 'Wyloguj' })).toBeVisible()
+}
 
 /** Adres powiadomień Strzelnicy demonstracyjnej — jej pole konfiguracyjne z seeda. */
 export const ADRES_POWIADOMIEN = 'recepcja@strzelnica-demo.example.pl'

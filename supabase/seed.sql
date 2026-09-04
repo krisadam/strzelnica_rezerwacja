@@ -266,59 +266,163 @@ values (
 )
 on conflict (id) do nothing;
 
--- Druga Strzelnica: minimum, na którym widać rozdzielenie danych. Bez rozkładu
--- Bloków i bez dozwolonych domen — Widgetu nikt tu nie osadza, a Panel niczego
--- z rozkładu nie czyta. Jest tu po to, żeby „nie widzę cudzych Rezerwacji"
--- dało się w ogóle sprawdzić: jedna Strzelnica w bazie czyni to zdanie
--- prawdziwym z braku czegokolwiek obcego.
+-- Druga Strzelnica. Jest tu po to, żeby „nie widzę cudzych danych" dało się
+-- w ogóle sprawdzić: jedna Strzelnica w bazie czyni to zdanie prawdziwym
+-- z braku czegokolwiek obcego, a asercja niewidzialności bez obcego wiersza
+-- mierzy pustkę, nie granicę. Dlatego ma wiersz w **każdej** tabeli domenowej
+-- — Osie, rozkład, godziny, wyjątek, oba katalogi, Rezerwacje z pozycjami
+-- i list w skrzynce — a nie sam szkielet.
+--
+-- Bez dozwolonych domen: Widgetu nikt tu nie osadza. Konfiguracja celowo różna
+-- od demonstracyjnej co do każdej stawki i co do Puli instruktorów — obca
+-- podstawiona pod Panel demo nie byłaby do odróżnienia od własnej, gdyby obie
+-- miały te same liczby.
 insert into public.facilities (
-  id, slug, name, allowed_origins, contact_email, contact_phone
+  id, slug, name, instructor_pool, participation_rate_gr, instructor_rate_gr,
+  allowed_origins, notification_email, contact_email, contact_phone
 )
 values (
   '00000000-0000-0000-0000-000000000002',
   'strzelnica-druga',
   'Strzelnica Druga',
+  2,
+  2500,
+  7000,
   '{}',
+  'recepcja@strzelnica-druga.example.pl',
   'kontakt@strzelnica-druga.example.pl',
   '+48 987 654 321'
 )
 on conflict (id) do nothing;
 
 insert into public.lanes (id, facility_id, name, capacity, block_rate_gr)
-values (
-  '00000000-0000-0000-0000-0000000000a3',
-  '00000000-0000-0000-0000-000000000002',
-  'Oś obcej Strzelnicy',
-  3,
-  9000
-)
+values
+  (
+    '00000000-0000-0000-0000-0000000000a3',
+    '00000000-0000-0000-0000-000000000002',
+    'Oś obcej Strzelnicy nr 1',
+    3,
+    9000
+  ),
+  (
+    '00000000-0000-0000-0000-0000000000a4',
+    '00000000-0000-0000-0000-000000000002',
+    'Oś obcej Strzelnicy nr 2',
+    2,
+    11000
+  )
 on conflict (id) do nothing;
 
--- Rezerwacja obcej Strzelnicy, celowo w tym samym oknie czasu, co ta z demo:
--- gdyby Panel filtrował po dacie zamiast po Strzelnicy, wypadłaby na ekran
--- razem z tamtą i byłoby to widać.
+-- Godziny i rozkład własne, w innym rytmie dnia niż demonstracyjne:
+-- poniedziałek–sobota 8:00–21:00. Rozkład jest tygodniowy, więc tak samo jak
+-- tam pokrywa każde 30 dni w przód.
+insert into public.opening_hours (facility_id, weekday, opens_minute, closes_minute)
+select '00000000-0000-0000-0000-000000000002', weekday, 480, 1260
+from generate_series(1, 6) as weekday
+on conflict (facility_id, weekday) do nothing;
+
+-- Pierwszy Blok Osi nr 1 zaczyna się o 10:00 — tam, gdzie stoi Rezerwacja
+-- niżej, celowo w tym samym oknie czasu, co Rezerwacja demonstracyjna.
+insert into public.block_schedules (facility_id, lane_id, weekday, start_minute, duration_minutes)
+select
+  '00000000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-0000000000a3',
+  weekday,
+  start_minute,
+  120
+from generate_series(1, 6) as weekday
+cross join unnest(array[600, 780, 960]) as start_minute
+on conflict (lane_id, weekday, start_minute) do nothing;
+
+insert into public.block_schedules (facility_id, lane_id, weekday, start_minute, duration_minutes)
+select
+  '00000000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-0000000000a4',
+  weekday,
+  start_minute,
+  90
+from generate_series(1, 6) as weekday
+cross join unnest(array[540, 720, 900]) as start_minute
+on conflict (lane_id, weekday, start_minute) do nothing;
+
+-- Dzień zamknięty inny niż w Strzelnicy demonstracyjnej: wyjątek kalendarzowy
+-- jest własnością Strzelnicy, a nie datą platformy.
+insert into public.calendar_exceptions (facility_id, closed_on, reason)
+values (
+  '00000000-0000-0000-0000-000000000002',
+  current_date + 12,
+  'Przegląd techniczny'
+)
+on conflict (facility_id, closed_on) do nothing;
+
+-- Katalogi obcej Strzelnicy: inne pozycje i inne ceny, bo katalog jest jej
+-- własnością. Żadna nazwa nie powtarza się z demonstracyjną, więc nazwa
+-- widziana na ekranie wskazuje Strzelnicę bez zaglądania w identyfikatory.
+insert into public.weapon_types (id, facility_id, name, pool, unit_price_gr)
+values
+  (
+    '00000000-0000-0000-0000-0000000000c4',
+    '00000000-0000-0000-0000-000000000002',
+    'Beretta 92FS',
+    2,
+    5500
+  ),
+  (
+    '00000000-0000-0000-0000-0000000000c5',
+    '00000000-0000-0000-0000-000000000002',
+    'Remington 870',
+    1,
+    8000
+  )
+on conflict (id) do nothing;
+
+insert into public.ammunition_kinds (id, facility_id, name, unit_price_gr)
+values
+  (
+    '00000000-0000-0000-0000-0000000000e4',
+    '00000000-0000-0000-0000-000000000002',
+    '.45 ACP',
+    220
+  ),
+  (
+    '00000000-0000-0000-0000-0000000000e5',
+    '00000000-0000-0000-0000-000000000002',
+    '12/70 śrut',
+    300
+  )
+on conflict (id) do nothing;
+
+-- Dwie Rezerwacje obcej Strzelnicy. Pierwsza celowo w tym samym oknie czasu,
+-- co ta z demo: gdyby Panel filtrował po dacie zamiast po Strzelnicy, wypadłaby
+-- na ekran razem z tamtą i byłoby to widać. Druga na drugiej Osi, żeby żadna
+-- Oś obcej Strzelnicy nie stała pusta z braku Rezerwacji — pusta nie odróżnia
+-- Osi odciętej od Osi wolnej.
+--
+-- Rachunek pierwszej: 90 zł za Blok + 55 zł za „Beretta 92FS" + 100 × 2,20 zł
+-- za amunicję = 365 zł. Drugiej: 110 zł za Blok + 25 zł za drugiego Uczestnika
+-- + 70 zł za Instruktora = 205 zł.
 insert into public.bookings (
   id, facility_id, lane_id, starts_at, ends_at, status, participants,
   contact_name, contact_email, contact_phone, has_permit, with_instructor,
   amount_gr, block_rate_gr, participation_rate_gr, instructor_rate_gr
 )
 select
-  '00000000-0000-0000-0000-0000000000b2',
+  rezerwacja.id,
   f.id,
-  '00000000-0000-0000-0000-0000000000a3',
-  poczatek,
-  poczatek + interval '120 minutes',
+  rezerwacja.lane_id,
+  poczatek + rezerwacja.przesuniecie,
+  poczatek + rezerwacja.przesuniecie + rezerwacja.dlugosc,
   'potwierdzona',
-  1,
-  'Obcy Klient',
-  'obcy@example.pl',
-  '600900800',
-  true,
-  false,
-  9000,
-  9000,
-  0,
-  0
+  rezerwacja.participants,
+  rezerwacja.contact_name,
+  rezerwacja.contact_email,
+  rezerwacja.contact_phone,
+  rezerwacja.has_permit,
+  rezerwacja.with_instructor,
+  rezerwacja.amount_gr,
+  rezerwacja.block_rate_gr,
+  2500,
+  7000
 from public.facilities f
 cross join lateral (
   select (
@@ -326,7 +430,86 @@ cross join lateral (
       + interval '600 minutes'
   ) at time zone f.timezone as poczatek
 ) t
+cross join (
+  values
+    (
+      '00000000-0000-0000-0000-0000000000b2'::uuid,
+      '00000000-0000-0000-0000-0000000000a3'::uuid,
+      interval '0 minutes',
+      interval '120 minutes',
+      1::smallint,
+      'Obcy Klient',
+      'obcy@example.pl',
+      '600900800',
+      true,
+      false,
+      36500::bigint,
+      9000
+    ),
+    (
+      '00000000-0000-0000-0000-0000000000b3'::uuid,
+      '00000000-0000-0000-0000-0000000000a4'::uuid,
+      interval '120 minutes',
+      interval '90 minutes',
+      2::smallint,
+      'Obca Klientka',
+      'obca@example.pl',
+      '600900700',
+      false,
+      true,
+      20500::bigint,
+      11000
+    )
+) as rezerwacja (
+  id, lane_id, przesuniecie, dlugosc, participants, contact_name, contact_email,
+  contact_phone, has_permit, with_instructor, amount_gr, block_rate_gr
+)
 where f.id = '00000000-0000-0000-0000-000000000002'
+on conflict (id) do nothing;
+
+insert into public.weapon_rentals (
+  id, facility_id, booking_id, weapon_type_id, quantity, unit_price_gr
+)
+values (
+  '00000000-0000-0000-0000-0000000000d2',
+  '00000000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-0000000000b2',
+  '00000000-0000-0000-0000-0000000000c4',
+  1,
+  5500
+)
+on conflict (id) do nothing;
+
+insert into public.ammunition_demands (
+  id, facility_id, booking_id, ammunition_kind_id, quantity, unit_price_gr
+)
+values (
+  '00000000-0000-0000-0000-0000000000f2',
+  '00000000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-0000000000b2',
+  '00000000-0000-0000-0000-0000000000e4',
+  100,
+  220
+)
+on conflict (id) do nothing;
+
+-- List, który poszedł do obcego klienta — w środowisku bez dostawcy poczty
+-- zapisany zamiast wysłanego. Wpisany do seeda, choć zwykle powstaje
+-- z Rezerwacji złożonej w Widgecie: `mail_outbox` jest tabelą o największym
+-- stężeniu danych osobowych i jedyną, w której leży treść linków, więc bez
+-- tego wiersza zdanie „klucz anonimowy nie czyta poczty" nie mierzy niczego.
+insert into public.mail_outbox (
+  id, facility_id, booking_id, recipient, subject, body_text, body_html
+)
+values (
+  '00000000-0000-0000-0000-000000000201',
+  '00000000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-0000000000b2',
+  'obcy@example.pl',
+  'Rezerwacja potwierdzona — Strzelnica Druga',
+  'Termin jest Twój. Do zobaczenia na Osi obcej Strzelnicy nr 1.',
+  '<p>Termin jest Twój. Do zobaczenia na Osi obcej Strzelnicy nr 1.</p>'
+)
 on conflict (id) do nothing;
 
 -- Konta do Panelu. Tworzone wprost w `auth.users`, bo rejestracji nie ma
