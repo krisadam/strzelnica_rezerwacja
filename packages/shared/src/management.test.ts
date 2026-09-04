@@ -82,6 +82,7 @@ const WIDOK: ManagementViewWire = {
   booking: OPIS,
   cancellation: { possible: true, deadline: '2026-06-14T08:00:00.000Z' },
   facility: { email: 'kontakt@strzelnica-demo.example.pl', phone: '123456789' },
+  revocationReason: null,
 }
 
 describe('Widok Rezerwacji spod linku', () => {
@@ -125,6 +126,24 @@ describe('Widok Rezerwacji spod linku', () => {
     ).toEqual({ possible: false, reason: 'nie-do-anulowania' })
   })
 
+  /**
+   * Powód odwołania czyta pod tym linkiem także klient, nie tylko obsługa
+   * w Panelu: list z powodem bywa skasowany albo przeczytany w pośpiechu,
+   * a ekran własnej Rezerwacji jest tym miejscem, do którego wraca się po
+   * szczegóły.
+   */
+  it('przenosi powód odwołania Rezerwacji', () => {
+    const widok = readManagementView({
+      ...WIDOK,
+      status: 'odwolana-przez-strzelnice',
+      cancellation: { possible: false, reason: 'nie-do-anulowania' },
+      revocationReason: 'Awaria wentylacji na Osi.',
+    })
+
+    expect(widok.status).toBe('odwolana-przez-strzelnice')
+    expect(widok.revocationReason).toBe('Awaria wentylacji na Osi.')
+  })
+
   it('przenosi opis Rezerwacji i kontakt do Strzelnicy bez zmian', () => {
     const widok = readManagementView(WIDOK)
     expect(widok.status).toBe('potwierdzona')
@@ -147,6 +166,7 @@ describe('Składanie widoku Rezerwacji', () => {
       booking: REZERWACJA,
       cancellationWindowHours: 24,
       facility: { email: null, phone: '123456789' },
+      revocationReason: null,
       now: new Date('2026-06-10T09:00:00Z'),
     })
 
@@ -167,6 +187,7 @@ describe('Składanie widoku Rezerwacji', () => {
       booking: REZERWACJA,
       cancellationWindowHours: 24,
       facility: { email: 'kontakt@example.pl', phone: null },
+      revocationReason: null,
       now: new Date('2026-06-15T07:00:00Z'),
     })
 
@@ -192,6 +213,19 @@ describe('Widok w drodze przez JSON', () => {
       booking: REZERWACJA,
       cancellation,
       facility: { email: 'kontakt@example.pl', phone: null },
+      revocationReason: null,
+    } as const
+
+    expect(readManagementView(writeManagementView(widok))).toEqual(widok)
+  })
+
+  it('wraca bez zmiany razem z powodem odwołania', () => {
+    const widok = {
+      status: 'odwolana-przez-strzelnice',
+      booking: REZERWACJA,
+      cancellation: { possible: false, reason: 'nie-do-anulowania' },
+      facility: { email: 'kontakt@example.pl', phone: null },
+      revocationReason: 'Awaria wentylacji na Osi.',
     } as const
 
     expect(readManagementView(writeManagementView(widok))).toEqual(widok)

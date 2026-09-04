@@ -130,6 +130,15 @@ na niego przygotować.
 Ile czasu przed terminem Osoba rezerwująca może anulować Rezerwację sama. Po
 jego upływie zostaje jej kontakt do Strzelnicy.
 
+## Odwołanie
+
+Zdjęcie Rezerwacji z grafiku przez Strzelnicę — wraz z powodem, który Osoba
+rezerwująca dostaje na piśmie. Odrębne od anulowania: tam termin zwalnia sama
+Osoba rezerwująca i tylko dopóki trwa Okno anulowania, tu Strzelnica i bez
+względu na to, ile zostało do terminu — bo powodem bywa pęknięta szyba na
+godzinę przed. Powód jest częścią Odwołania, a nie notatką obok niego: bez
+niego klient wie tyle, że nie ma po co przyjeżdżać.
+
 ## Pula instruktorów
 
 Liczba Instruktorów, których Strzelnica jest w stanie zapewnić w danym czasie.

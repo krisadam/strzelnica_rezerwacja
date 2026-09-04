@@ -65,6 +65,14 @@ export type ManagementView = {
   cancellation: CancellationState
   /** Kontakt do Strzelnicy — potrzebny wtedy, gdy klient nie może już sam. */
   facility: FacilityContact
+  /**
+   * Powód, dla którego Strzelnica odwołała tę Rezerwację; puste ma każda
+   * nieodwołana. Klient dostaje go pocztą w chwili odwołania, ale list bywa
+   * skasowany albo przeczytany w pośpiechu — a ten ekran jest tym miejscem, do
+   * którego wraca się po szczegóły własnej Rezerwacji. Bez powodu zostałoby mu
+   * tu samo „odwołana" i telefon do Strzelnicy.
+   */
+  revocationReason: string | null
 }
 
 export type ManagementViewInput = {
@@ -73,6 +81,7 @@ export type ManagementViewInput = {
   /** Okno anulowania Strzelnicy, w godzinach — jej pole konfiguracyjne. */
   cancellationWindowHours: number
   facility: FacilityContact
+  revocationReason: string | null
   now: Date
 }
 
@@ -86,6 +95,7 @@ export function managementView({
   booking,
   cancellationWindowHours,
   facility,
+  revocationReason,
   now,
 }: ManagementViewInput): ManagementView {
   return {
@@ -98,6 +108,7 @@ export function managementView({
       now,
     }),
     facility,
+    revocationReason,
   }
 }
 
@@ -134,6 +145,7 @@ export function readManagementView(wire: ManagementViewWire): ManagementView {
         ? { possible: false, reason: 'po-oknie', deadline: new Date(wire.cancellation.deadline) }
         : { possible: false, reason: 'nie-do-anulowania' },
     facility: wire.facility,
+    revocationReason: wire.revocationReason,
   }
 }
 
@@ -162,5 +174,6 @@ export function writeManagementView(view: ManagementView): ManagementViewWire {
           }
         : { possible: false, reason: 'nie-do-anulowania' },
     facility: view.facility,
+    revocationReason: view.revocationReason,
   }
 }

@@ -90,11 +90,33 @@ body {
 }
 
 .pole input,
-.pole select {
+.pole select,
+.pole textarea {
   font: inherit;
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--ramka);
   border-radius: 0.35rem;
+}
+
+/* Powód odwołania rośnie w dół, a nie w bok: pole rozciągane w szerokość
+   rozjeżdża opis Rezerwacji, pod którym stoi. */
+.pole textarea {
+  resize: vertical;
+}
+
+.przyciski {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+}
+
+/* Odwołanie odcięte linią od opisu: jest jedyną rzeczą na tym ekranie, która
+   coś zmienia, więc nie ma wyglądać na kolejny wiersz opisu. */
+.odwolanie {
+  border-top: 1px solid var(--ramka);
+  margin: 1.5rem 0;
+  padding-top: 0.5rem;
 }
 
 .logowanie {

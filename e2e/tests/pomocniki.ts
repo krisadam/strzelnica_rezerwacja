@@ -16,6 +16,33 @@ export const HASLO_PANELU = 'panel-demo-123'
 export const KLIENT_DEMO = 'Jan Przykładowy'
 export const REZERWACJA_DEMO = '00000000-0000-0000-0000-0000000000b1'
 
+/** Strefa Strzelnicy demonstracyjnej — jej zegarem liczy się dzień Rezerwacji. */
+const STREFA_DEMO = 'Europe/Warsaw'
+
+/**
+ * Dzień Rezerwacji w postaci, której oczekuje pole daty w Panelu — czytany
+ * z bazy, a nie przeliczany w teście. Terminy są tu ruchome (seed celuje
+ * w poniedziałek za dwa tygodnie, testy w kolejne dni horyzontu), a druga kopia
+ * rachunku rozjechałaby się z pierwszą przy pierwszej zmianie danych.
+ *
+ * Dzień liczony w strefie Strzelnicy, tak samo jak liczy go Panel: Blok
+ * zaczynający się o 10:00 czasu warszawskiego bywa poprzednim dniem w UTC.
+ */
+export async function dzienRezerwacji(bookingId: string): Promise<string> {
+  const [wiersz] = await baza<{ starts_at: string }[]>(
+    `bookings?id=eq.${bookingId}&select=starts_at`,
+  )
+  if (!wiersz) throw new Error(`Rezerwacji ${bookingId} nie ma w bazie.`)
+
+  // `sv-SE` daje zapis `RRRR-MM-DD` — dokładnie ten, którego oczekuje pole daty.
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: STREFA_DEMO,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(wiersz.starts_at))
+}
+
 /**
  * Wejście do Panelu wskazanym kontem. Wspólne dla testów Panelu i testów
  * izolacji, bo obie grupy pytają o to samo z dwóch stron: jedna, co konto

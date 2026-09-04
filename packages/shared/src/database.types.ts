@@ -167,6 +167,7 @@ export type Database = {
           management_token: string
           participants: number
           participation_rate_gr: number
+          revocation_reason: string | null
           starts_at: string
           status: Database["public"]["Enums"]["booking_status"]
           with_instructor: boolean
@@ -192,6 +193,7 @@ export type Database = {
           management_token?: string
           participants: number
           participation_rate_gr: number
+          revocation_reason?: string | null
           starts_at: string
           status: Database["public"]["Enums"]["booking_status"]
           with_instructor: boolean
@@ -217,6 +219,7 @@ export type Database = {
           management_token?: string
           participants?: number
           participation_rate_gr?: number
+          revocation_reason?: string | null
           starts_at?: string
           status?: Database["public"]["Enums"]["booking_status"]
           with_instructor?: boolean
@@ -623,6 +626,7 @@ export type Database = {
           id: string | null
           lane_id: string | null
           participants: number | null
+          revocation_reason: string | null
           starts_at: string | null
           status: Database["public"]["Enums"]["booking_status"] | null
           with_instructor: boolean | null
@@ -639,6 +643,7 @@ export type Database = {
           id?: string | null
           lane_id?: string | null
           participants?: number | null
+          revocation_reason?: string | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["booking_status"] | null
           with_instructor?: boolean | null
@@ -655,6 +660,7 @@ export type Database = {
           id?: string | null
           lane_id?: string | null
           participants?: number | null
+          revocation_reason?: string | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["booking_status"] | null
           with_instructor?: boolean | null
@@ -723,6 +729,7 @@ export type Database = {
         Returns: number
       }
       panel_facility: { Args: never; Returns: string }
+      panel_facility_of: { Args: { p_user_id: string }; Returns: string }
       place_booking: {
         Args: {
           p_ammunition: Json
@@ -746,6 +753,13 @@ export type Database = {
           p_with_instructor: boolean
         }
         Returns: string
+      }
+      revoke_booking: {
+        Args: { p_booking_id: string; p_reason: string; p_user_id: string }
+        Returns: {
+          final_status: Database["public"]["Enums"]["booking_status"]
+          just_revoked: boolean
+        }[]
       }
     }
     Enums: {

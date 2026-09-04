@@ -43,6 +43,8 @@ export type Rezerwacja = {
   notificationEmail: string | null
   /** Kontakt, który Strzelnica podaje klientom — inny niż skrzynka obsługi. */
   facilityContact: FacilityContact
+  /** Powód odwołania przez Strzelnicę; puste ma każda Rezerwacja nieodwołana. */
+  revocationReason: string | null
   /** Opis na piśmie: ten sam, który jedzie w listach i na ekran. */
   summary: BookingSummary
 }
@@ -50,7 +52,8 @@ export type Rezerwacja = {
 /** Kolumny Rezerwacji, z których powstaje jej opis. Wypisane raz, dla obu wejść. */
 const KOLUMNY_REZERWACJI =
   'id, facility_id, lane_id, status, starts_at, ends_at, participants, has_permit, ' +
-  'with_instructor, amount_gr, contact_name, contact_email, contact_phone, management_token'
+  'with_instructor, amount_gr, contact_name, contact_email, contact_phone, management_token, ' +
+  'revocation_reason'
 
 type WierszRezerwacji = Awaited<ReturnType<typeof czytajWiersz>>
 
@@ -104,6 +107,7 @@ async function opisz(client: Client, booking: WierszRezerwacji): Promise<Rezerwa
     managementToken: booking.management_token,
     notificationEmail: facility.data.notification_email,
     facilityContact: facilityContactFromRow(facility.data),
+    revocationReason: booking.revocation_reason,
     summary: bookingSummaryFromRows({
       booking,
       facility: facility.data,

@@ -3,6 +3,11 @@
  * rola, z jaką łączy się moduł zapisujący Rezerwacje, jest decyzją
  * bezpieczeństwa (ADR 0003), a decyzja powtórzona w każdej funkcji z osobna
  * daje się w jednej z nich po cichu zmienić.
+ *
+ * Jedna rola dla wszystkich czterech dróg zapisu — także dla odwołania, o które
+ * prosi konto Panelu: jego tożsamość potwierdza GoTrue, a numer konta jedzie do
+ * bazy parametrem (ADR 0010). Połączenia prawami zalogowanego konta nie ma tu
+ * więc wcale, bo prawa zapisu nie ma żadna publiczna rola (ADR 0009).
  */
 import { createClient } from 'npm:@supabase/supabase-js@2.112.4'
 import type { Database } from '../../../packages/shared/src/index.ts'
@@ -17,3 +22,4 @@ export function connect(): Client {
   }
   return createClient<Database>(url, serviceRoleKey, { auth: { persistSession: false } })
 }
+
