@@ -19,6 +19,7 @@ import { instructorPresence } from './availability.ts'
 import type { BookingContact } from './booking.ts'
 import { formatDayLabel, formatTimeRange } from './calendar.ts'
 import type { CalendarDay } from './calendar.ts'
+import type { FacilityContact } from './management.ts'
 import { formatAmount } from './pricing.ts'
 
 /** Złamanie wiersza. Nazwane, bo składa obie wersje wiadomości — tekstową i HTML. */
@@ -132,6 +133,36 @@ const TEKSTY = {
     wstep: 'Osoba rezerwująca anulowała swoją Rezerwację:',
     /** Zdanie o skutku, bo cały ten list mówi o czymś, co już się stało samo. */
     skutek: 'Termin wrócił do puli i jest znów do wzięcia — nie ma tu nic do zrobienia.',
+  },
+
+  odwolanie: {
+    temat: (strzelnica: string, dzien: string) =>
+      `Odwołana Rezerwacja — ${dzien}, Strzelnica „${strzelnica}"`,
+    wstep: (strzelnica: string) => `Strzelnica „${strzelnica}" odwołała Twoją Rezerwację:`,
+    /** Powód wpisany w Panelu. Po co ten list w ogóle wychodzi. */
+    powod: (powod: string) => `Powód: ${powod}`,
+    /**
+     * Zdanie o tym, czego robić nie trzeba. Klient czyta list o czymś, co
+     * odebrano mu bez pytania, więc ma się z niego dowiedzieć także, że nie
+     * zostaje mu żadna formalność ani żaden rachunek.
+     */
+    skutek:
+      'Nic nie musisz robić — Rezerwacji już nie ma, a termin wrócił do puli. ' +
+      'Jeśli chcesz przyjechać w innym, wybierz go tak samo jak poprzedni.',
+    /**
+     * Kontakt Strzelnicy — jej własny, podawany klientom. Odrębny od bloku
+     * kontaktowego powiadomień: tamten opisuje **klienta** obsłudze, ten
+     * opisuje **Strzelnicę** klientowi, i to ona odwołała, więc pytanie „ale
+     * dlaczego" ma gdzie trafić.
+     */
+    kontakt: {
+      naglowek: 'Kontakt do Strzelnicy:',
+      telefon: (numer: string) => `Telefon: ${numer}`,
+      email: (adres: string) => `E-mail: ${adres}`,
+      brak:
+        'Kontaktu do Strzelnicy szukaj na jej stronie — tej samej, na której ' +
+        'rezerwowałeś.',
+    },
   },
 } as const
 
@@ -271,6 +302,23 @@ function szczegoly(booking: BookingSummary): readonly Odcinek[] {
     zamowienie(booking.ammunition, TEKSTY.amunicja),
     akapit(TEKSTY.rachunek(booking.amount)),
   ]
+}
+
+/**
+ * Kontakt Strzelnicy w liście do klienta: numer, adres albo zdanie o tym, gdzie
+ * ich szukać. Brak jest tu odpowiedzią, a nie luką — cisza w tym miejscu
+ * wyglądałaby na urwany szablon, a nie na Strzelnicę, która kontaktu nie
+ * wpisała.
+ */
+function kontaktStrzelnicy({ email, phone }: FacilityContact): Odcinek {
+  const { naglowek, telefon, brak } = TEKSTY.odwolanie.kontakt
+  if (!email && !phone) return akapit(brak)
+
+  return akapit(
+    naglowek,
+    ...(phone ? [telefon(phone)] : []),
+    ...(email ? [TEKSTY.odwolanie.kontakt.email(email)] : []),
+  )
 }
 
 export type ConfirmationEmailInput = {
@@ -418,6 +466,49 @@ export function clientCancellationEmail({ booking, to }: ClientCancellationEmail
   return {
     to,
     subject: TEKSTY.anulowanie.temat(booking.facilityName, formatDayLabel(booking.day)),
+    text,
+    html,
+  }
+}
+
+export type FacilityRevocationEmailInput = {
+  booking: BookingSummary
+  /** Powód odwołania, wpisany w Panelu. Wymagany — `revocationProblem`. */
+  reason: string
+  /** Kontakt, który Strzelnica podaje klientom; puste znaczy niewpisany. */
+  facility: FacilityContact
+}
+
+/**
+ * Powiadomienie klienta o Rezerwacji odwołanej przez Strzelnicę. Jedyny list,
+ * który mówi o czymś, czego klient nie zrobił i o co nie prosił — i dlatego
+ * wygląda inaczej niż pozostałe.
+ *
+ * Czego tu nie ma, choć jest wszędzie indziej po potwierdzeniu: pełnego opisu
+ * Rezerwacji z Kwotą. Rezerwacji nie ma, więc nie ma czego rozliczać, a zdanie
+ * „płatne na miejscu w Strzelnicy" pod odwołanym terminem czytałoby się jak
+ * rachunek za coś, co się nie odbędzie. Zostaje termin — po to, żeby klient
+ * wiedział, o którą ze swoich Rezerwacji chodzi — powód i Kontakt Strzelnicy.
+ *
+ * Nie ma tu też linku do zarządzania Rezerwacją: prowadziłby na ekran
+ * z przyciskiem, którego nie ma czego anulować.
+ */
+export function facilityRevocationEmail({
+  booking,
+  reason,
+  facility,
+}: FacilityRevocationEmailInput): MailMessage {
+  const { text, html } = zloz([
+    akapit(TEKSTY.powitanie(booking.contact.name)),
+    akapit(TEKSTY.odwolanie.wstep(booking.facilityName), { mocny: termin(booking) }),
+    akapit(TEKSTY.odwolanie.powod(reason)),
+    akapit(TEKSTY.odwolanie.skutek),
+    kontaktStrzelnicy(facility),
+  ])
+
+  return {
+    to: booking.contact.email,
+    subject: TEKSTY.odwolanie.temat(booking.facilityName, formatDayLabel(booking.day)),
     text,
     html,
   }

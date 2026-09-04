@@ -9,7 +9,12 @@ import {
   REZERWACJA_DEMO,
   zalogujDoPanelu,
 } from './pomocniki.js'
-import { baza, bazaAnonimowo, bazaJakoUzytkownikPanelu } from './srodowisko.js'
+import {
+  baza,
+  bazaAnonimowo,
+  bazaJakoUzytkownikPanelu,
+  funkcjaJakoUzytkownikPanelu,
+} from './srodowisko.js'
 
 /**
  * Izolacja Strzelnic: co widzi i czego nie tknie konto jednej z nich.
@@ -260,6 +265,74 @@ test('Użytkownik panelu nie zapisze niczego w obcej Strzelnicy', async () => {
     })
     expect({ co, odmowa: odpowiedz.status >= 400 }).toEqual({ co, odmowa: true })
   }
+
+  await drugaStrzelnicaJestNietknieta()
+})
+
+/**
+ * Odwołanie Rezerwacji — jedyna rzecz, którą konto Panelu w Rezerwacji
+ * **zmienia** (ADR 0010) — pytane obiema drogami, którymi ktoś by o nie
+ * poprosił, i z numerem obcej Rezerwacji wypisanym w tym pliku.
+ *
+ * Wprost do funkcji bazodanowej drogi nie ma: prawo jej wykonania mają
+ * wyłącznie Edge Functions (ADR 0003), bo tam wychodzi list z powodem — bez
+ * niego odwołanie byłoby cichym zniknięciem terminu. Tą, która jest, granicę
+ * stawia baza: pustą odpowiedzią na obcy numer.
+ *
+ * Pustka, a nie odmowa, i tak ma być: „nie ma takiej Rezerwacji" i „jest, ale
+ * nie twoja" są tu jednym zdaniem, bo drugie mówiłoby pytającemu o cudzych
+ * Rezerwacjach.
+ */
+test('Użytkownik panelu nie odwoła Rezerwacji obcej Strzelnicy', async () => {
+  // Wołanie Edge Function niżej przechodzi przez jej zimny start.
+  test.slow()
+
+  const wprost = await bazaJakoUzytkownikPanelu(
+    OBSLUGA_DEMO,
+    HASLO_PANELU,
+    'rpc/revoke_booking',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        p_booking_id: OBCA.rezerwacja,
+        p_reason: 'Wtręt.',
+        // Konto podstawione własne: gdyby prawo do tej funkcji istniało,
+        // przeglądarka podawałaby tu dowolne.
+        p_user_id: KONTO_DEMO,
+      }),
+    },
+  )
+  expect({ wprost: wprost.status >= 400 }).toEqual({ wprost: true })
+
+  // Ta sama funkcja kluczem anonimowym — i to samo: brak prawa.
+  const anonimowo = await bazaAnonimowo('rpc/revoke_booking', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      p_booking_id: OBCA.rezerwacja,
+      p_reason: 'Wtręt.',
+      p_user_id: KONTO_DEMO,
+    }),
+  })
+  expect({ anonimowo: anonimowo.status >= 400 }).toEqual({ anonimowo: true })
+
+  // Droga, która jest: Edge Function z tokenem konta demo. Rezerwacja obcej
+  // Strzelnicy jest dla niej nieznana — mimo że jej numer jest prawdziwy.
+  const funkcja = await funkcjaJakoUzytkownikPanelu(
+    OBSLUGA_DEMO,
+    HASLO_PANELU,
+    'odwolaj-rezerwacje',
+    { bookingId: OBCA.rezerwacja, reason: 'Wtręt.' },
+  )
+  expect(funkcja.status).toBe(200)
+  expect(await funkcja.json()).toEqual({ ok: false, problem: 'nieznana-rezerwacja' })
+
+  // Obca Rezerwacja stoi, jak stała: potwierdzona i bez powodu odwołania.
+  const [obca] = await baza<{ status: string; revocation_reason: string | null }[]>(
+    `bookings?id=eq.${OBCA.rezerwacja}&select=status,revocation_reason`,
+  )
+  expect(obca).toEqual({ status: 'potwierdzona', revocation_reason: null })
 
   await drugaStrzelnicaJestNietknieta()
 })

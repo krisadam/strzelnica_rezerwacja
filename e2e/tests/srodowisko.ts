@@ -121,6 +121,20 @@ async function tokenKonta(email: string, haslo: string): Promise<string> {
   return token
 }
 
+/** Token konta, z pamięci albo z logowania. */
+async function tokenPanelu(email: string, haslo: string): Promise<string> {
+  // Nieudane logowanie nie zostaje w pamięci: zapamiętana odrzucona obietnica
+  // zamieniłaby jedno potknięcie sieci w komplet padniętych testów.
+  const kluczPamieci = kluczTokenu(email, haslo)
+  let token = tokeny.get(kluczPamieci)
+  if (!token) {
+    token = tokenKonta(email, haslo)
+    tokeny.set(kluczPamieci, token)
+    token.catch(() => tokeny.delete(kluczPamieci))
+  }
+  return token
+}
+
 /**
  * Zapytanie kluczem anonimowym, ale z tokenem zalogowanego Użytkownika panelu
  * — czyli dokładnie tym, czym pyta Panel w przeglądarce. Zwraca surową
@@ -134,19 +148,41 @@ export async function bazaJakoUzytkownikPanelu(
 ): Promise<Response> {
   const klucz = wymagana('VITE_SUPABASE_ANON_KEY')
   const adres = wymagana('VITE_SUPABASE_URL')
-
-  // Nieudane logowanie nie zostaje w pamięci: zapamiętana odrzucona obietnica
-  // zamieniłaby jedno potknięcie sieci w komplet padniętych testów.
-  const kluczPamieci = kluczTokenu(email, haslo)
-  let token = tokeny.get(kluczPamieci)
-  if (!token) {
-    token = tokenKonta(email, haslo)
-    tokeny.set(kluczPamieci, token)
-    token.catch(() => tokeny.delete(kluczPamieci))
-  }
+  const token = await tokenPanelu(email, haslo)
 
   return fetch(new URL(`/rest/v1/${sciezka}`, adres), {
     ...init,
-    headers: { apikey: klucz, Authorization: `Bearer ${await token}`, ...init.headers },
+    headers: { apikey: klucz, Authorization: `Bearer ${token}`, ...init.headers },
+  })
+}
+
+/**
+ * Wołanie Edge Function tokenem Użytkownika panelu — tą samą drogą, którą woła
+ * ją Panel w przeglądarce, i z tym samym nagłówkiem. Potrzebne tam, gdzie
+ * granica Strzelnicy stoi **za** funkcją, a nie przed nią: prawa do funkcji
+ * bazodanowej konto Panelu nie ma wcale (ADR 0003), więc pytanie „czy odwołam
+ * cudzą Rezerwację" trzeba zadać tędy.
+ *
+ * Zwraca surową odpowiedź, bo o nią tu chodzi: wynik dziedzinowy i odmowa są
+ * jednakowo odpowiedzią.
+ */
+export async function funkcjaJakoUzytkownikPanelu(
+  email: string,
+  haslo: string,
+  nazwa: string,
+  zadanie: unknown,
+): Promise<Response> {
+  const klucz = wymagana('VITE_SUPABASE_ANON_KEY')
+  const adres = wymagana('VITE_SUPABASE_URL')
+  const token = await tokenPanelu(email, haslo)
+
+  return fetch(new URL(`/functions/v1/${nazwa}`, adres), {
+    method: 'POST',
+    headers: {
+      apikey: klucz,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(zadanie),
   })
 }

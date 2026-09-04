@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import type { BookingSummary, ConfirmationEmailInput } from './index.ts'
+import type {
+  BookingSummary,
+  ConfirmationEmailInput,
+  FacilityRevocationEmailInput,
+} from './index.ts'
 import {
   bookingSummaryEmail,
   clientCancellationEmail,
   confirmationEmail,
   facilityNotificationEmail,
+  facilityRevocationEmail,
 } from './index.ts'
 
 const ZGLOSZENIE: ConfirmationEmailInput = {
@@ -290,5 +295,95 @@ describe('E-mail do Strzelnicy o anulowaniu przez klienta', () => {
     })
     expect(wiadomosc.html).toContain('Anna &lt;b&gt;Kowalska&lt;/b&gt;')
     expect(wiadomosc.html).not.toContain('<b>Kowalska</b>')
+  })
+})
+
+/** Kontakt Strzelnicy demonstracyjnej — to, co ma wyjść do klienta. */
+const KONTAKT = { email: 'kontakt@example.pl', phone: '+48 123 456 789' }
+
+function odwolanie(
+  nadpisania: Partial<FacilityRevocationEmailInput> = {},
+) {
+  return facilityRevocationEmail({
+    booking: REZERWACJA,
+    reason: 'Awaria wentylacji na Osi.',
+    facility: KONTAKT,
+    ...nadpisania,
+  })
+}
+
+describe('E-mail do klienta o odwołaniu przez Strzelnicę', () => {
+  // Odwrotnie niż przy anulowaniu: tam list szedł do obsługi, bo zwolnienie
+  // terminu było wiadomością dla niej. Tu odwołuje Strzelnica, więc dowiedzieć
+  // się ma klient — i to zanim wsiądzie do samochodu.
+  it('idzie do Osoby rezerwującej, nie pod adres powiadomień', () => {
+    expect(odwolanie().to).toBe('anna@example.pl')
+  })
+
+  it('w temacie mówi o odwołaniu i o który dzień chodzi', () => {
+    const temat = odwolanie().subject
+    expect(temat).toContain('Odwołana Rezerwacja')
+    expect(temat).toContain('15 czerwca')
+  })
+
+  // Powód jest całą treścią tego listu — bez niego zostaje samo „odwołana".
+  it.each(OBIE_WERSJE)('niesie powód odwołania (%s)', (wersja) => {
+    expect(odwolanie()[wersja]).toContain('Awaria wentylacji na Osi.')
+  })
+
+  // Termin, żeby klient wiedział, o którą ze swoich Rezerwacji chodzi.
+  it.each(OBIE_WERSJE)('niesie termin i Oś odwołanej Rezerwacji (%s)', (wersja) => {
+    const tresc = odwolanie()[wersja]
+    expect(tresc).toContain('15 czerwca')
+    expect(tresc).toContain('10:00–11:00')
+    expect(tresc).toContain('Oś pistoletowa nr 1')
+  })
+
+  it.each(OBIE_WERSJE)('niesie Kontakt Strzelnicy (%s)', (wersja) => {
+    const tresc = odwolanie()[wersja]
+    expect(tresc).toContain('+48 123 456 789')
+    expect(tresc).toContain('kontakt@example.pl')
+  })
+
+  /**
+   * Strzelnica bez wpisanego kontaktu nie zostawia w tym miejscu ciszy: klient
+   * czyta list o odwołanym terminie i ma gdzie zapytać, choćby na tej samej
+   * stronie, na której rezerwował.
+   */
+  it.each(OBIE_WERSJE)('bez Kontaktu Strzelnicy mówi, gdzie go szukać (%s)', (wersja) => {
+    const tresc = odwolanie({ facility: { email: null, phone: null } })[wersja]
+    expect(tresc).toContain('szukaj na jej stronie')
+    expect(tresc).not.toContain('Telefon:')
+  })
+
+  it.each(OBIE_WERSJE)('z samym telefonem nie zapowiada adresu (%s)', (wersja) => {
+    const tresc = odwolanie({ facility: { email: null, phone: '+48 123 456 789' } })[wersja]
+    expect(tresc).toContain('+48 123 456 789')
+    expect(tresc).not.toContain('E-mail:')
+  })
+
+  /**
+   * Kwoty tu nie ma i być nie może: Rezerwacji nie ma, więc nie ma czego
+   * rozliczać. Zdanie „płatne na miejscu w Strzelnicy" pod odwołanym terminem
+   * czytałoby się jak rachunek za coś, co się nie odbędzie.
+   */
+  it.each(OBIE_WERSJE)('nie mówi o Kwocie do zapłaty (%s)', (wersja) => {
+    const tresc = odwolanie()[wersja]
+    expect(tresc).not.toContain('Kwota do zapłaty')
+    expect(tresc).not.toContain('płatne na miejscu')
+  })
+
+  // Rezerwacji już nie ma, więc nie ma czym zarządzać: link otwierałby ekran
+  // z przyciskiem „Anuluj", którego nie ma czego anulować.
+  it('nie niesie linku do zarządzania Rezerwacją', () => {
+    expect(odwolanie().text).not.toContain('rezerwacja=')
+  })
+
+  // Powód wpisuje obsługa w Panelu, a klient ogląda go w kliencie poczty,
+  // który znaczniki wykonuje.
+  it('nie wpuszcza znaczników z Panelu do wersji HTML', () => {
+    const wiadomosc = odwolanie({ reason: 'Awaria <b>wentylacji</b>' })
+    expect(wiadomosc.html).toContain('Awaria &lt;b&gt;wentylacji&lt;/b&gt;')
+    expect(wiadomosc.html).not.toContain('<b>wentylacji</b>')
   })
 })

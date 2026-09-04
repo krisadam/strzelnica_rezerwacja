@@ -436,6 +436,10 @@ export function panelBookingsFromRows({
       laneId: row.lane_id,
       status: row.status,
       holdsTerm: row.holds_term,
+      // Bez sprawdzenia, bo puste jest tu wartością: powodu nie ma żadna
+      // Rezerwacja poza odwołanymi, a odwołanej powodu nie brakuje — pilnuje
+      // tego `check` na kolumnie, nie ten odczyt.
+      revocationReason: row.revocation_reason,
       booking: bookingSummaryFromRows({
         booking: {
           starts_at: row.starts_at,

@@ -213,11 +213,17 @@ export const teksty = {
         'i kliknij link, który tam wysłaliśmy.',
       'anulowana-przez-klienta': 'Ta Rezerwacja jest anulowana. Termin wrócił do puli.',
       'odwolana-przez-strzelnice':
-        'Strzelnica odwołała tę Rezerwację. Szczegóły powinny być w wiadomości od niej.',
+        'Strzelnica odwołała tę Rezerwację. Termin wrócił do puli.',
       wygasla:
         'Ta Rezerwacja wygasła — adres nie został potwierdzony w czasie, a termin ' +
         'wrócił do puli.',
     } satisfies Record<Database['public']['Enums']['booking_status'], string>,
+    /**
+     * Powód, który Strzelnica podała, odwołując Rezerwację. Ten sam, który
+     * pojechał do klienta pocztą — a list bywa skasowany albo przeczytany
+     * w pośpiechu, więc stoi też tutaj, pod zdaniem o stanie, które tłumaczy.
+     */
+    powodOdwolania: (powod: string) => `Powód podany przez Strzelnicę: ${powod}`,
     /** Zdanie przy przycisku: dopóki jest czas, mówimy, ile go zostało. */
     doKiedy: (kiedy: string) => `Możesz anulować samodzielnie do ${kiedy}.`,
     anuluj: 'Anuluj Rezerwację',

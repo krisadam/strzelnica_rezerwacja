@@ -65,6 +65,17 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
   const [dzien, setDzien] = useState<CalendarDay | null>(null)
   const [filtr, setFiltr] = useState<BookingFilter>({ day: null, laneId: null })
   const [wybraneId, setWybraneId] = useState<string | null>(null)
+  /**
+   * Licznik wymuszonych odczytów. Odwołanie Rezerwacji zmienia to, co Panel
+   * właśnie pokazuje, a czekanie do najbliższego tiku zostawiłoby na ekranie
+   * Rezerwację potwierdzoną razem z formularzem, którym się ją odwołuje.
+   *
+   * Licznikiem, a nie funkcją wyniesioną z efektu: droga do danych zostaje
+   * jedna, razem ze strażą nad odpowiedzią, która przyszła po zmianie ekranu
+   * (`aktualne`). Ubocznie odsuwa to najbliższy tik o pełną minutę — i tak ma
+   * być, bo minuta liczy się od ostatniego odczytu.
+   */
+  const [odswiezenia, setOdswiezenia] = useState(0)
 
   useEffect(() => {
     let aktualne = true
@@ -97,11 +108,13 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
       aktualne = false
       clearInterval(tik)
     }
-  }, [client])
+  }, [client, odswiezenia])
 
   const wyjscie = useCallback(() => {
     wyloguj(client).catch((powod: unknown) => console.error(powod))
   }, [client])
+
+  const odswiez = useCallback(() => setOdswiezenia((ile) => ile + 1), [])
 
   if (stan.faza === 'wczytywanie') return <p className="komunikat">{teksty.wczytywanie}</p>
   if (stan.faza === 'blad') {
@@ -134,7 +147,12 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
       </header>
 
       {wybrana ? (
-        <Szczegoly wpis={wybrana} onWroc={() => setWybraneId(null)} />
+        <Szczegoly
+          client={client}
+          wpis={wybrana}
+          onWroc={() => setWybraneId(null)}
+          onOdswiez={odswiez}
+        />
       ) : (
         <>
           <Kalendarz

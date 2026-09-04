@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { PANEL_URL } from '../playwright.config.js'
 import {
+  dzienRezerwacji,
   HASLO_PANELU,
   KLIENT_DEMO,
   OBSLUGA_DEMO,
@@ -28,30 +29,6 @@ import { baza, bazaAnonimowo, bazaJakoUzytkownikPanelu } from './srodowisko.js'
  */
 
 const OS_PISTOLETOWA_ID = '00000000-0000-0000-0000-0000000000a1'
-
-/**
- * Dzień, na który seed wystawił swoją Rezerwację — czytany z bazy, a nie
- * przeliczany tutaj z reguły seeda. Termin jest ruchomy (pierwszy poniedziałek
- * oddalony o co najmniej dwa tygodnie), a druga kopia rachunku rozjechałaby się
- * z pierwszą przy pierwszej zmianie danych demo.
- *
- * Dzień liczony w strefie Strzelnicy, tak samo jak liczy go Panel: Blok
- * zaczynający się o 10:00 czasu warszawskiego bywa poprzednim dniem w UTC.
- */
-async function dzienRezerwacjiDemo(): Promise<string> {
-  const [wiersz] = await baza<{ starts_at: string }[]>(
-    `bookings?id=eq.${REZERWACJA_DEMO}&select=starts_at`,
-  )
-  if (!wiersz) throw new Error('Seed nie wstawił Rezerwacji demonstracyjnej.')
-
-  // `sv-SE` daje zapis `RRRR-MM-DD` — dokładnie ten, którego oczekuje pole daty.
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Europe/Warsaw',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(wiersz.starts_at))
-}
 
 test('bez zalogowania Panel nie pokazuje żadnych danych Strzelnicy', async ({ page }) => {
   await page.goto(PANEL_URL)
@@ -105,7 +82,7 @@ test('Użytkownik panelu widzi Rezerwację w kalendarzu, na liście i w szczegó
   await expect(page.getByText('Strzelnica Demo')).toBeVisible()
 
   // Kalendarz staje na dniu Rezerwacji z seeda i pokazuje ją pod jej Osią.
-  await page.getByLabel('Dzień kalendarza').fill(await dzienRezerwacjiDemo())
+  await page.getByLabel('Dzień kalendarza').fill(await dzienRezerwacji(REZERWACJA_DEMO))
 
   const pistoletowa = page.getByRole('region').filter({ has: page.getByRole('heading', { name: OS_PISTOLETOWA }) })
   await expect(pistoletowa.getByText(KLIENT_DEMO)).toBeVisible()

@@ -148,7 +148,8 @@ wyciągnięcia — nie do dopisania testu wyżej.
 
 `e2e/` to wąska warstwa weryfikacyjna dla tego, czego czysta funkcja nie widzi:
 wyścig o ten sam Blok, przejście całej ścieżki, izolacja Strzelnic, osadzenie
-w ramce, potwierdzenie adresu, anulowanie przez link, logowanie do Panelu.
+w ramce, potwierdzenie adresu, anulowanie przez link, logowanie do Panelu,
+odwołanie Rezerwacji przez Strzelnicę.
 Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
@@ -164,7 +165,8 @@ terminy najbliższe, bo obie ich strony muszą trafić na ten sam Blok.
 ## Rezerwacje
 
 Rezerwację zapisuje wyłącznie Edge Function `zloz-rezerwacje`, potwierdza
-`potwierdz-rezerwacje`, a anuluje `anuluj-rezerwacje` (ADR 0003). Tą samą drogą
+`potwierdz-rezerwacje`, anuluje `anuluj-rezerwacje`, a odwołuje
+`odwolaj-rezerwacje` (ADR 0003). Tą samą drogą
 idzie jej **odczyt** spod linku klienta (`pokaz-rezerwacje`), choć niczego nie
 zmienia: `bookings` niesie dane osobowe, a Osoba rezerwująca nie ma konta,
 którym dałoby się jej pokazać własny wiersz i tylko własny.
@@ -294,6 +296,46 @@ Widok jedzie do przeglądarki jako `ManagementViewWire` — momenty tekstem, bo
 tożsamość: rozjazd między nadawcą a odbiorcą znaczyłby ekran z terminem innym
 niż w bazie i nikt by tego nie zauważył.
 
+## Odwołanie Rezerwacji przez Strzelnicę
+
+Odwrotność anulowania: termin zwalnia obsługa, a dowiedzieć się ma klient —
+zanim wsiądzie do samochodu. Odwołanie **wymaga powodu** i jest to reguła
+schematu, nie formalność formularza: `bookings.revocation_reason` ma `check`
+mówiący, że powód jest wtedy i tylko wtedy, gdy jest odwołanie. Bez powodu
+klient dostałby zdanie „odwołana" i telefon do Strzelnicy, po który i tak
+sięgnie — a wtedy odwołanie w Panelu byłoby zadaniem tej rozmowy, nie jej
+uniknięciem.
+
+Okna anulowania ta droga nie zna i znać nie ma: ono jest granicą dla klienta,
+a Strzelnica odwołuje właśnie wtedy, gdy klient sam już nie może — na godzinę
+przed terminem, bo pękła szyba. Odwołać da się natomiast wyłącznie Rezerwację
+**potwierdzoną** (`revocable` w `packages/shared`): oczekująca zniknie sama po
+Czasie na potwierdzenie, a listu z powodem nie ma gdzie wysłać, bo adres nie
+został potwierdzony i bywa zmyślony.
+
+Zwolnienia terminu, miejsca w Puli instruktorów i sztuk broni nie ma tu ani
+jednego zdania — tak samo jak przy anulowaniu, i z tego samego powodu: termin
+wraca do puli przez samą zmianę stanu.
+
+Zapis idzie Edge Function `odwolaj-rezerwacje` i idzie nią rolą serwisową, tak
+samo jak trzy pozostałe drogi zmiany stanu: prawo wykonania `revoke_booking`
+mają wyłącznie Edge Functions, bo prawo nadane kontu Panelu otwierałoby drogę
+z przeglądarki wprost do bazy — a tamtędy Rezerwacja dałaby się odwołać bez
+listu do klienta (ADR 0010).
+
+Granica Strzelnicy zostaje przy tym w bazie: numer konta, w imieniu którego
+prosi funkcja, jedzie do niej parametrem, a warunek pyta o jego Strzelnicę
+`panel_facility_of` — tę samą odpowiedź, z której liczy się `panel_facility()`
+dla zalogowanego. Tożsamość konta potwierdza wcześniej GoTrue (`auth.getUser`
+na tokenie z nagłówka), więc Edge Function pyta wyłącznie „kto", nigdy „czyje".
+
+Klient dostaje **e-mail z powodem i Kontaktem Strzelnicy**, i to jest jedyny
+list, który mówi o czymś, o co nie prosił. Nie ma w nim ani Kwoty, ani linku do
+zarządzania Rezerwacją: rozliczać nie ma czego, a link prowadziłby na ekran
+z przyciskiem „Anuluj", którego nie ma czego anulować. Ten sam powód stoi pod
+linkiem klienta i w Panelu — list bywa skasowany, a Rezerwacja odwołana zostaje
+w Panelu ze swoim stanem, bo dzwoni się właśnie w jej sprawie.
+
 ## Panel
 
 Wejście do Panelu daje konto Supabase Auth powiązane z jedną Strzelnicą przez
@@ -309,6 +351,12 @@ i dokłada `holds_term` — czy Rezerwacja trzyma jeszcze termin — liczone tą
 funkcją `booking_holds_term`, co widoki zajętości Widgetu. Kalendarz Panelu
 pokazuje wyłącznie Rezerwacje trzymające termin, lista — wszystkie, ze stanem
 w kolumnie.
+
+Zmienia Panel jedną rzecz: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
+przez Strzelnicę](#odwołanie-rezerwacji-przez-strzelnicę)). Idzie to Edge
+Function, bo tabelę mają zamkniętą obie publiczne role — a ekran szczegółów
+odczytuje po tym dane od nowa, zamiast przepisywać sobie stan z odpowiedzi
+„udało się": między wczytaniem Panelu a kliknięciem klient bywa szybszy.
 
 Ani jedno zapytanie Panelu nie mówi o Strzelnicy: zalogowanemu kontu baza oddaje
 wyłącznie jej wiersze (zobacz [Izolacja Strzelnic](#izolacja-strzelnic)). Warunek
@@ -359,8 +407,8 @@ konta, więc granica nie może przebiegać po nich.
 | Rola | Skąd się bierze | Co widzi |
 | --- | --- | --- |
 | `anon` | klucz w kodzie Widgetu, bez tożsamości | oferta wszystkich Strzelnic i nic poza nią |
-| `authenticated` | konto Panelu, `panel_facility()` mówi czyje | jedna Strzelnica, w komplecie |
-| `service_role` | Edge Functions | każdą tabelę; tędy idzie każdy zapis (ADR 0003) |
+| `authenticated` | konto Panelu, `panel_facility()` mówi czyje | jedna Strzelnica, w komplecie — i wyłącznie do odczytu |
+| `service_role` | Edge Functions | każdą tabelę; tędy idzie **każdy** zapis, także odwołanie w imieniu konta Panelu (ADR 0003, ADR 0010) |
 
 Rola serwisowa widzi każdą **tabelę**, ale nie widoku `panel_bookings`: jego
 warunek pyta o zalogowane konto, a rola serwisowa żadnym nie jest. Rezerwacje

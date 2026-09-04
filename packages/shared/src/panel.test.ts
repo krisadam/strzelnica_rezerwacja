@@ -30,6 +30,7 @@ function rezerwacja(dane: {
   godzina?: number
   status?: PanelBooking['status']
   holdsTerm?: boolean
+  revocationReason?: string | null
 }): PanelBooking {
   const day = dane.day ?? '2026-06-15'
   const startsAt = new Date(`${day}T${String(dane.godzina ?? 10).padStart(2, '0')}:00:00Z`)
@@ -39,6 +40,7 @@ function rezerwacja(dane: {
     laneId: dane.laneId ?? OS_PISTOLETOWA,
     status: dane.status ?? 'potwierdzona',
     holdsTerm: dane.holdsTerm ?? true,
+    revocationReason: dane.revocationReason ?? null,
     booking: {
       facilityName: 'Strzelnica Demo',
       laneName: 'Oś',
@@ -222,6 +224,7 @@ const WIERSZ: PanelBookingRows['bookings'][number] = {
   contact_email: 'jan@example.pl',
   contact_phone: '600100200',
   amount_gr: 37000,
+  revocation_reason: null,
 }
 
 const WIERSZE: PanelBookingRows = {
@@ -308,6 +311,33 @@ describe('Rezerwacje Panelu z wierszy bazy', () => {
 
     expect(wpis?.booking.withInstructor).toBe(false)
     expect(wpis?.booking.amount).toBe(0)
+  })
+
+  /**
+   * Powód odwołania jedzie razem ze stanem, bo bez niego stan stałby na ekranie
+   * bez wyjaśnienia — i obsługa dzwoniłaby po koleżankę, która odwoływała.
+   */
+  it('niosą powód odwołania razem ze stanem', () => {
+    const [wpis] = panelBookingsFromRows({
+      ...WIERSZE,
+      bookings: [
+        {
+          ...WIERSZ,
+          status: 'odwolana-przez-strzelnice',
+          holds_term: false,
+          revocation_reason: 'Awaria wentylacji na Osi.',
+        },
+      ],
+    })
+
+    expect(wpis?.status).toBe('odwolana-przez-strzelnice')
+    expect(wpis?.revocationReason).toBe('Awaria wentylacji na Osi.')
+  })
+
+  // Puste znaczy Rezerwację nieodwołaną, a nie wiersz niepełny: powodu nie ma
+  // żadna Rezerwacja poza odwołanymi.
+  it('przepuszczają Rezerwację bez powodu odwołania', () => {
+    expect(panelBookingsFromRows(WIERSZE)[0]?.revocationReason).toBeNull()
   })
 
   it('zatrzymują Rezerwację wskazującą Oś spoza Strzelnicy', () => {

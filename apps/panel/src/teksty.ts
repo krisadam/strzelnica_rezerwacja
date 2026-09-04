@@ -7,7 +7,12 @@
  * klienta o jego Rezerwacji, tu do obsługi o cudzych. „Termin jest Twój" i „Jan
  * Przykładowy, 2 os." to nie są dwa warianty jednego zdania.
  */
-import type { Database, InstructorPresence, OrderedItem } from '@strzelnica/shared'
+import type {
+  Database,
+  InstructorPresence,
+  OrderedItem,
+  RevocationProblem,
+} from '@strzelnica/shared'
 
 type BookingStatus = Database['public']['Enums']['booking_status']
 
@@ -85,6 +90,71 @@ export const teksty = {
     kwota: 'Kwota do zapłaty',
     /** Kwota jest zamrożona w chwili złożenia — obsługa rozlicza ją na miejscu. */
     kwotaUwaga: 'Kwota zamrożona w chwili złożenia Rezerwacji; zapłata na miejscu.',
+    /**
+     * Powód odwołania stoi w opisie razem ze stanem, a nie osobno pod nim:
+     * stan „odwołana przez Strzelnicę" bez powodu kazałby dzwonić po
+     * koleżankę, która odwoływała — i po to samo dzwoniłby klient.
+     */
+    powodOdwolania: 'Powód odwołania',
+  },
+
+  /**
+   * Odwołanie Rezerwacji przez Strzelnicę. Zdania mówią o skutku dla klienta,
+   * bo to on jest tu stroną, która się dowiaduje: obsługa wie, co robi,
+   * a klient dostaje list i puste popołudnie.
+   */
+  odwolanie: {
+    naglowek: 'Odwołanie Rezerwacji',
+    wstep:
+      'Klient dostanie e-mail z powodem odwołania i kontaktem do Strzelnicy, ' +
+      'a termin od razu wróci do puli.',
+    powod: 'Powód odwołania',
+    /** Podpowiedź, bo powód czyta klient, a nie dziennik systemu. */
+    podpowiedz: 'Jedno zdanie dla klienta — np. „Awaria wentylacji na Osi".',
+    odwolaj: 'Odwołaj Rezerwację',
+    /**
+     * Pytanie jest tu treścią, nie uprzejmością: odwołania nie da się odkliknąć
+     * — list do klienta wychodzi od razu, a termin bierze pierwszy chętny.
+     */
+    pewnie: 'Na pewno odwołać? Klient dostanie e-mail, a termin wróci do puli.',
+    tak: 'Tak, odwołaj',
+    nie: 'Zostawiam Rezerwację',
+    odwolywanie: 'Odwołujemy…',
+    /**
+     * Zdanie o skutku, i wyłącznie o tym, co skutkiem naprawdę jest: termin
+     * wrócił do puli. O liście mówi zdanie przy formularzu — „klient
+     * dostanie" — bo obietnicę składa się przed wysłaniem, a nie po. Panel nie
+     * ma czym sprawdzić, czy list doszedł: jego niepowodzenie zostaje wpisem
+     * w dzienniku, tak samo jak przy każdym innym liście tego modułu, i nie
+     * unieważnia odwołania.
+     */
+    odwolano: 'Odwołaliśmy Rezerwację — termin wrócił do puli.',
+    /**
+     * Odwołanie, które weszło przed nami: drugie stanowisko obsługi albo drugie
+     * kliknięcie. Klient ma już swój list i nie dostanie drugiego, więc zdanie
+     * mówi o stanie, a nie o skutku, którego nie było.
+     */
+    juzOdwolana: 'Ta Rezerwacja była już odwołana — teraz nic się nie zmieniło.',
+    /**
+     * Odmowy, każda z podpowiedzią co dalej. „Brak powodu" wypisuje sam
+     * formularz, jeszcze przed wysłaniem; dwie pozostałe przychodzą z bazy
+     * i znaczą Rezerwację, która zmieniła się bez nas — Panel odświeża się raz
+     * na minutę, a klient bywa szybszy.
+     *
+     * Odwzorowanie jest pełne, bo pełny jest zbiór odmów — nie dlatego, że
+     * Panel każdą z nich zobaczy. „Nieznana Rezerwacja" znaczy wiersz, którego
+     * baza tej Strzelnicy nie przypisuje, a Panel klika w Rezerwację wziętą
+     * z tej właśnie Strzelnicy: żeby to zdanie stanęło na ekranie, Rezerwacja
+     * musiałaby zniknąć między odczytem a kliknięciem.
+     */
+    problem: {
+      'brak-powodu': 'Podaj powód odwołania — klient dostanie go w e-mailu.',
+      'nieznana-rezerwacja':
+        'Tej Rezerwacji już nie ma. Odśwież ekran i sprawdź, co się z nią stało.',
+      'nie-do-odwolania':
+        'Tej Rezerwacji nie ma czego odwoływać — sprawdź jej stan w odświeżonym opisie.',
+    } satisfies Record<RevocationProblem, string>,
+    blad: 'Nie udało się odwołać Rezerwacji. Spróbuj jeszcze raz za chwilę.',
   },
 
   /**

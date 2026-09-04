@@ -33,6 +33,13 @@ export type PanelBooking = {
    * z kalendarzem Widgetu przy pierwszej z nich.
    */
   holdsTerm: boolean
+  /**
+   * Powód, dla którego Strzelnica odwołała tę Rezerwację; puste ma każda
+   * nieodwołana. Jedzie razem ze stanem, bo stan bez powodu stałby na ekranie
+   * bez wyjaśnienia — a wtedy obsługa dzwoniłaby po koleżankę, która
+   * odwoływała, i po to samo dzwoniłby klient.
+   */
+  revocationReason: string | null
   booking: BookingSummary
 }
 

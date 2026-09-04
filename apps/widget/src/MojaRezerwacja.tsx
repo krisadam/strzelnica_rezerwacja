@@ -270,6 +270,13 @@ export function MojaRezerwacja({ config, token }: { config: SupabaseConfig; toke
         <p>{teksty.zarzadzanie.stan[widok.status]}</p>
       )}
 
+      {/* Powód odwołania zaraz pod stanem, bo tłumaczy właśnie jego. Ma go
+          wyłącznie Rezerwacja odwołana przez Strzelnicę — pozostałe stany nie
+          mają czego tłumaczyć, a klient anulujący sam wie, dlaczego. */}
+      {widok.revocationReason && (
+        <p>{teksty.zarzadzanie.powodOdwolania(widok.revocationReason)}</p>
+      )}
+
       <Szczegoly booking={widok.booking} />
       <KwotaZapisana amount={widok.booking.amount} />
 

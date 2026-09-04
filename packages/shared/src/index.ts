@@ -78,6 +78,19 @@ export type {
   CancellationStateInput,
 } from './cancellation.ts'
 export {
+  MalformedRevocationRequestError,
+  readRevocationRequest,
+  revocable,
+  revocationOutcome,
+  revocationProblem,
+} from './revocation.ts'
+export type {
+  RevocationOutcome,
+  RevocationProblem,
+  RevocationRequest,
+  RevocationResult,
+} from './revocation.ts'
+export {
   MANAGEMENT_PARAM,
   managementUrl,
   managementView,
@@ -98,6 +111,7 @@ export {
   clientCancellationEmail,
   confirmationEmail,
   facilityNotificationEmail,
+  facilityRevocationEmail,
 } from './mail.ts'
 export type {
   BookingSummary,
@@ -105,6 +119,7 @@ export type {
   ClientCancellationEmailInput,
   ConfirmationEmailInput,
   FacilityNotificationEmailInput,
+  FacilityRevocationEmailInput,
   MailMessage,
   OrderedItem,
 } from './mail.ts'

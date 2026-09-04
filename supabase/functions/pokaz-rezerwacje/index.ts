@@ -44,6 +44,9 @@ Deno.serve(
         booking: rezerwacja.summary,
         cancellationWindowHours: rezerwacja.cancellationWindowHours,
         facility: rezerwacja.facilityContact,
+        // Powód odwołania, jeśli Strzelnica odwołała: list z nim bywa
+        // skasowany, a tu klient wraca po szczegóły własnej Rezerwacji.
+        revocationReason: rezerwacja.revocationReason,
         now: new Date(),
       })
 
