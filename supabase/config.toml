@@ -29,10 +29,17 @@ enabled = true
 site_url = "http://localhost:5174"
 additional_redirect_urls = ["http://localhost:5173", "http://localhost:5174"]
 jwt_expiry = 3600
+# Rejestracji nie ma i nie będzie: Strzelnice zakłada operator platformy
+# skryptem, a konta do Panelu powstają razem z nimi. To jest flaga, która
+# zamyka rejestrację — `[auth.email].enable_signup` niżej nie zamyka jej,
+# tylko wyłącza dostawcę „email" w całości, razem z logowaniem.
 enable_signup = false
 
 [auth.email]
-enable_signup = false
+# Włączony dostawca, nie otwarta rejestracja: nazwa myli, ale ta wartość jedzie
+# do GoTrue jako `EXTERNAL_EMAIL_ENABLED`, a wyłączona odmawia także logowania
+# hasłem — czyli jedynej drogi do Panelu.
+enable_signup = true
 enable_confirmations = false
 
 [edge_runtime]

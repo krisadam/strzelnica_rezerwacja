@@ -15,6 +15,7 @@
  * w obie wersje wiadomości naraz; i na końcu same szablony, które są już tylko
  * listą odcinków.
  */
+import { instructorPresence } from './availability.ts'
 import type { BookingContact } from './booking.ts'
 import { formatDayLabel, formatTimeRange } from './calendar.ts'
 import type { CalendarDay } from './calendar.ts'
@@ -252,12 +253,6 @@ function zamowienie(
   )
 }
 
-/** Skąd wziął się Instruktor — albo dlaczego go nie ma. */
-function instruktor(booking: BookingSummary): string {
-  if (!booking.withInstructor) return TEKSTY.instruktor.brak
-  return booking.hasPermit ? TEKSTY.instruktor.zamowiony : TEKSTY.instruktor.wymagany
-}
-
 /**
  * Rdzeń obu listów po potwierdzeniu: co, kiedy, na czym i za ile. Jedna kopia,
  * bo Strzelnica przygotowuje stanowisko z tego samego opisu, który klient
@@ -270,7 +265,7 @@ function szczegoly(booking: BookingSummary): readonly Odcinek[] {
       { mocny: termin(booking) },
       TEKSTY.uczestnicy(booking.participants),
       TEKSTY.pozwolenie(booking.hasPermit),
-      instruktor(booking),
+      TEKSTY.instruktor[instructorPresence(booking)],
     ),
     zamowienie(booking.rentals, TEKSTY.wypozyczenie),
     zamowienie(booking.ammunition, TEKSTY.amunicja),

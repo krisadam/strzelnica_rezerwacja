@@ -125,6 +125,34 @@ export function instructorAttends(intent: Intent): boolean {
   return !intent.hasPermit || intent.wantsInstructor
 }
 
+/** Wejście `instructorPresence`: to, co Rezerwacja o Instruktorze zapisała. */
+export type InstructorPresenceInput = {
+  hasPermit: boolean
+  withInstructor: boolean
+}
+
+/**
+ * Skąd wziął się Instruktor przy **zapisanej** Rezerwacji — albo dlaczego go
+ * nie ma. Ta sama reguła domeny, co w `instructorAttends`, widziana z drugiej
+ * strony: tamta pyta zamierzenia, zanim Rezerwacja powstanie, ta czyta fakt.
+ * Stoją obok siebie, bo rozjazd między nimi znaczyłby Rezerwację zapisaną jako
+ * „bez Instruktora" i opisaną jako „z Instruktorem".
+ *
+ * Odpowiedź jest znacznikiem, a nie zdaniem: to samo rozróżnienie opisują
+ * trzema różnymi zdaniami list do klienta, ekran jego Rezerwacji i Panel —
+ * a wspólna jest reguła, nie słowa.
+ */
+export function instructorPresence({
+  hasPermit,
+  withInstructor,
+}: InstructorPresenceInput): InstructorPresence {
+  if (!withInstructor) return 'brak'
+  return hasPermit ? 'zamowiony' : 'wymagany'
+}
+
+/** Obecność Instruktora przy Rezerwacji wraz z jej powodem. */
+export type InstructorPresence = 'wymagany' | 'zamowiony' | 'brak'
+
 /** Powód, dla którego Bloku nie da się zarezerwować. */
 export type Unavailability =
   | 'poza-godzinami-otwarcia'
