@@ -89,6 +89,39 @@ export function bazaAnonimowo(sciezka: string, init: RequestInit = {}): Promise<
 }
 
 /**
+ * Tokeny kont Panelu, jeden na parę adres–hasło. Logowanie hasłem jest tu wejściem do
+ * bazy, a nie przedmiotem testu — ten należy do `podglad-w-panelu` — a testy
+ * izolacji zadają kontem kilkadziesiąt pytań. Bez tej pamięci każde z nich
+ * byłoby osobnym logowaniem: wolniej i pod limitem żądań, który Supabase Auth
+ * nakłada na wystawianie tokenów.
+ *
+ * Token żyje godzinę, a przebieg testów minuty, więc odświeżania nie ma.
+ * Pamięć jest własnością procesu, więc każdy `worker` Playwrighta loguje się
+ * raz na konto.
+ */
+const tokeny = new Map<string, Promise<string>>()
+
+/** Klucz pamięci: adres **i** hasło, bo tokenu nie wystawia sam adres. */
+const kluczTokenu = (email: string, haslo: string): string => `${email}\n${haslo}`
+
+async function tokenKonta(email: string, haslo: string): Promise<string> {
+  const klucz = wymagana('VITE_SUPABASE_ANON_KEY')
+  const logowanie = await fetch(
+    new URL('/auth/v1/token?grant_type=password', wymagana('VITE_SUPABASE_URL')),
+    {
+      method: 'POST',
+      headers: { apikey: klucz, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: haslo }),
+    },
+  )
+  if (!logowanie.ok) {
+    throw new Error(`Logowanie ${email} nie powiodło się: ${await logowanie.text()}`)
+  }
+  const { access_token: token } = (await logowanie.json()) as { access_token: string }
+  return token
+}
+
+/**
  * Zapytanie kluczem anonimowym, ale z tokenem zalogowanego Użytkownika panelu
  * — czyli dokładnie tym, czym pyta Panel w przeglądarce. Zwraca surową
  * odpowiedź z tego samego powodu, co wyżej: sprawdzamy tu odmowy.
@@ -102,18 +135,18 @@ export async function bazaJakoUzytkownikPanelu(
   const klucz = wymagana('VITE_SUPABASE_ANON_KEY')
   const adres = wymagana('VITE_SUPABASE_URL')
 
-  const logowanie = await fetch(new URL('/auth/v1/token?grant_type=password', adres), {
-    method: 'POST',
-    headers: { apikey: klucz, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password: haslo }),
-  })
-  if (!logowanie.ok) {
-    throw new Error(`Logowanie ${email} nie powiodło się: ${await logowanie.text()}`)
+  // Nieudane logowanie nie zostaje w pamięci: zapamiętana odrzucona obietnica
+  // zamieniłaby jedno potknięcie sieci w komplet padniętych testów.
+  const kluczPamieci = kluczTokenu(email, haslo)
+  let token = tokeny.get(kluczPamieci)
+  if (!token) {
+    token = tokenKonta(email, haslo)
+    tokeny.set(kluczPamieci, token)
+    token.catch(() => tokeny.delete(kluczPamieci))
   }
-  const { access_token: token } = (await logowanie.json()) as { access_token: string }
 
   return fetch(new URL(`/rest/v1/${sciezka}`, adres), {
     ...init,
-    headers: { apikey: klucz, Authorization: `Bearer ${token}`, ...init.headers },
+    headers: { apikey: klucz, Authorization: `Bearer ${await token}`, ...init.headers },
   })
 }

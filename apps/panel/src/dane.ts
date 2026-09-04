@@ -4,15 +4,17 @@
  * jest wyłącznie odczyt i przepisanie wierszy — siostrzane wobec `grafik.ts`
  * w Widgecie i z tego samego powodu płytkie.
  *
- * Warunek na Strzelnicę stoi przy jednych zapytaniach, a przy innych nie —
- * i jest to różnica, nie niekonsekwencja. Rezerwacje i ich pozycje niosą dane
- * osobowe, więc odcina je baza: widok `panel_bookings` własnym warunkiem,
- * pozycje politykami RLS. Warunek dopisany tu do nich byłby drugą granicą —
- * a druga granica to ta, o której się zapomina.
+ * Ani jedno z tych zapytań nie mówi o Strzelnicy i nie jest to przeoczenie:
+ * zalogowanemu kontu baza oddaje wyłącznie jej wiersze — Rezerwacje widokiem
+ * `panel_bookings`, wszystko pozostałe politykami RLS z `panel_facility()`
+ * (zobacz ADR 0009). Warunek dopisany tutaj byłby drugą granicą, a druga
+ * granica to ta, o której się zapomina: znika razem z pominięciem jednego
+ * `.eq(…)` przy następnym zapytaniu i nikt tego nie zauważy, bo pierwsza
+ * granica wciąż trzyma.
  *
- * Osie i katalogi są ofertą i czyta je anonimowo każdy Widget, więc RLS
- * wpuszcza tam do wierszy **wszystkich** Strzelnic. Ich zawężenie należy do
- * wołającego — tak samo jak w Widgecie.
+ * Inaczej niż w Widgecie, który pyta kluczem anonimowym — ten tożsamości nie
+ * ma, RLS wpuszcza go do oferty wszystkich Strzelnic, więc tam zawężenie
+ * należy do wołającego.
  */
 import type { Lane, PanelBooking, PanelWindow } from '@strzelnica/shared'
 import {
@@ -24,9 +26,12 @@ import {
 } from '@strzelnica/shared'
 import type { PanelClient } from './supabase.js'
 
-/** Strzelnica w kształcie, jakiego Panel potrzebuje dziś: nazwa, zegar, horyzont. */
+/**
+ * Strzelnica w kształcie, jakiego Panel potrzebuje dziś: nazwa, zegar,
+ * horyzont. Bez identyfikatora — odkąd zawężenie po Strzelnicy należy do bazy,
+ * nie ma zapytania, które by go potrzebowało.
+ */
 export type Strzelnica = {
-  id: string
   name: string
   timeZone: string
   /** Horyzont rezerwacji — stąd bierze się dalszy koniec okna odczytu. */
@@ -55,26 +60,23 @@ export class BrakStrzelnicyError extends Error {
 }
 
 async function strzelnicaUzytkownika(client: PanelClient): Promise<Strzelnica> {
-  // Wierszy jest najwyżej jeden — kluczem głównym `panel_users` jest konto —
-  // a przy koncie bez powiązania nie ma żadnego. Pusty wynik jest tu
-  // odpowiedzią, a nie błędem zapytania, więc pytamy o listę i patrzymy na jej
-  // pierwszy wiersz, zamiast żądać dokładnie jednego.
-  const [powiazanie] = rowsOrThrow(await client.from('panel_users').select('facility_id'))
-  if (!powiazanie) throw new BrakStrzelnicyError()
-
+  // Zapytanie bez warunku o jedną Strzelnicę: polityka `facilities` wpuszcza
+  // zalogowane konto do dokładnie jednego wiersza — tego, na który wskazuje
+  // jego powiązanie. Pytanie „czyj jest ten Panel" i pytanie „jaka to
+  // Strzelnica" mają więc jedną odpowiedź i jeden odczyt; osobny odczyt
+  // `panel_users` po sam identyfikator byłby tym samym pytaniem zadanym dwa
+  // razy, a jego wynik i tak trafiłby do warunku, który RLS stawia sama.
+  //
+  // Pusto znaczy konto bez Strzelnicy — zdarza się między założeniem konta
+  // a wpisem w `panel_users`. Pusty wynik jest tu odpowiedzią, a nie błędem
+  // zapytania, więc pytamy o listę i patrzymy na jej pierwszy wiersz, zamiast
+  // żądać dokładnie jednego.
   const [row] = rowsOrThrow(
-    await client
-      .from('facilities')
-      .select('id, name, timezone, booking_horizon_days')
-      .eq('id', powiazanie.facility_id),
+    await client.from('facilities').select('name, timezone, booking_horizon_days'),
   )
-  // Powiązanie wskazuje Strzelnicę kluczem obcym, więc wiersza nie może nie
-  // być — chyba że polityki `facilities` przestały wpuszczać Panel. Wtedy pusty
-  // kalendarz kłamałby, że Strzelnica nie ma Rezerwacji.
   if (!row) throw new BrakStrzelnicyError()
 
   return {
-    id: row.id,
     name: row.name,
     timeZone: row.timezone,
     horizonDays: row.booking_horizon_days,
@@ -109,7 +111,7 @@ export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane>
 
   const [lanes, bookings, rentals, ammunition, weaponTypes, ammunitionKinds] =
     await Promise.all([
-      client.from('lanes').select('*').eq('facility_id', facility.id).order('name'),
+      client.from('lanes').select('*').order('name'),
       client
         .from('panel_bookings')
         .select('*')
@@ -126,8 +128,8 @@ export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane>
         .select('booking_id, ammunition_kind_id, quantity, panel_bookings!inner(starts_at)')
         .gte('panel_bookings.starts_at', od)
         .lt('panel_bookings.starts_at', doPolnocy),
-      client.from('weapon_types').select('id, name').eq('facility_id', facility.id),
-      client.from('ammunition_kinds').select('id, name').eq('facility_id', facility.id),
+      client.from('weapon_types').select('id, name'),
+      client.from('ammunition_kinds').select('id, name'),
     ])
 
   const osie = rowsOrThrow(lanes)

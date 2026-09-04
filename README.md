@@ -310,10 +310,9 @@ funkcją `booking_holds_term`, co widoki zajętości Widgetu. Kalendarz Panelu
 pokazuje wyłącznie Rezerwacje trzymające termin, lista — wszystkie, ze stanem
 w kolumnie.
 
-Osie i katalogi są ofertą i RLS wpuszcza tam do wierszy wszystkich Strzelnic
-(czyta je anonimowo każdy Widget), więc **te** zapytania Panel zawęża sam,
-warunkiem na `facility_id`. Rezerwacji i ich pozycji nie zawęża po Strzelnicy:
-odcina ją baza, a drugi warunek w kodzie byłby drugą granicą — tą, o której się
+Ani jedno zapytanie Panelu nie mówi o Strzelnicy: zalogowanemu kontu baza oddaje
+wyłącznie jej wiersze (zobacz [Izolacja Strzelnic](#izolacja-strzelnic)). Warunek
+na `facility_id` dopisany w kodzie ekranu byłby drugą granicą — tą, o której się
 zapomina.
 
 Zawęża je natomiast **po czasie**: Panel czyta okno liczone od dzisiaj —
@@ -334,6 +333,11 @@ a Panel pisałby do `bookings` przez `panel_bookings` z pominięciem Edge
 Functions. Pilnuje tego test przeglądarkowy — uprawnienia nie są regułą, którą
 zobaczy czysta funkcja.
 
+Widoków zajętości Panel nie czyta wcale i nie ma do nich prawa: czytają
+`bookings` prawami właściciela, więc wystawiają zajętość **wszystkich**
+Strzelnic. Dla klucza anonimowego jest to w porządku i po to powstały, dla
+konta Panelu byłoby wyłomem obok wszystkich jego polityk.
+
 Ekran odświeża się co minutę. Rezerwacje przychodzą z Widgetu przez cały dzień,
 a obsługa trzyma Panel otwarty od rana; tą samą drogą gasną Rezerwacje
 oczekujące, bo `holds_term` liczy zegar bazy w chwili odczytu.
@@ -345,10 +349,67 @@ Seed zakłada dwa konta, po jednym na Strzelnicę, oba z hasłem `panel-demo-123
 | `obsluga@strzelnica-demo.example.pl` | Strzelnica Demo |
 | `obsluga@strzelnica-druga.example.pl` | Strzelnica Druga |
 
-Druga Strzelnica istnieje w seedzie po to, żeby „nie widzę cudzych Rezerwacji"
-dało się w ogóle sprawdzić — przy jednej Strzelnicy to zdanie jest prawdziwe
-z braku czegokolwiek obcego. Jej Rezerwacja celuje w to samo okno czasu, co
-Rezerwacja demo.
+## Izolacja Strzelnic
+
+Użytkownik panelu jednej Strzelnicy nie odczyta i nie zmieni niczego, co należy
+do innej — nawet znając identyfikatory. Rozstrzyga o tym **rola**, a nie tabela
+(ADR 0009): te same tabele mają być otwarte dla Widgetu i zamknięte dla obcego
+konta, więc granica nie może przebiegać po nich.
+
+| Rola | Skąd się bierze | Co widzi |
+| --- | --- | --- |
+| `anon` | klucz w kodzie Widgetu, bez tożsamości | oferta wszystkich Strzelnic i nic poza nią |
+| `authenticated` | konto Panelu, `panel_facility()` mówi czyje | jedna Strzelnica, w komplecie |
+| `service_role` | Edge Functions | każdą tabelę; tędy idzie każdy zapis (ADR 0003) |
+
+Rola serwisowa widzi każdą **tabelę**, ale nie widoku `panel_bookings`: jego
+warunek pyta o zalogowane konto, a rola serwisowa żadnym nie jest. Rezerwacje
+czyta więc z `bookings`, tak jak robią to Edge Functions.
+
+Klucz anonimowy czyta ofertę wszystkich, bo nie ma czym powiedzieć, której
+Strzelnicy jest — osadzają go różne strony różnych Strzelnic, wszystkie tym
+samym skryptem. Oferta to Osie, rozkład Bloków, godziny, wyjątki kalendarzowe,
+oba katalogi i publiczne kolumny `facilities`; ani jednej danej osobowej.
+Konto Panelu ma tożsamość, więc widzi dokładnie jedną Strzelnicę — a konto bez
+powiązania żadnej, bo puste `panel_facility()` czyni każdy taki warunek fałszem.
+
+Politykę na przynależność do Strzelnicy mają wszystkie tabele domenowe poza
+trzema, i przy każdej z tych trzech jest to decyzja:
+
+| Tabela | Gdzie stoi jej granica |
+| --- | --- |
+| `bookings` | w widoku `panel_bookings` (ADR 0008) — tabela niesie tokeny Osoby rezerwującej, a polityka o kolumnach nie mówi nic; obie publiczne role tracą do niej prawo odczytu |
+| `mail_outbox` | nigdzie i nie jest potrzebna — czyta ją wyłącznie rola serwisowa, obie publiczne role tracą prawo odczytu |
+| `panel_users` | w warunku o konto (`user_id = auth.uid()`), bo ta tabela jest **źródłem** odpowiedzi na „czyja to Strzelnica"; konto widzi z niej jeden wiersz, własny |
+
+Uprawnienia są przy tym drugim zamkiem, nie ozdobą przy RLS, bo dwie rzeczy
+wymykają się politykom z definicji: `truncate` nie podlega RLS wcale (a Supabase
+nadaje to prawo każdej nowej relacji), a `update` i `delete` bez polityki nie są
+odmawiane, tylko trafiają w zero wierszy — PostgREST kwituje je kodem 204, jakby
+się udały. Prawa zapisu schodzą więc obu publicznym rolom ze wszystkich relacji
+naraz, a z odczytu wypadają trzy grupy: Rezerwacje i poczta (nikomu publicznemu),
+pozycje Rezerwacji i konta Panelu (kluczowi anonimowemu) oraz widoki zajętości
+(kontu Panelu). Domyślne prawa dla przyszłych relacji schodzą w całości, więc
+tabela dołożona kolejną migracją jest niedostępna, dopóki ktoś jej świadomie nie
+wystawi — a migracja dokładająca tabelę domenową ma odtąd trzy zdania do
+napisania: `enable row level security`, polityki dla obu ról i `grant select`.
+Dotyczy to relacji tworzonych przez migracje (rola `postgres`); tabela założona
+z pulpitu Supabase powstaje jako `supabase_admin` i idzie jego domyślnymi
+prawami, których ta migracja nie dosięga.
+
+Seed zakłada drugą Strzelnicę z wierszem w **każdej** tabeli domenowej — dwiema
+Osiami, własnym rozkładem i godzinami, wyjątkiem kalendarzowym, oboma
+katalogami, dwiema Rezerwacjami z pozycjami i listem w skrzynce. Nie jest to
+rozmach: asercja „nie widzę tego wiersza" bez obcego wiersza mierzy pustkę,
+a nie granicę. Pierwsza Rezerwacja celuje w to samo okno czasu, co Rezerwacja
+demo — gdyby Panel dzielił dane po dacie zamiast po Strzelnicy, byłoby to widać.
+
+Sprawdza to `e2e/tests/izolacja-strzelnic.spec.ts`, i sprawdza obok interfejsu:
+pyta PostgREST-a wprost o obce wiersze, identyfikatorami wypisanymi w teście.
+Panel filtrujący w przeglądarce wygląda dokładnie tak samo jak Panel odcięty
+przez bazę, więc pytanie zadane przez ekran nie odróżnia jednego od drugiego.
+Każdy odczyt idzie dwa razy — raz rolą serwisową, po dowód, że wiersz jest, raz
+obcym kontem, po dowód, że go nie widać.
 
 ## Poczta
 

@@ -1,41 +1,33 @@
-import type { Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 import { PANEL_URL } from '../playwright.config.js'
-import { OS_KARABINOWA, OS_PISTOLETOWA } from './pomocniki.js'
+import {
+  HASLO_PANELU,
+  KLIENT_DEMO,
+  OBSLUGA_DEMO,
+  OS_KARABINOWA,
+  OS_PISTOLETOWA,
+  REZERWACJA_DEMO,
+  zalogujDoPanelu,
+} from './pomocniki.js'
 import { baza, bazaAnonimowo, bazaJakoUzytkownikPanelu } from './srodowisko.js'
 
 /**
  * Panel: logowanie i podgląd Rezerwacji.
  *
  * Czego czysta funkcja z definicji nie zobaczy: że konto naprawdę otwiera dane
- * **swojej** Strzelnicy i wyłącznie swojej, i że bez konta nie widać ich wcale.
- * To są własności RLS i widoku `panel_bookings`, nie logiki — a rozdzielenie
- * danych klientów jest tą rzeczą, której nikt nie zauważy, dopóki nie zawiedzie.
+ * swojej Strzelnicy i że bez konta nie widać ich wcale. To są własności RLS
+ * i widoku `panel_bookings`, nie logiki.
+ *
+ * Druga strona tego samego — że konto nie otwiera **niczego** obcego — ma
+ * własny plik, `izolacja-strzelnic.spec.ts`: tam pytania idą obok interfejsu,
+ * bo tylko tak widać, czy odcina je baza, czy ekran.
  *
  * Układanie Rezerwacji w kalendarz i zawężanie listy filtrami mają własne
  * pokrycie w `packages/shared`, więc tutaj nie ma ich po raz drugi. Tu chodzi
  * o to, czy te ekrany dostają cokolwiek do ułożenia.
  */
 
-/** Konta z seeda — jedno na Strzelnicę, obydwa z tym samym hasłem. */
-const OBSLUGA_DEMO = 'obsluga@strzelnica-demo.example.pl'
-const OBSLUGA_DRUGIEJ = 'obsluga@strzelnica-druga.example.pl'
-const HASLO = 'panel-demo-123'
-
-/** Rezerwacja z seeda, po której poznaje się Strzelnicę demonstracyjną. */
-const KLIENT_DEMO = 'Jan Przykładowy'
-/** Rezerwacja drugiej Strzelnicy — ta, której obsługa demo widzieć nie ma. */
-const KLIENT_OBCY = 'Obcy Klient'
-const REZERWACJA_DEMO = '00000000-0000-0000-0000-0000000000b1'
 const OS_PISTOLETOWA_ID = '00000000-0000-0000-0000-0000000000a1'
-
-async function zaloguj(page: Page, email: string): Promise<void> {
-  await page.goto(PANEL_URL)
-  await page.getByLabel('Adres e-mail').fill(email)
-  await page.getByLabel('Hasło').fill(HASLO)
-  await page.getByRole('button', { name: 'Zaloguj' }).click()
-  await expect(page.getByRole('button', { name: 'Wyloguj' })).toBeVisible()
-}
 
 /**
  * Dzień, na który seed wystawił swoją Rezerwację — czytany z bazy, a nie
@@ -71,29 +63,6 @@ test('bez zalogowania Panel nie pokazuje żadnych danych Strzelnicy', async ({ p
 })
 
 /**
- * I nie chodzi wyłącznie o to, że ekran niczego nie rysuje: klucz anonimowy,
- * stojący w kodzie Widgetu w każdej przeglądarce świata, nie ma czym po te dane
- * sięgnąć. Tych pytań nie da się zadać przez interfejs, bo interfejs ich nie
- * zadaje — a to one są całą treścią „nie ma dostępu do żadnych danych Panelu".
- */
-test('klucz anonimowy nie sięga po żadną daną Panelu', async () => {
-  const zrodla = [
-    'panel_bookings?select=contact_name',
-    'weapon_rentals?select=booking_id',
-    'ammunition_demands?select=booking_id',
-    'panel_users?select=user_id',
-  ]
-
-  for (const zrodlo of zrodla) {
-    const odpowiedz = await bazaAnonimowo(zrodlo)
-    // Odmowa albo pustka — obie są odpowiedzią „nic tu dla ciebie nie ma".
-    // Widok odmawia prawem, tabele pod RLS oddają zero wierszy.
-    const wiersze = odpowiedz.ok ? ((await odpowiedz.json()) as unknown[]) : []
-    expect({ zrodlo, wiersze }).toEqual({ zrodlo, wiersze: [] })
-  }
-})
-
-/**
  * Widok jest oknem, a okno się nie otwiera. Prosty widok nad jedną tabelą jest
  * w Postgresie zapisywalny sam z siebie, a Supabase nadaje domyślnie komplet
  * praw każdej nowej relacji — więc bez świadomego odebrania ich klucz anonimowy
@@ -111,7 +80,7 @@ test('widoki zajętości i Panelu są oknami wyłącznie do odczytu', async () =
 
   const panelu = await bazaJakoUzytkownikPanelu(
     OBSLUGA_DEMO,
-    HASLO,
+    HASLO_PANELU,
     `panel_bookings?id=eq.${REZERWACJA_DEMO}`,
     {
       method: 'PATCH',
@@ -132,7 +101,7 @@ test('widoki zajętości i Panelu są oknami wyłącznie do odczytu', async () =
 test('Użytkownik panelu widzi Rezerwację w kalendarzu, na liście i w szczegółach', async ({
   page,
 }) => {
-  await zaloguj(page, OBSLUGA_DEMO)
+  await zalogujDoPanelu(page, OBSLUGA_DEMO)
   await expect(page.getByText('Strzelnica Demo')).toBeVisible()
 
   // Kalendarz staje na dniu Rezerwacji z seeda i pokazuje ją pod jej Osią.
@@ -169,18 +138,4 @@ test('Użytkownik panelu widzi Rezerwację w kalendarzu, na liście i w szczegó
   await expect(opis).toContainText('CZ Shadow 2 — 1 szt.')
   await expect(opis).toContainText('.22 Long Rifle — 200 szt.')
   await expect(opis).toContainText('370,00 zł')
-})
-
-test('Użytkownik panelu nie widzi danych obcej Strzelnicy', async ({ page }) => {
-  await zaloguj(page, OBSLUGA_DRUGIEJ)
-
-  // Obie Strzelnice mają Rezerwację w tym samym oknie czasu, więc gdyby Panel
-  // dzielił dane po czymkolwiek innym niż Strzelnica, byłoby to tu widać.
-  await expect(page.getByText('Strzelnica Druga')).toBeVisible()
-  await expect(page.getByRole('table').getByText(KLIENT_OBCY)).toBeVisible()
-  await expect(page.getByText(KLIENT_DEMO)).toBeHidden()
-
-  // Nie tylko Rezerwacje: Osie obcej Strzelnicy też nie mają tu czego szukać,
-  // bo filtr po Osi wystawiałby jej układ obiektu.
-  await expect(page.getByLabel('Oś', { exact: true })).not.toContainText(OS_PISTOLETOWA)
 })
