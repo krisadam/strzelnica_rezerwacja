@@ -16,10 +16,7 @@ import type {
   BookingRequest,
 } from '../../../packages/shared/src/index.ts'
 import {
-  ammunitionKindFromRow,
-  blockScheduleFromRow,
   bookingProblems,
-  closedDateFromRow,
   confirmationEmail,
   confirmationUrl,
   facilityFromRow,
@@ -28,35 +25,20 @@ import {
   laneFromRow,
   MalformedBookingRequestError,
   newConfirmationToken,
-  occupancyFromRow,
-  occupancyWindow,
-  openingHoursFromRow,
   priceBooking,
   ratesFor,
   readBookingRequest,
-  rowsOrThrow,
-  scheduleForDay,
-  weaponOccupancyFromRow,
-  weaponTypeFromRow,
 } from '../../../packages/shared/src/index.ts'
-import { connect } from '../_shared/baza.ts'
+import {
+  CLOSURE_CONFLICT,
+  connect,
+  EXCLUSION_VIOLATION,
+  WEAPON_POOL_VIOLATION,
+} from '../_shared/baza.ts'
+import { grafikOsi } from '../_shared/grafik.ts'
 import { corsHeaders, json, outcome } from '../_shared/http.ts'
 import { wyslijPoczte } from '../_shared/poczta.ts'
 import { widgetOrigin } from '../_shared/srodowisko.ts'
-
-/** Naruszenie ograniczenia wyłączności Osi w Postgresie. */
-const EXCLUSION_VIOLATION = '23P01'
-
-/** Naruszenie Puli sztuk Typu broni; własny SQLSTATE `place_booking`. */
-const WEAPON_POOL_VIOLATION = 'WP001'
-
-/**
- * Rezerwacja na czas objęty Blokadą; własny SQLSTATE wyzwalaczy wyłączności.
- * Ograniczenie wykluczające obejmuje jedną tabelę, więc kolizja z Blokadą
- * przychodzi innym kodem niż kolizja z Rezerwacją — dla Osoby rezerwującej
- * znaczy jednak dokładnie to samo.
- */
-const CLOSURE_CONFLICT = 'LC001'
 
 async function handle(request: BookingRequest, origin: string | null): Promise<Response> {
   const client = connect()
@@ -97,63 +79,18 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   if (!laneResult.data) return json({ error: 'Ta Strzelnica nie ma takiej Osi.' }, 404, origin)
   const lane = laneFromRow(laneResult.data)
 
-  // Zajętość idzie z tego samego widoku, co w Widgecie. To on — a nie zapytanie
-  // pisane tu jeszcze raz — wie, które Rezerwacje trzymają Oś; funkcja czytająca
-  // `bookings` wprost miałaby własną listę stanów do rozjechania się z widokiem.
-  const okno = occupancyWindow(request.day, facility.timeZone)
-
-  const [schedules, openingHours, exceptions, zajetosc, katalog, wypozyczone, rodzaje] =
-    await Promise.all([
-      client.from('block_schedules').select('*').eq('facility_id', facility.id),
-      client.from('opening_hours').select('*').eq('facility_id', facility.id),
-      client.from('calendar_exceptions').select('*').eq('facility_id', facility.id),
-      // Zajętość całej Strzelnicy, nie tylko wybranej Osi: kolizję rozstrzyga
-      // Oś, ale Pulę instruktorów liczy się po wszystkich Osiach naraz. Zapytanie
-      // zawężone do jednej zaniżałoby ją po cichu i sprzedawało Instruktora,
-      // którego nie ma.
-      client
-        .from('lane_occupancy')
-        .select('*')
-        .eq('facility_id', facility.id)
-        .lt('starts_at', okno.to.toISOString())
-        .gt('ends_at', okno.from.toISOString()),
-      client.from('weapon_types').select('*').eq('facility_id', facility.id),
-      // Sztuki trzymane przez cudze Rezerwacje — z całej Strzelnicy, bo katalog
-      // jest wspólny dla wszystkich Osi. To samo okno, co dla zajętości Osi.
-      client
-        .from('weapon_occupancy')
-        .select('*')
-        .eq('facility_id', facility.id)
-        .lt('starts_at', okno.to.toISOString())
-        .gt('ends_at', okno.from.toISOString()),
-      // Katalog amunicji bez żadnej zajętości obok: Rodzaj nie ma puli
-      // (ADR 0004), więc czyta się go tylko po to, żeby odsiać Rodzaj, którego
-      // ta Strzelnica nie zna.
-      client.from('ammunition_kinds').select('*').eq('facility_id', facility.id),
-    ])
-
-  // Katalogi odczytane raz i podane obu regułom, które ich potrzebują:
-  // dostępności Bloku i wycenie. Dwa odczyty tych samych wierszy dałyby się
-  // rozejść przy pierwszej poprawce jednego z nich.
-  const weaponTypes = rowsOrThrow(katalog).map(weaponTypeFromRow)
-  const ammunitionKinds = rowsOrThrow(rodzaje).map(ammunitionKindFromRow)
-
-  const grafik = scheduleForDay({
+  // Grafik dnia razem z katalogami — jedną kopią odczytu, tą samą, którą pyta
+  // ręczny wpis w Panelu (`_shared/grafik.ts`). Zajętość bierze się w niej
+  // z widoków, bo to one wiedzą, które Rezerwacje trzymają Oś, i to one
+  // wystawiają obok nich Blokady.
+  const { grafik, weaponTypes, ammunitionKinds } = await grafikOsi(client, {
+    facility,
+    lane,
     day: request.day,
-    laneId: lane.id,
-    timeZone: facility.timeZone,
-    timeRules: facility.timeRules,
-    instructorPool: facility.instructorPool,
     // Zamierzenia biorą się ze zgłoszenia, bo dostępność zależy od nich tak
     // samo, jak od zajętości: Blok wolny dla Osoby rezerwującej z Pozwoleniem
     // bywa niedostępny dla tej bez niego.
     intent: request,
-    schedules: rowsOrThrow(schedules).map(blockScheduleFromRow),
-    openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),
-    closedDates: rowsOrThrow(exceptions).map(closedDateFromRow),
-    occupancies: rowsOrThrow(zajetosc).map(occupancyFromRow),
-    weaponTypes,
-    weaponOccupancies: rowsOrThrow(wypozyczone).map(weaponOccupancyFromRow),
     now: new Date(),
   })
 
@@ -243,6 +180,12 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     // Chwilę wygaśnięcia liczy baza, z tej liczby i ze swojego zegara. Zegar
     // środowiska brzegowego bywa innym zegarem, a termin ma być jeden.
     p_hold_minutes: HOLD_MINUTES,
+    // Zgłoszenie klienta i nic poza tym. Limitów Widget nie ma czym przekroczyć
+    // — o dostępności i o zapisie orzeka u niego ta sama czysta funkcja — więc
+    // lista przekroczeń jest tu pusta i pilnuje tego `check` na kolumnie
+    // (ticket #17).
+    p_source: 'widget',
+    p_limit_overrides: [],
   })
 
   // Dwa zgłoszenia na ten sam Blok w tej samej chwili widzą Blok wolny oba —

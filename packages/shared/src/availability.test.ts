@@ -122,7 +122,7 @@ describe('Blok poza godzinami otwarcia', () => {
     const bloki = blokiDnia(pytanie({ schedules: [blok(480)] }))
 
     expect(bloki[0]?.available).toBe(false)
-    expect(bloki[0]?.unavailableBecause).toBe('poza-godzinami-otwarcia')
+    expect(bloki[0]?.refusals[0]).toBe('poza-godzinami-otwarcia')
   })
 
   it('jest niedostępny, gdy kończy się po zamknięciu', () => {
@@ -130,7 +130,7 @@ describe('Blok poza godzinami otwarcia', () => {
     const bloki = blokiDnia(pytanie({ schedules: [blok(1290)] }))
 
     expect(bloki[0]?.available).toBe(false)
-    expect(bloki[0]?.unavailableBecause).toBe('poza-godzinami-otwarcia')
+    expect(bloki[0]?.refusals[0]).toBe('poza-godzinami-otwarcia')
   })
 
   it('jest wolny, gdy kończy się dokładnie o zamknięciu', () => {
@@ -185,7 +185,7 @@ describe('Blok przecinający granicę doby', () => {
       }),
     )
 
-    expect(bloki[0]?.unavailableBecause).toBe('poza-godzinami-otwarcia')
+    expect(bloki[0]?.refusals[0]).toBe('poza-godzinami-otwarcia')
   })
 
   it('nie pojawia się w rozkładzie następnego dnia', () => {
@@ -206,7 +206,7 @@ describe('Blok, który już minął', () => {
     const bloki = blokiDnia(pytanie({ now: new Date('2026-06-15T08:30:00Z') }))
 
     expect(bloki[0]?.available).toBe(false)
-    expect(bloki[0]?.unavailableBecause).toBe('przeszlosc')
+    expect(bloki[0]?.refusals[0]).toBe('przeszlosc')
     expect(bloki[1]?.available).toBe(true)
   })
 
@@ -235,7 +235,7 @@ describe('horyzont rezerwacji', () => {
     )
 
     expect(bloki[0]?.available).toBe(false)
-    expect(bloki[0]?.unavailableBecause).toBe('poza-horyzontem')
+    expect(bloki[0]?.refusals[0]).toBe('poza-horyzontem')
   })
 })
 
@@ -257,7 +257,7 @@ describe('minimalne wyprzedzenie', () => {
     )
 
     expect(bloki[0]?.available).toBe(false)
-    expect(bloki[0]?.unavailableBecause).toBe('ponizej-wyprzedzenia')
+    expect(bloki[0]?.refusals[0]).toBe('ponizej-wyprzedzenia')
   })
 
   it('nie rusza dalszych Bloków tego samego dnia', () => {
@@ -273,7 +273,7 @@ describe('minimalne wyprzedzenie', () => {
       pytanie({ now: new Date('2026-06-15T08:30:00Z'), timeRules: DWIE_GODZINY }),
     )
 
-    expect(bloki[0]?.unavailableBecause).toBe('przeszlosc')
+    expect(bloki[0]?.refusals[0]).toBe('przeszlosc')
   })
 })
 
@@ -307,7 +307,7 @@ describe('granica horyzontu dla kalendarza', () => {
     // Tydzień dalej wypada ten sam dzień tygodnia, więc rozkład ma co pokazać.
     expect(
       blokiDnia(pytanie({ day: addDays(ostatniDzien, 7), now, timeRules }))[0]
-        ?.unavailableBecause,
+        ?.refusals[0],
     ).toBe('poza-horyzontem')
   })
 })
@@ -328,7 +328,7 @@ describe('zajętość Osi', () => {
     )
 
     expect(bloki[0]?.available).toBe(false)
-    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+    expect(bloki[0]?.refusals[0]).toBe('termin-zajety')
     expect(bloki[1]?.available).toBe(true)
   })
 
@@ -337,7 +337,7 @@ describe('zajętość Osi', () => {
       pytanie({ occupancies: [zajecie('2026-06-15T09:30:00Z', '2026-06-15T09:45:00Z')] }),
     )
 
-    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+    expect(bloki[0]?.refusals[0]).toBe('termin-zajety')
   })
 
   // Rezerwacja 08:00–10:00 i Blok 10:00–12:00 nie nakładają się: koniec jednej
@@ -386,7 +386,7 @@ describe('zajętość Osi', () => {
       }),
     )
 
-    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+    expect(bloki[0]?.refusals[0]).toBe('termin-zajety')
   })
 
   // Rezerwacja wpisana ręcznie w Panelu (ticket #17) wolno, żeby naruszała
@@ -401,7 +401,7 @@ describe('zajętość Osi', () => {
       }),
     )
 
-    expect(bloki[0]?.unavailableBecause).toBe('poza-godzinami-otwarcia')
+    expect(bloki[0]?.refusals[0]).toBe('poza-godzinami-otwarcia')
   })
 })
 
@@ -505,7 +505,7 @@ describe('Pula instruktorów', () => {
     )
 
     expect(bloki[0]?.available).toBe(false)
-    expect(bloki[0]?.unavailableBecause).toBe('brak-instruktora')
+    expect(bloki[0]?.refusals[0]).toBe('brak-instruktora')
   })
 
   // To jest owa różnica ze specyfikacji: ta sama Oś, ten sam Blok, ta sama
@@ -528,7 +528,7 @@ describe('Pula instruktorów', () => {
       }),
     )
 
-    expect(bloki[0]?.unavailableBecause).toBe('brak-instruktora')
+    expect(bloki[0]?.refusals[0]).toBe('brak-instruktora')
   })
 
   // Instruktor nadzoruje ludzi, nie stanowisko: Rezerwacja z innej Osi zabiera
@@ -542,7 +542,7 @@ describe('Pula instruktorów', () => {
       }),
     )
 
-    expect(bloki[0]?.unavailableBecause).toBe('brak-instruktora')
+    expect(bloki[0]?.refusals[0]).toBe('brak-instruktora')
   })
 
   it('nie liczy do Puli Rezerwacji, przy której Instruktora nie ma', () => {
@@ -578,7 +578,7 @@ describe('Pula instruktorów', () => {
   it('zamyka Strzelnicę bez Instruktorów dla każdego, kto go potrzebuje', () => {
     const bloki = blokiDnia(pytanie({ intent: BEZ_POZWOLENIA, instructorPool: 0 }))
 
-    expect(bloki[0]?.unavailableBecause).toBe('brak-instruktora')
+    expect(bloki[0]?.refusals[0]).toBe('brak-instruktora')
   })
 
   // Zajęta Oś mówi o samym Bloku, brak Instruktora — o zamierzeniach pytającego.
@@ -594,7 +594,7 @@ describe('Pula instruktorów', () => {
       }),
     )
 
-    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+    expect(bloki[0]?.refusals[0]).toBe('termin-zajety')
   })
 })
 
@@ -653,7 +653,7 @@ describe('Pula sztuk Typu broni', () => {
     const bloki = zamawiajac([{ weaponTypeId: 'glock', quantity: 4 }])
 
     expect(bloki[0]?.available).toBe(false)
-    expect(bloki[0]?.unavailableBecause).toBe('brak-sztuk-broni')
+    expect(bloki[0]?.refusals[0]).toBe('brak-sztuk-broni')
   })
 
   // Sedno reguły: katalog dzieli się między Rezerwacje, które nakładają się
@@ -700,7 +700,7 @@ describe('Pula sztuk Typu broni', () => {
   it('odrzuca zamówienie Typu, którego katalog nie zna', () => {
     const bloki = zamawiajac([{ weaponTypeId: 'nieznany', quantity: 1 }])
 
-    expect(bloki[0]?.unavailableBecause).toBe('brak-sztuk-broni')
+    expect(bloki[0]?.refusals[0]).toBe('brak-sztuk-broni')
   })
 
   // Ta sama różnica, co przy Puli instruktorów: ten sam Blok, ta sama chwila,
@@ -726,7 +726,7 @@ describe('Pula sztuk Typu broni', () => {
       ],
     })
 
-    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+    expect(bloki[0]?.refusals[0]).toBe('termin-zajety')
   })
 })
 
@@ -816,5 +816,126 @@ describe('obecność Instruktora przy zapisanej Rezerwacji', () => {
         )
       }
     }
+  })
+})
+
+/**
+ * Powody niedostępności Bloku jako lista, a nie jeden powód. Osobie
+ * rezerwującej pokazuje się pierwszy z nich, bo naprawi jeden i przeliczy
+ * dostępność od nowa; Panel czyta wszystkie, bo trzy z nich są limitami
+ * Strzelnicy do przekroczenia, a pozostałe odmowami — i powód, za którym
+ * schował się drugi, znaczyłby ręczny wpis przyjęty na termin, który już minął.
+ */
+describe('powody niedostępności Bloku', () => {
+  it('nie ma żadnego przy Bloku wolnym', () => {
+    const bloki = blokiDnia(pytanie())
+
+    expect(bloki[0]?.refusals).toEqual([])
+    expect(bloki[0]?.available).toBe(true)
+  })
+
+  it('wypisuje wszystkie naraz, gdy Blok ma ich kilka', () => {
+    // Blok 10:00–12:00 poniedziałku, a Strzelnica otwiera się o 11:00 — i ten
+    // sam Blok jest już przeszłością, bo „teraz" jest po jego początku.
+    const bloki = blokiDnia(
+      pytanie({
+        openingHours: [{ weekday: 1, opensMinute: 660, closesMinute: 1320 }],
+        now: new Date('2026-06-15T09:00:00Z'),
+      }),
+    )
+
+    expect(bloki[0]?.refusals).toEqual(['poza-godzinami-otwarcia', 'przeszlosc'])
+  })
+
+  /**
+   * Kolejność jest pierwszeństwem: pierwszy stoi powód, który o Bloku mówi
+   * najprawdziwiej — ten, który nie zmieni się z upływem czasu. To on trafia
+   * do Widgetu.
+   */
+  it('stawia na pierwszym miejscu powód trwały, a nie ten z zegara', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        openingHours: [{ weekday: 1, opensMinute: 660, closesMinute: 1320 }],
+        now: new Date('2026-06-15T09:00:00Z'),
+      }),
+    )
+
+    expect(bloki[0]?.refusals[0]).toBe('poza-godzinami-otwarcia')
+  })
+
+  it('liczy zajętość Osi także wtedy, gdy Blok i tak jest poza godzinami', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        openingHours: [{ weekday: 1, opensMinute: 660, closesMinute: 1320 }],
+        occupancies: [
+          {
+            laneId: OS_PISTOLETOWA,
+            startsAt: new Date('2026-06-15T08:00:00Z'),
+            endsAt: new Date('2026-06-15T10:00:00Z'),
+            withInstructor: false,
+          },
+        ],
+      }),
+    )
+
+    expect(bloki[0]?.refusals).toEqual(['poza-godzinami-otwarcia', 'termin-zajety'])
+  })
+})
+
+/**
+ * Dane przeczące regułom Strzelnicy. Rezerwacja wpisana ręcznie w Panelu wolno
+ * przekroczyć pojemność Osi, godziny otwarcia i Pulę instruktorów (ticket #17),
+ * więc dostępność zastaje sumy większe od pul — i ma to **znieść**, bez wyjątku
+ * i bez „naprawiania": Strzelnica świadomie taką Rezerwację przyjęła.
+ */
+describe('dane naruszające limity Strzelnicy', () => {
+  /** Cudza Rezerwacja trzymająca Instruktora w godzinach pierwszego Bloku. */
+  function zInstruktorem(laneId: string): Occupancy {
+    return {
+      laneId,
+      startsAt: new Date('2026-06-15T08:00:00Z'),
+      endsAt: new Date('2026-06-15T10:00:00Z'),
+      withInstructor: true,
+    }
+  }
+
+  it('znosi Instruktorów wydanych ponad Pulę, zamiast padać na ujemnej resztce', () => {
+    const ponadPule = pytanie({
+      intent: { hasPermit: false, wantsInstructor: false, rentals: [] },
+      instructorPool: 1,
+      occupancies: [zInstruktorem(OS_KARABINOWA), zInstruktorem('os-3')],
+    })
+
+    expect(() => blokiDnia(ponadPule)).not.toThrow()
+    expect(blokiDnia(ponadPule)[0]?.refusals).toEqual(['brak-instruktora'])
+  })
+
+  it('nie odbiera terminu temu, kto Instruktora nie potrzebuje, choćby Pula była przekroczona', () => {
+    const bloki = blokiDnia(
+      pytanie({
+        instructorPool: 1,
+        occupancies: [zInstruktorem(OS_KARABINOWA), zInstruktorem('os-3')],
+      }),
+    )
+
+    expect(bloki.every((b) => b.available)).toBe(true)
+  })
+
+  it('znosi sztuki wydane ponad Pulę Typu broni', () => {
+    const ponadPule = pytanie({
+      weaponTypes: [{ id: 'shadow', name: 'CZ Shadow 2', pool: 1, unitPrice: 6_000 }],
+      intent: { hasPermit: true, wantsInstructor: false, rentals: [{ weaponTypeId: 'shadow', quantity: 1 }] },
+      weaponOccupancies: [
+        {
+          weaponTypeId: 'shadow',
+          quantity: 3,
+          startsAt: new Date('2026-06-15T08:00:00Z'),
+          endsAt: new Date('2026-06-15T10:00:00Z'),
+        },
+      ],
+    })
+
+    expect(() => blokiDnia(ponadPule)).not.toThrow()
+    expect(blokiDnia(ponadPule)[0]?.refusals).toEqual(['brak-sztuk-broni'])
   })
 })

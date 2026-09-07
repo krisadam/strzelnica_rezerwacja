@@ -7,6 +7,7 @@ import { BrakStrzelnicyError, wczytajDane } from './dane.js'
 import { Kalendarz } from './Kalendarz.js'
 import { Lista } from './Lista.js'
 import { Logowanie } from './Logowanie.js'
+import { RecznyWpis } from './RecznyWpis.js'
 import type { Sesja } from './sesja.js'
 import { obserwujSesje, wyloguj } from './sesja.js'
 import type { PanelClient } from './supabase.js'
@@ -166,6 +167,10 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
             onDzien={setDzien}
             onWybierz={(wpis) => setWybraneId(wpis.id)}
           />
+          {/* Ręczny wpis zaraz pod kalendarzem, bo z niego bierze się jego
+              pierwsze pytanie: co stoi na Osi w dniu, o który klient właśnie
+              pyta przez telefon. */}
+          <RecznyWpis client={client} dane={dane} onOdswiez={odswiez} />
           {/* Blokada stoi pod kalendarzem, a nie pod listą: wyłącza się Oś
               patrząc na jej dzień, a lista odpowiada na inne pytanie — gdzie
               jest to jedno zgłoszenie, w sprawie którego dzwoni klient. */}

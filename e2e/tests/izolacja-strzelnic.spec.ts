@@ -196,6 +196,9 @@ const NOWA_REZERWACJA = {
   block_rate_gr: 0,
   participation_rate_gr: 0,
   instructor_rate_gr: 0,
+  // Źródło podane, żeby żądanie było **kompletną** Rezerwacją: odmowa ma
+  // przyjść z polityki, a nie z kolumny, której zabrakło.
+  source: 'panel',
 }
 
 /** Próby zapisu w obcej Strzelnicy: co i którędy. */
@@ -521,6 +524,84 @@ test('Użytkownik panelu nie wyłączy ze sprzedaży obcej Osi', async () => {
   )
   expect(funkcja.status).toBe(200)
   expect(await funkcja.json()).toEqual({ ok: false, problem: 'nieznana-os' })
+
+  await drugaStrzelnicaJestNietknieta()
+})
+
+/**
+ * Ręczny wpis Rezerwacji na obcej Osi — trzecia i ostatnia rzecz, którą konto
+ * Panelu w bazie zapisuje. Granica stoi tu w miejscu, w którym mogłaby nie
+ * stać: Strzelnicy w żądaniu nie ma wcale, więc funkcja **musi** ją sobie
+ * wziąć z bazy po numerze konta (ADR 0010) — a identyfikator obcej Osi stoi
+ * w żądaniu wprost i jest prawdziwy.
+ *
+ * Wprost do funkcji bazodanowej drogi nie ma, jak przy odwołaniu i Blokadzie:
+ * prawo wykonania `place_booking` mają wyłącznie Edge Functions (ADR 0003), bo
+ * tam liczy się Kwota i lista przekroczonych limitów. Tędy konto Panelu
+ * podałoby sobie jedno i drugie samo.
+ */
+test('Użytkownik panelu nie wpisze Rezerwacji na obcej Osi', async () => {
+  // Wołanie Edge Function niżej przechodzi przez jej zimny start.
+  test.slow()
+
+  const wprost = await bazaJakoUzytkownikPanelu(
+    OBSLUGA_DEMO,
+    HASLO_PANELU,
+    'rpc/place_booking',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...NOWA_REZERWACJA,
+        // Nazwy parametrów funkcji, nie kolumn tabeli — ale treść ta sama,
+        // razem z Kwotą i Źródłem, które konto Panelu podałoby sobie samo.
+        p_facility_id: OBCA.strzelnica,
+        p_lane_id: OBCA.os,
+        p_starts_at: NOWA_REZERWACJA.starts_at,
+        p_ends_at: NOWA_REZERWACJA.ends_at,
+        p_status: 'potwierdzona',
+        p_participants: 1,
+        p_contact_name: 'Wtręt',
+        p_contact_email: 'wtret@example.pl',
+        p_contact_phone: '600000000',
+        p_has_permit: true,
+        p_with_instructor: false,
+        p_rentals: [],
+        p_ammunition: [],
+        p_amount_gr: 0,
+        p_block_rate_gr: 0,
+        p_participation_rate_gr: 0,
+        p_instructor_rate_gr: 0,
+        p_source: 'panel',
+        p_limit_overrides: ['ponad-pojemnosc-osi'],
+      }),
+    },
+  )
+  expect({ wprost: wprost.status >= 400 }).toEqual({ wprost: true })
+
+  // Droga, która jest: Edge Function z tokenem konta demo. Obca Oś jest dla
+  // niej nieznana, choć jej identyfikator jest prawdziwy — bo Strzelnicę
+  // funkcja bierze z konta, a nie z żądania.
+  const funkcjaWpisu = await funkcjaJakoUzytkownikPanelu(
+    OBSLUGA_DEMO,
+    HASLO_PANELU,
+    'wpisz-rezerwacje',
+    {
+      laneId: OBCA.os,
+      day: '2030-01-01',
+      startMinute: 600,
+      participants: 1,
+      contact: { name: 'Wtręt', email: 'wtret@example.pl', phone: '600000000' },
+      consent: true,
+      hasPermit: true,
+      wantsInstructor: false,
+      rentals: [],
+      ammunition: [],
+      overrides: [],
+    },
+  )
+  expect(funkcjaWpisu.status).toBe(200)
+  expect(await funkcjaWpisu.json()).toEqual({ ok: false, problem: 'nieznana-os' })
 
   await drugaStrzelnicaJestNietknieta()
 })

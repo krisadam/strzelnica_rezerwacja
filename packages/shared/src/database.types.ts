@@ -164,10 +164,12 @@ export type Database = {
           id: string
           instructor_rate_gr: number
           lane_id: string
+          limit_overrides: Database["public"]["Enums"]["limit_override"][]
           management_token: string
           participants: number
           participation_rate_gr: number
           revocation_reason: string | null
+          source: Database["public"]["Enums"]["booking_source"]
           starts_at: string
           status: Database["public"]["Enums"]["booking_status"]
           with_instructor: boolean
@@ -190,10 +192,12 @@ export type Database = {
           id?: string
           instructor_rate_gr: number
           lane_id: string
+          limit_overrides?: Database["public"]["Enums"]["limit_override"][]
           management_token?: string
           participants: number
           participation_rate_gr: number
           revocation_reason?: string | null
+          source: Database["public"]["Enums"]["booking_source"]
           starts_at: string
           status: Database["public"]["Enums"]["booking_status"]
           with_instructor: boolean
@@ -216,10 +220,12 @@ export type Database = {
           id?: string
           instructor_rate_gr?: number
           lane_id?: string
+          limit_overrides?: Database["public"]["Enums"]["limit_override"][]
           management_token?: string
           participants?: number
           participation_rate_gr?: number
           revocation_reason?: string | null
+          source?: Database["public"]["Enums"]["booking_source"]
           starts_at?: string
           status?: Database["public"]["Enums"]["booking_status"]
           with_instructor?: boolean
@@ -641,8 +647,12 @@ export type Database = {
           holds_term: boolean | null
           id: string | null
           lane_id: string | null
+          limit_overrides:
+            | Database["public"]["Enums"]["limit_override"][]
+            | null
           participants: number | null
           revocation_reason: string | null
+          source: Database["public"]["Enums"]["booking_source"] | null
           starts_at: string | null
           status: Database["public"]["Enums"]["booking_status"] | null
           with_instructor: boolean | null
@@ -658,8 +668,12 @@ export type Database = {
           holds_term?: never
           id?: string | null
           lane_id?: string | null
+          limit_overrides?:
+            | Database["public"]["Enums"]["limit_override"][]
+            | null
           participants?: number | null
           revocation_reason?: string | null
+          source?: Database["public"]["Enums"]["booking_source"] | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["booking_status"] | null
           with_instructor?: boolean | null
@@ -675,8 +689,12 @@ export type Database = {
           holds_term?: never
           id?: string | null
           lane_id?: string | null
+          limit_overrides?:
+            | Database["public"]["Enums"]["limit_override"][]
+            | null
           participants?: number | null
           revocation_reason?: string | null
+          source?: Database["public"]["Enums"]["booking_source"] | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["booking_status"] | null
           with_instructor?: boolean | null
@@ -751,19 +769,21 @@ export type Database = {
           p_ammunition: Json
           p_amount_gr: number
           p_block_rate_gr: number
-          p_confirmation_token: string
+          p_confirmation_token?: string
           p_contact_email: string
           p_contact_name: string
           p_contact_phone: string
           p_ends_at: string
           p_facility_id: string
           p_has_permit: boolean
-          p_hold_minutes: number
+          p_hold_minutes?: number
           p_instructor_rate_gr: number
           p_lane_id: string
+          p_limit_overrides: Database["public"]["Enums"]["limit_override"][]
           p_participants: number
           p_participation_rate_gr: number
           p_rentals: Json
+          p_source: Database["public"]["Enums"]["booking_source"]
           p_starts_at: string
           p_status: Database["public"]["Enums"]["booking_status"]
           p_with_instructor: boolean
@@ -789,12 +809,17 @@ export type Database = {
       }
     }
     Enums: {
+      booking_source: "widget" | "panel"
       booking_status:
         | "oczekujaca"
         | "potwierdzona"
         | "anulowana-przez-klienta"
         | "odwolana-przez-strzelnice"
         | "wygasla"
+      limit_override:
+        | "poza-godzinami-otwarcia"
+        | "brak-instruktora"
+        | "ponad-pojemnosc-osi"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -922,12 +947,18 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      booking_source: ["widget", "panel"],
       booking_status: [
         "oczekujaca",
         "potwierdzona",
         "anulowana-przez-klienta",
         "odwolana-przez-strzelnice",
         "wygasla",
+      ],
+      limit_override: [
+        "poza-godzinami-otwarcia",
+        "brak-instruktora",
+        "ponad-pojemnosc-osi",
       ],
     },
   },

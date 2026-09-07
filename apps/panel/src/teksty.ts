@@ -8,11 +8,15 @@
  * Przykładowy, 2 os." to nie są dwa warianty jednego zdania.
  */
 import type {
+  BookingSource,
   ClosureProblem,
   Database,
   InstructorPresence,
+  LimitOverride,
+  ManualBookingProblem,
   OrderedItem,
   RevocationProblem,
+  Unavailability,
 } from '@strzelnica/shared'
 
 type BookingStatus = Database['public']['Enums']['booking_status']
@@ -105,6 +109,14 @@ export const teksty = {
      * koleżankę, która odwoływała — i po to samo dzwoniłby klient.
      */
     powodOdwolania: 'Powód odwołania',
+    /** Źródło niesie każda Rezerwacja, więc wiersz jest w każdym opisie. */
+    zrodlo: 'Źródło',
+    /**
+     * Przekroczone limity stoją zaraz pod Źródłem, bo tłumaczą właśnie je:
+     * Rezerwacja na sześć osób na Osi czteroosobowej bez tego wiersza wygląda
+     * na pomyłkę systemu, a nie na decyzję, którą ktoś podjął świadomie.
+     */
+    przekroczenia: 'Przekroczone limity',
   },
 
   /**
@@ -215,6 +227,142 @@ export const teksty = {
     } satisfies Record<ClosureProblem, string>,
     blad: 'Nie udało się wprowadzić Blokady. Spróbuj jeszcze raz za chwilę.',
   },
+
+  /**
+   * Ręczna Rezerwacja telefoniczna. Zdania mówią do obsługi o kimś, kto właśnie
+   * dzwoni — stąd „klient deklaruje", a nie „mam pozwolenie" jak w Widgecie:
+   * formularz wypełnia ktoś inny niż ten, o kim jest.
+   */
+  recznyWpis: {
+    naglowek: 'Rezerwacja telefoniczna',
+    wstep:
+      'Wpisz zgłoszenie przyjęte przez telefon. Rezerwacja powstaje od razu ' +
+      'potwierdzona — klient nie musi klikać w żaden link — i nie idzie do niego ' +
+      'żaden e-mail, więc termin i Kwotę podaj mu w rozmowie.',
+    /**
+     * Nie samo „Oś" ani „Dzień": tak nazywają się pola filtrów listy i pole
+     * kalendarza, a dwa pola o jednej nazwie na jednym ekranie każą czytającemu
+     * — i testowi przeglądarkowemu — zgadywać, o które chodzi.
+     */
+    os: 'Oś Rezerwacji',
+    dzien: 'Dzień Rezerwacji',
+    termin: 'Termin',
+    /** Bloków dnia nie ma wcale: Strzelnica jest zamknięta albo Oś nie pracuje. */
+    brakTerminow: 'Tego dnia ta Oś nie ma ani jednego Bloku w rozkładzie.',
+    wybierzTermin: 'Wybierz termin',
+    uczestnicy: 'Liczba Uczestników',
+    pojemnosc: (ile: number) => `Pojemność Osi: ${ile}`,
+    pozwolenie: 'Klient deklaruje Pozwolenie na broń',
+    instruktor: 'Klient zamawia Instruktora',
+    /** Brak Pozwolenia wymusza Instruktora — pole przestaje być pytaniem. */
+    instruktorWymagany: 'Instruktor wymagany — klient nie deklaruje Pozwolenia.',
+    wypozyczenie: 'Wypożyczenie broni',
+    pozostalo: (ile: number) => `pozostało ${ile} szt.`,
+    amunicja: 'Zapotrzebowanie na amunicję',
+    imie: 'Imię i nazwisko',
+    email: 'Adres e-mail',
+    telefon: 'Telefon',
+    /**
+     * Zgoda jest tu oświadczeniem obsługi o tym, co powiedziała klientowi —
+     * bo kolumna `consented_at` twierdzi, że akceptacja się zdarzyła, a nikt
+     * poza obsługą nie może o niej wiedzieć.
+     */
+    zgoda: 'Klient zaakceptował regulamin i politykę prywatności w rozmowie',
+    kwota: 'Kwota do zapłaty',
+    kwotaUwaga: 'Podaj tę Kwotę klientowi — to ona zostanie zapisana przy Rezerwacji.',
+    wpisz: 'Wpisz Rezerwację',
+    wpisywanie: 'Wpisujemy…',
+    /**
+     * Pytanie o pewność jest tu treścią, nie uprzejmością: to ono jest owym
+     * „jawnym potwierdzeniem", bez którego limitu przekroczyć nie wolno.
+     * Wymienia każdy przekraczany limit z osobna, bo obsługa potwierdza to,
+     * co widzi, a nie to, co się domyśla.
+     */
+    pewnie: 'Ta Rezerwacja przekracza limity Strzelnicy:',
+    pewnieOgon:
+      'Zostanie to odnotowane przy Rezerwacji na trwałe i widoczne w jej ' +
+      'szczegółach. Wpisujemy?',
+    tak: 'Tak, wpisuję mimo to',
+    nie: 'Poprawiam zgłoszenie',
+    /**
+     * Zdanie o skutku i tylko o nim: Rezerwacja stoi. O tym, że nie poszedł
+     * żaden list, mówi zdanie przy formularzu — obietnicę składa się przed,
+     * a nie po.
+     */
+    wpisano: 'Wpisaliśmy Rezerwację — termin jest zajęty od tej chwili.',
+    /** Co dokładnie zostało odnotowane; liczy to serwer, nie ten ekran. */
+    wpisanoZPrzekroczeniem: 'Przy Rezerwacji odnotowaliśmy przekroczone limity:',
+    /**
+     * Odmowy, każda z podpowiedzią co dalej. Zastrzeżenia do pól wypisuje sam
+     * formularz; „termin zajęty" i „brak sztuk broni" przychodzą także z bazy,
+     * bo dopiero ona wie, co stoi na Osi w tej sekundzie.
+     *
+     * Odwzorowanie jest pełne, bo pełny jest zbiór odmów — nie dlatego, że
+     * Panel każdą z nich zobaczy. „Niepotwierdzone przekroczenie" znaczy limit,
+     * który pojawił się między pytaniem o pewność a zapisem: klient zdążył
+     * zabrać Instruktora z Puli.
+     */
+    problem: {
+      'termin-niedostepny': 'Tego terminu nie da się wziąć — wybierz inny.',
+      'termin-zajety':
+        'Ten termin jest już czyjś. Rezerwację trzeba najpierw odwołać, ' +
+        'a Blokadę zdjąć — wyłączności Osi nie da się przekroczyć.',
+      'brak-sztuk-broni':
+        'Tyle sztuk Strzelnica nie ma w tym terminie. Zamów mniej albo dopisz ' +
+        'brakujące egzemplarze do katalogu.',
+      'liczba-uczestnikow-poza-zakresem': 'Podaj liczbę Uczestników — co najmniej jednego.',
+      'niepoprawne-wypozyczenie': 'Popraw Wypożyczenie: każdy Typ raz i co najmniej jedna sztuka.',
+      'niepoprawne-zapotrzebowanie':
+        'Popraw Zapotrzebowanie: każdy Rodzaj raz i co najmniej jedna sztuka.',
+      'brak-imienia': 'Podaj imię i nazwisko Osoby rezerwującej.',
+      'niepoprawny-email': 'Podaj adres e-mail Osoby rezerwującej.',
+      'brak-telefonu': 'Podaj telefon Osoby rezerwującej.',
+      'brak-zgody': 'Zaznacz akceptację regulaminu — bez niej Rezerwacja nie powstaje.',
+      'niepotwierdzone-przekroczenie':
+        'Limity zmieniły się od ostatniego sprawdzenia. Kliknij jeszcze raz ' +
+        'i potwierdź to, co przekracza ta Rezerwacja teraz.',
+      'nieznana-os': 'Tej Osi już nie ma. Odśwież ekran i sprawdź, co się z nią stało.',
+    } satisfies Record<ManualBookingProblem, string>,
+    blad: 'Nie udało się wpisać Rezerwacji. Spróbuj jeszcze raz za chwilę.',
+  },
+
+  /**
+   * Limit Strzelnicy, który ręczny wpis przekracza. Te same trzy zdania stoją
+   * w pytaniu o pewność i w szczegółach Rezerwacji: obsługa potwierdza dokładnie
+   * to, co potem przy niej przeczyta.
+   */
+  przekroczenie: {
+    'poza-godzinami-otwarcia': 'termin poza godzinami otwarcia Strzelnicy',
+    'brak-instruktora': 'Instruktor ponad Pulę Strzelnicy',
+    'ponad-pojemnosc-osi': 'Uczestnicy ponad pojemność Osi',
+  } satisfies Record<LimitOverride, string>,
+
+  /**
+   * Skąd Rezerwacja się wzięła. Obsługa czyta z tego, z kim rozmawia, dzwoniąc
+   * w jej sprawie — więc zdanie mówi o człowieku, a nie o kanale.
+   */
+  zrodlo: {
+    widget: 'Widget — klient zarezerwował sam',
+    panel: 'Panel — Rezerwacja przyjęta przez telefon',
+  } satisfies Record<BookingSource, string>,
+
+  /**
+   * Dlaczego termin nie jest wolny — krótko, bo stoi w jednej linii listy
+   * wyboru. Odrębne od słownika Widgetu, choć część powodów brzmi podobnie:
+   * tam klient dowiaduje się, czego nie kupi, a tu obsługa, co przekracza.
+   */
+  powodTerminu: {
+    'poza-godzinami-otwarcia': 'poza godzinami otwarcia',
+    'poza-horyzontem': 'za horyzontem rezerwacji',
+    przeszlosc: 'termin już minął',
+    'ponizej-wyprzedzenia': 'za blisko początku',
+    'termin-zajety': 'termin już zajęty',
+    'brak-instruktora': 'brak wolnego Instruktora',
+    'brak-sztuk-broni': 'brak sztuk zamówionej broni',
+  } satisfies Record<Unavailability, string>,
+
+  /** Termin, którego nic nie zdejmuje — tak samo jak w kalendarzu Widgetu. */
+  wolnyTermin: 'wolny',
 
   /**
    * Skąd wziął się Instruktor — albo dlaczego go nie ma. Rozróżnienie robi

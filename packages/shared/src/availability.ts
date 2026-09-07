@@ -169,8 +169,22 @@ export type Block = {
   startMinute: number
   startsAt: Date
   endsAt: Date
+  /** Czy Blok da się wziąć. Wyraz `refusals`, a nie osobna odpowiedź. */
   available: boolean
-  unavailableBecause?: Unavailability
+  /**
+   * Wszystkie powody, dla których Bloku nie da się wziąć — w kolejności
+   * pierwszeństwa, od tego, który mówi o Bloku najprawdziwiej. Pusta lista
+   * znaczy Blok wolny.
+   *
+   * Lista, a nie jeden powód, bo pytają o nią dwie strony i o dwie różne
+   * rzeczy. Osobie rezerwującej pokazuje się pierwszy z nich: naprawi jeden,
+   * a reszta i tak przeliczy się od nowa. Panel musi znać wszystkie, bo dzieli
+   * je na dwie kupki — limity Strzelnicy, których wolno mu nie usłuchać,
+   * odnotowuje przy ręcznym wpisie Rezerwacji, a każdy pozostały powód jest
+   * odmową (ticket #17). Sam powód pierwszy z brzegu znaczyłby wpis przyjęty
+   * na termin, który już minął, bo minięcie schowało się za godzinami otwarcia.
+   */
+  refusals: readonly Unavailability[]
 }
 
 export type BookingHorizonInput = {
@@ -331,28 +345,36 @@ export function occupied(
   )
 }
 
-function reasonFor(
+function refusalsFor(
   schedule: BlockSchedule,
   startsAt: Date,
   endsAt: Date,
   context: BlockContext,
-): Unavailability | undefined {
+): Unavailability[] {
+  const refusals: Unavailability[] = []
   const endMinute = schedule.startMinute + schedule.durationMinutes
+
+  // Kolejność jest tu pierwszeństwem, a nie oszczędnością: liczymy wszystkie
+  // powody, bo Panel dzieli je potem na dwie kupki, a na pierwszym miejscu ma
+  // stać ten, który Osobie rezerwującej powie o Bloku najwięcej.
+
   // Najpierw powód trwały: Blok poza godzinami otwarcia nie stanie się dostępny
   // z upływem czasu, więc mówi o sobie prawdziwiej niż horyzont czy wyprzedzenie.
   if (schedule.startMinute < context.hours.opensMinute || endMinute > context.hours.closesMinute) {
-    return 'poza-godzinami-otwarcia'
+    refusals.push('poza-godzinami-otwarcia')
   }
-  if (context.beyondHorizon) return 'poza-horyzontem'
+  if (context.beyondHorizon) refusals.push('poza-horyzontem')
   // Blok, który się zaczął, przestaje być do wzięcia — także w trakcie trwania.
+  // Jedno albo drugie, nigdy oba: termin, który już minął, nie jest zarazem
+  // terminem zbyt bliskim.
   const leadMinutes = (startsAt.getTime() - context.now.getTime()) / 60_000
-  if (leadMinutes <= 0) return 'przeszlosc'
-  if (leadMinutes < context.minLeadMinutes) return 'ponizej-wyprzedzenia'
-  // Powód ostatni, bo jedyny mówiący o kimś innym niż sam Blok. Blok, którego
-  // Strzelnica i tak nie sprzedaje, ma o tym powiedzieć wprost — a nie zwalać
-  // na Osobę rezerwującą, która akurat wpisała go ręcznie w Panelu.
+  if (leadMinutes <= 0) refusals.push('przeszlosc')
+  else if (leadMinutes < context.minLeadMinutes) refusals.push('ponizej-wyprzedzenia')
+  // Powód jedyny mówiący o kimś innym niż sam Blok, więc stoi po powodach
+  // o samym Bloku: Blok, którego Strzelnica i tak nie sprzedaje, ma o tym
+  // powiedzieć wprost — a nie zwalać na tego, kto akurat ten termin wziął.
   if (occupied(context.occupancies, context.laneId, startsAt, endsAt)) {
-    return 'termin-zajety'
+    refusals.push('termin-zajety')
   }
   // Powód wychodzący poza sam termin: mówi nie o Bloku, tylko o tym, kto pyta.
   // Stoi po zajętej Osi, bo Osoby rezerwującej nie ma po co zachęcać do zmiany
@@ -361,7 +383,7 @@ function reasonFor(
     const zajete = context.instructorOccupancies.filter((occupancy) =>
       overlaps(occupancy, startsAt, endsAt),
     ).length
-    if (zajete >= context.instructorPool) return 'brak-instruktora'
+    if (zajete >= context.instructorPool) refusals.push('brak-instruktora')
   }
   // Powód ostatni z zależnych od pytającego, bo najłatwiejszy do obejścia:
   // Osoba rezerwująca zdejmuje go, zamawiając mniej sztuk, a Instruktora bez
@@ -380,9 +402,10 @@ function reasonFor(
         zamowione.quantity >
         (pozostale.find((pozycja) => pozycja.type.id === zamowione.weaponTypeId)?.remaining ?? 0),
     )
-    if (brakuje) return 'brak-sztuk-broni'
+    if (brakuje) refusals.push('brak-sztuk-broni')
   }
-  return undefined
+
+  return refusals
 }
 
 /**
@@ -434,7 +457,7 @@ export function scheduleForDay(input: DayAvailabilityInput): DaySchedule {
         schedule.startMinute + schedule.durationMinutes,
         input.timeZone,
       )
-      const unavailableBecause = reasonFor(schedule, startsAt, endsAt, context)
+      const refusals = refusalsFor(schedule, startsAt, endsAt, context)
 
       return {
         scheduleId: schedule.id,
@@ -442,8 +465,8 @@ export function scheduleForDay(input: DayAvailabilityInput): DaySchedule {
         startMinute: schedule.startMinute,
         startsAt,
         endsAt,
-        available: unavailableBecause === undefined,
-        ...(unavailableBecause ? { unavailableBecause } : {}),
+        available: refusals.length === 0,
+        refusals,
       }
     })
 

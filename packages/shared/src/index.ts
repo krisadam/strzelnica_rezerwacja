@@ -144,8 +144,13 @@ export type {
 export {
   bookingProblems,
   concernsTheTerm,
+  draftProblems,
   MalformedBookingRequestError,
+  participantsProblem,
+  readBookingDraft,
   readBookingRequest,
+  readBookingTerm,
+  readRequestBody,
 } from './booking.ts'
 export type {
   BookingCheck,
@@ -154,12 +159,32 @@ export type {
   BookingOutcome,
   BookingProblem,
   BookingRequest,
+  BookingTerm,
+  DraftCheck,
+  DraftProblem,
+  ParticipantsProblem,
 } from './booking.ts'
+export {
+  LIMIT_OVERRIDES,
+  manualBookingReview,
+  readManualBookingRequest,
+  unconfirmedOverrides,
+} from './manual.ts'
+export type {
+  BookingSource,
+  LimitOverride,
+  ManualBookingCheck,
+  ManualBookingOutcome,
+  ManualBookingProblem,
+  ManualBookingRequest,
+  ManualBookingReview,
+} from './manual.ts'
 export {
   dayAgenda,
   filterBookings,
   PANEL_DAYS_BACK,
   panelOccupancy,
+  panelWeaponOccupancy,
   panelWindow,
 } from './panel.ts'
 export type {
@@ -169,6 +194,8 @@ export type {
   LaneEntry,
   PanelBooking,
   PanelOccupancyInput,
+  PanelRental,
+  PanelWeaponOccupancyInput,
   PanelWindow,
   PanelWindowInput,
 } from './panel.ts'

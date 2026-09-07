@@ -204,6 +204,22 @@ export function Szczegoly({
         <dt>{teksty.szczegoly.stan}</dt>
         <dd>{teksty.stan[wpis.status]}</dd>
 
+        <dt>{teksty.szczegoly.zrodlo}</dt>
+        <dd>{teksty.zrodlo[wpis.source]}</dd>
+
+        {/* Przekroczone limity zaraz pod Źródłem, bo tłumaczą właśnie je:
+            Rezerwacja na sześć osób na Osi czteroosobowej bez tego wiersza
+            wygląda na pomyłkę systemu. Rezerwacja w regułach wiersza nie ma —
+            pusty wyglądałby na daną, której nie doczytaliśmy. */}
+        {wpis.limitOverrides.length > 0 && (
+          <>
+            <dt>{teksty.szczegoly.przekroczenia}</dt>
+            <dd>
+              {wpis.limitOverrides.map((limit) => teksty.przekroczenie[limit]).join('; ')}
+            </dd>
+          </>
+        )}
+
         {/* Powód zaraz pod stanem, bo tłumaczy właśnie jego. Rezerwacja
             nieodwołana nie ma tu wiersza — pusty wyglądałby na brakującą
             daną, a nie na Rezerwację, która się odbędzie. */}

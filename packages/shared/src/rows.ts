@@ -443,6 +443,11 @@ export function panelBookingsFromRows({
     }
     if (row.amount_gr === null) throw new IncompletePanelBookingError('amount_gr')
     if (row.holds_term === null) throw new IncompletePanelBookingError('holds_term')
+    if (!row.source) throw new IncompletePanelBookingError('source')
+    // Sprawdzane wprost, bo pusta lista jest tu wartością, a nie brakiem:
+    // Rezerwacja mieszcząca się w regułach Strzelnicy nie ma przekroczeń
+    // i ma o tym powiedzieć pustą tablicą.
+    if (row.limit_overrides === null) throw new IncompletePanelBookingError('limit_overrides')
 
     const lane = osie.get(row.lane_id)
     if (!lane) throw new UnknownLaneError(row.lane_id)
@@ -456,6 +461,8 @@ export function panelBookingsFromRows({
       // Rezerwacja poza odwołanymi, a odwołanej powodu nie brakuje — pilnuje
       // tego `check` na kolumnie, nie ten odczyt.
       revocationReason: row.revocation_reason,
+      source: row.source,
+      limitOverrides: row.limit_overrides,
       booking: bookingSummaryFromRows({
         booking: {
           starts_at: row.starts_at,

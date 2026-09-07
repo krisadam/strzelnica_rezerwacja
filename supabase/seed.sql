@@ -149,10 +149,13 @@ on conflict (facility_id, closed_on) do nothing;
 -- Edge Function. Rachunek tej Rezerwacji: 120 zł za Blok + 30 zł za drugiego
 -- Uczestnika + 80 zł za Instruktora + 60 zł za „CZ Shadow 2" + 200 × 0,40 zł
 -- za amunicję = 370 zł.
+-- Źródło wypisane wprost, bo kolumna nie ma wartości domyślnej: Rezerwacja bez
+-- podanego Źródła podawałaby się za zgłoszenie klienta. Ta jest nim naprawdę —
+-- w regułach Strzelnicy, więc bez ani jednego naruszenia limitu.
 insert into public.bookings (
   id, facility_id, lane_id, starts_at, ends_at, status, participants,
   contact_name, contact_email, contact_phone, has_permit, with_instructor,
-  amount_gr, block_rate_gr, participation_rate_gr, instructor_rate_gr
+  amount_gr, block_rate_gr, participation_rate_gr, instructor_rate_gr, source
 )
 select
   '00000000-0000-0000-0000-0000000000b1',
@@ -170,7 +173,8 @@ select
   37000,
   12000,
   3000,
-  8000
+  8000,
+  'widget'
 from public.facilities f
 cross join lateral (
   select (
@@ -428,7 +432,7 @@ on conflict (id) do nothing;
 insert into public.bookings (
   id, facility_id, lane_id, starts_at, ends_at, status, participants,
   contact_name, contact_email, contact_phone, has_permit, with_instructor,
-  amount_gr, block_rate_gr, participation_rate_gr, instructor_rate_gr
+  amount_gr, block_rate_gr, participation_rate_gr, instructor_rate_gr, source
 )
 select
   rezerwacja.id,
@@ -446,7 +450,8 @@ select
   rezerwacja.amount_gr,
   rezerwacja.block_rate_gr,
   2500,
-  7000
+  7000,
+  'widget'
 from public.facilities f
 cross join lateral (
   select (

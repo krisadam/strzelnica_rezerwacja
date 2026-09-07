@@ -9,13 +9,14 @@
  * `panel_bookings` w bazie. Funkcja, która filtrowałaby po Strzelnicy tutaj,
  * byłaby drugą granicą — a druga granica to ta, o której się zapomina.
  */
-import type { Occupancy } from './availability.ts'
+import type { Occupancy, WeaponOccupancy } from './availability.ts'
 import { addDays, dayIn, zonedMinuteToInstant } from './calendar.ts'
 import type { CalendarDay } from './calendar.ts'
 import type { LaneClosure } from './closure.ts'
 import { closureOccupancy } from './closure.ts'
 import type { Database } from './database.types.ts'
 import type { BookingSummary } from './mail.ts'
+import type { BookingSource, LimitOverride } from './manual.ts'
 
 type BookingStatus = Database['public']['Enums']['booking_status']
 
@@ -43,6 +44,19 @@ export type PanelBooking = {
    * odwoływała, i po to samo dzwoniłby klient.
    */
   revocationReason: string | null
+  /**
+   * Skąd ta Rezerwacja się wzięła. Obsługa czyta z tego, z kim rozmawia,
+   * dzwoniąc w jej sprawie: „ktoś zadzwonił i wpisaliśmy to sami" znaczy inną
+   * rozmowę niż „klient kliknął sam".
+   */
+  source: BookingSource
+  /**
+   * Limity Strzelnicy przekroczone przy ręcznym wpisie — pusto ma każda
+   * Rezerwacja mieszcząca się w regułach. Jedzie razem ze Źródłem, bo bez tego
+   * Rezerwacja na sześć osób na Osi czteroosobowej wygląda na pomyłkę systemu,
+   * a nie na decyzję, którą ktoś podjął świadomie.
+   */
+  limitOverrides: readonly LimitOverride[]
   booking: BookingSummary
 }
 
@@ -200,6 +214,56 @@ function bookingOccupancy(wpis: PanelBooking): Occupancy {
     endsAt: wpis.booking.endsAt,
     withInstructor: wpis.booking.withInstructor,
   }
+}
+
+/** Wypożyczenie tak, jak leży w pozycjach Rezerwacji: co, ile i przy czyjej. */
+export type PanelRental = {
+  bookingId: string
+  weaponTypeId: string
+  quantity: number
+}
+
+export type PanelWeaponOccupancyInput = {
+  bookings: readonly PanelBooking[]
+  rentals: readonly PanelRental[]
+}
+
+/**
+ * Sztuki Typów broni trzymane przez Rezerwacje — złożone z tego, co Panel ma
+ * pod ręką, dokładnie jak `panelOccupancy` i z tego samego powodu: widoku
+ * `weapon_occupancy` Panel nie czyta wcale i nie ma do niego prawa (ADR 0009),
+ * bo tamten wystawia Wypożyczenia **wszystkich** Strzelnic.
+ *
+ * Wchodzą tu pozycje Rezerwacji, a nie opis z `PanelBooking.booking.rentals`:
+ * opis niesie nazwy z katalogu („Glock 17"), bo czyta go człowiek, a pule liczą
+ * się po identyfikatorach Typów.
+ *
+ * Termin bierze się z Rezerwacji, do której pozycja należy — własne kolumny
+ * Wypożyczenia nie mówią o nim nic. Pozycja Rezerwacji, która terminu już nie
+ * trzyma, nie trzyma też sztuk: anulowana oddaje broń tą samą zmianą stanu,
+ * którą oddaje Oś.
+ */
+export function panelWeaponOccupancy({
+  bookings,
+  rentals,
+}: PanelWeaponOccupancyInput): WeaponOccupancy[] {
+  const trzymajace = new Map(
+    bookings.filter((wpis) => wpis.holdsTerm).map((wpis) => [wpis.id, wpis.booking]),
+  )
+
+  return rentals.flatMap((pozycja) => {
+    const rezerwacja = trzymajace.get(pozycja.bookingId)
+    if (!rezerwacja) return []
+
+    return [
+      {
+        weaponTypeId: pozycja.weaponTypeId,
+        quantity: pozycja.quantity,
+        startsAt: rezerwacja.startsAt,
+        endsAt: rezerwacja.endsAt,
+      },
+    ]
+  })
 }
 
 /**
