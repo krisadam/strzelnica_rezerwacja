@@ -78,6 +78,15 @@ export type Dane = {
    * stoi w bazie (zobacz uwagę na początku pliku).
    */
   facility: Facility
+  /**
+   * Chwila, w której te dane odczytano. Jedzie razem z nimi, bo mierzy się nią
+   * przeszłość i minimalne wyprzedzenie w formularzu ręcznego wpisu — a „teraz"
+   * jest w tym module parametrem, nie odczytem zegara (spec, Testing
+   * Decisions). Ekran czytający zegar sam z siebie przeliczałby grafik przy
+   * każdym naciśnięciu klawisza, każdy raz na inny czas; tak przeliczy się
+   * razem z odczytem, raz na minutę.
+   */
+  teraz: Date
   lanes: Lane[]
   bookings: PanelBooking[]
   /** Blokady tego samego okna: dla kalendarza zajmują Oś tak jak Rezerwacje. */
@@ -235,6 +244,7 @@ export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane>
 
   return {
     facility,
+    teraz: now,
     okno,
     lanes: osie.map(laneFromRow),
     closures: rowsOrThrow(closures).map(laneClosureFromRow),

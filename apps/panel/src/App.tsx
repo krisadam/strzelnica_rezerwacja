@@ -170,7 +170,7 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
           {/* Ręczny wpis zaraz pod kalendarzem, bo z niego bierze się jego
               pierwsze pytanie: co stoi na Osi w dniu, o który klient właśnie
               pyta przez telefon. */}
-          <RecznyWpis client={client} dane={dane} onWpisano={odswiez} />
+          <RecznyWpis client={client} dane={dane} onOdswiez={odswiez} />
           {/* Blokada stoi pod kalendarzem, a nie pod listą: wyłącza się Oś
               patrząc na jej dzień, a lista odpowiada na inne pytanie — gdzie
               jest to jedno zgłoszenie, w sprawie którego dzwoni klient. */}

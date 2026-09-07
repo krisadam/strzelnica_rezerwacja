@@ -118,9 +118,10 @@ Edge Functions importują je wprost ze źródeł — dlatego wewnętrzne importy
 ścieżki lokalne dosłownie i sam nie podmieni jednego na drugie. Supabase CLI
 podmontowuje do środowiska brzegowego dokładnie te pliki, które funkcja
 importuje, a graf importów liczy raz — przy `supabase start`. **Nowy** plik
-w `packages/shared` wciągnięty przez `index.ts` wymaga więc pełnego restartu
-lokalnego Supabase; sam `pnpm db:reset` go nie podmontuje, a każda funkcja
-odpowie wtedy `worker boot error … Module not found`.
+wciągnięty do tego grafu — w `packages/shared` przez `index.ts` albo
+w `supabase/functions/_shared` przez którąkolwiek funkcję — wymaga więc pełnego
+restartu lokalnego Supabase; sam `pnpm db:reset` go nie podmontuje, a każda
+funkcja odpowie wtedy `worker boot error … Module not found`.
 
 ## Polecenia
 
@@ -449,10 +450,15 @@ Zapis idzie Edge Function `wpisz-rezerwacje` i idzie nią rolą serwisową, tak 
 jak odwołanie i Blokada (ADR 0003). Strzelnicy nie ma przy tym w żądaniu i nie ma
 jej czym podstawić: funkcja pyta o nią bazę po numerze potwierdzonego konta
 (`panel_facility_of`, ADR 0010), a wszystko dalej — Osie, cennik, zajętość —
-liczy się z tej jednej odpowiedzi. Sam zapis wykonuje `place_booking`, ta sama
-funkcja bazodanowa, co dla zgłoszeń z Widgetu: ręczny wpis ma przejść przez tę
-samą blokadę doradczą, to samo zamiatanie wygasłych i to samo sprawdzenie Puli
-sztuk broni.
+liczy się z tej jednej odpowiedzi.
+
+Obie drogi zapisu dzielą przy tym dwie rzeczy, i to nie przypadkiem. Odczyt
+grafiku dnia razem z katalogami — wszystko, czego potrzeba, żeby orzec o terminie
+i wycenić Rezerwację — stoi w jednej kopii w `supabase/functions/_shared/grafik.ts`,
+bo obie zadają bazie dokładnie to samo pytanie, a odpowiadają na nie inaczej:
+klientowi odmową, obsłudze pytaniem o pewność. Sam zapis wykonuje `place_booking`,
+ta sama funkcja bazodanowa: ręczny wpis ma przejść przez tę samą blokadę doradczą,
+to samo zamiatanie wygasłych i to samo sprawdzenie Puli sztuk broni.
 
 ## Panel
 

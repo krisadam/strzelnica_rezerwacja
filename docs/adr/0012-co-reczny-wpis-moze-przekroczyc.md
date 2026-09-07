@@ -51,13 +51,20 @@ o egzemplarzu, którego nie ma w katalogu, a właściwym miejscem tej wiedzy jes
 katalog. Odstępstwo zapisane przy Rezerwacji zostawiłoby katalog nieprawdziwym
 i wróciłoby przy następnym zamówieniu, i przy każdym kolejnym.
 
-**Termin, który minął, i minimalne wyprzedzenie.** Nie są zdaniami
-o konfiguracji, tylko o zegarze. Wpis Rezerwacji na termin już rozpoczęty jest
-ewidencją tego, co się stało — a ewidencji odbytych strzelań ten moduł nie
-prowadzi i spec jej nie ma. Minimalne wyprzedzenie stoi tu z nimi, bo mierzy
-się tym samym zegarem, a nie kalendarzem konfiguracji; obsługa, która **właśnie
-teraz** przyjmuje kogoś na najbliższą godzinę, ustawia sobie wyprzedzenie
-krótsze i robi to raz, a nie przy każdej rozmowie.
+**Termin, który minął.** Nie jest zdaniem o konfiguracji, tylko o zegarze. Wpis
+Rezerwacji na termin już rozpoczęty jest ewidencją tego, co się stało — a
+ewidencji odbytych strzelań ten moduł nie prowadzi i spec jej nie ma.
+
+**Minimalne wyprzedzenie.** Mierzy się tym samym zegarem, więc stoi po tej samej
+stronie — i jest to decyzja najbardziej z tych wszystkich sporna, bo telefon
+o najbliższą godzinę jest właśnie tą rozmową, o której obsługa wie więcej niż
+system. Zostawiamy odmowę, bo ticket wymienia trzy limity i wyprzedzenia między
+nimi nie ma, a przekroczenie oddane bez decyzji jest przekroczeniem, którego
+nikt nie chciał. Jeśli okaże się potrzebne, jest to czwarta wartość
+`limit_override` i garść zdań wypisanych na końcu tego ADR-u — nie przebudowa.
+Nie odsyłamy tu do ekranu konfiguracji Strzelnicy: on należy do fazy F3, więc
+zdanie „obsługa ustawi sobie wyprzedzenie krótsze" byłoby dziś odesłaniem
+w nieistniejące miejsce.
 
 **Horyzont rezerwacji.** Nie do przekroczenia z tego samego powodu, a przy tym
 nieosiągalny z formularza: pole daty kończy się na dniu horyzontu, bo Rezerwacja
@@ -65,10 +72,21 @@ wpisana dalej nie stanęłaby w kalendarzu Panelu (`panelWindow`), a Blok dalszy
 niż horyzont nie ma czego pokazać. Blokada Osi wychodzi za horyzont i wolno jej
 (ADR 0011) — ale Blokada nie ma klienta, któremu obiecuje się termin.
 
-**Dzień zamknięty wyjątkiem kalendarzowym.** `scheduleForDay` oddaje wtedy zero
-Bloków, więc formularz nie ma czego wskazać. Przekroczenie znaczyłoby wymyślenie
-terminu, którego rozkład nie wystawił — a ticket mówi o przekraczaniu limitów na
-opublikowanym Bloku, nie o zakładaniu Bloków ręcznie.
+**Dzień, którego grafik nie ma wcale.** Dwie drogi prowadzą do tego samego:
+wyjątek kalendarzowy (dzień zamknięty) i dzień tygodnia bez ani jednego wiersza
+godzin otwarcia. `scheduleForDay` oddaje w obu `open: false` i zero Bloków, więc
+formularz nie ma czego wskazać — pokazuje zdanie „ta Oś nie ma tego dnia ani
+jednego Bloku" i nie ma tam nawet czego przekraczać.
+
+Jest to granica **godzin otwarcia jako limitu**, i warto ją nazwać wprost:
+przekroczyć wolno godziny, które Strzelnica tego dnia ma — Blok wypadający przed
+otwarciem albo po zamknięciu. Dnia, w którym Strzelnica nie otwiera się wcale,
+przekroczyć nie wolno, bo nie ma wtedy Bloku, przy którym stanęłoby odstępstwo.
+Przekroczenie znaczyłoby wymyślenie terminu, którego rozkład nie wystawił —
+a ticket mówi o przekraczaniu limitów na opublikowanym Bloku, nie o zakładaniu
+Bloków ręcznie. Gdyby Strzelnica chciała przyjąć grupę w dniu zamkniętym,
+właściwą odpowiedzią jest zdjęcie wyjątku kalendarzowego albo dopisanie godzin,
+a nie Rezerwacja obok grafiku.
 
 ## Naruszenie jest tablicą przy Rezerwacji, nie tabelą i nie notatką
 
@@ -113,6 +131,22 @@ bo klient naprawia jeden i przelicza od nowa, a Panel czyta wszystkie, bo dzieli
 je na przekroczenia i odmowy. Powód pierwszy z brzegu znaczyłby ręczny wpis
 przyjęty na termin, który już minął — bo minięcie stanęłoby za godzinami
 otwarcia, przekroczonymi tą samą decyzją.
+
+## Zgoda, której nikt nie kliknął
+
+`bookings.consented_at` jest `not null` z wartością domyślną `now()` i mówi
+o chwili, w której Osoba rezerwująca zaakceptowała regulamin. Przy telefonie nikt
+nic nie klika, a kolumna i tak się wypełni — więc formularz ma **pole
+zaznaczane** dla obsługi: „Klient zaakceptował regulamin i politykę prywatności
+w rozmowie". Bez niego kolumna twierdziłaby coś, czego nikt nie stwierdził;
+z nim twierdzi to, co obsługa właśnie zadeklarowała, a zastrzeżenie
+`brak-zgody` odmawia wpisu, dopóki pole stoi puste.
+
+Ticket o zgodę nie prosi i jest to świadome rozszerzenie zakresu — ale
+mniejsze niż alternatywa: Rezerwacja z Panelu bez tego pola byłaby jedyną
+w systemie, przy której `consented_at` nie znaczy nic. Odwrócenie tej decyzji
+to jedno pole formularza i jedno zastrzeżenie mniej; kolumna zostaje, bo należy
+do schematu Rezerwacji, nie do tej drogi zapisu.
 
 ## Czego przy ręcznym wpisie nie ma: listu
 

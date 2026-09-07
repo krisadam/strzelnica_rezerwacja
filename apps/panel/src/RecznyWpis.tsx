@@ -34,8 +34,15 @@ const POLE_TERMINU = 'wpis-termin'
  * Wybór Typów broni i liczby sztuk. Ile sztuk zostało, liczy `remainingWeapons`
  * z `@strzelnica/shared` — ta sama funkcja, która orzeka o dostępności Bloku
  * i którą pyta serwer. Górna granica jest tu prawdziwa i **nie** podlega
- * przekroczeniu: Pula sztuk mówi, ile sztuk Strzelnica ma, a nie ile zwykle
- * wydaje (ADR 0012).
+ * przekroczeniu, więc stoi w polu jako `max`: Pula sztuk mówi, ile sztuk
+ * Strzelnica ma, a nie ile zwykle wydaje (ADR 0012).
+ *
+ * Siostrzane wobec `apps/widget/src/Wypozyczenia.tsx` i świadomie osobne: to
+ * dwie aplikacje z dwoma słownikami, a wspólnego pakietu komponentów ten moduł
+ * nie ma — jedną kopię mają tu reguły (`packages/shared`), nie kontrolki.
+ * Zachowaniem różni się jedną rzeczą: Typ wyczerpany zostaje na liście z polem,
+ * bo obsługa ma zobaczyć, że Strzelnica go dziś nie wyda, a nie nie znaleźć go
+ * wcale.
  */
 function Wypozyczenia({
   dostepne,
@@ -65,6 +72,7 @@ function Wypozyczenia({
           <input
             type="number"
             min={0}
+            max={remaining}
             value={zamowione(type.id)}
             // Puste pole daje `NaN`; traktujemy je jak zero, bo znaczy „nie biorę".
             onChange={(zdarzenie) => zmien(type.id, zdarzenie.target.valueAsNumber || 0)}
@@ -142,7 +150,7 @@ function Amunicja({
 export function RecznyWpis({
   client,
   dane,
-  onWpisano,
+  onOdswiez,
 }: {
   client: PanelClient
   /**
@@ -152,15 +160,23 @@ export function RecznyWpis({
    * samą listą napisaną dwa razy.
    */
   dane: Dane
-  /** Rezerwacja weszła — ekran wyżej czyta dane od nowa. */
-  onWpisano: () => void
+  /**
+   * Funkcja odpowiedziała — ekran wyżej czyta dane od nowa. Wołane po **każdej**
+   * odpowiedzi, nie tylko po tej udanej: odmowa z bazy znaczy, że to, co ten
+   * formularz miał pod ręką, jest już nieprawdą — ktoś wziął termin albo zajął
+   * miejsce w Puli. Bez odczytu od nowa kolejne kliknięcie liczyłoby osąd
+   * z tych samych nieaktualnych danych i dostawało tę samą odmowę do
+   * najbliższego tiku odświeżania. Ten sam zwyczaj, co przy odwołaniu
+   * Rezerwacji.
+   */
+  onOdswiez: () => void
 }) {
-  const { facility, lanes, weaponTypes, ammunitionKinds } = dane
+  const { facility, lanes, weaponTypes, ammunitionKinds, teraz } = dane
 
-  // „Teraz" jest tu odczytem zegara, a nie stanem: minimalne wyprzedzenie
-  // i przeszłość mierzy się nim przy każdym przeliczeniu grafiku — a wynik i tak
-  // rozstrzyga zegar bazy, przy zapisie.
-  const teraz = new Date()
+  // „Teraz" przyjeżdża z odczytem danych, a nie z zegara czytanego tutaj:
+  // grafik ma się przeliczać razem z nimi, raz na minutę, a nie przy każdym
+  // naciśnięciu klawisza — i to na jeden czas, nie na dwa różne w jednym
+  // renderze. Ostatnie słowo ma i tak zegar bazy, przy zapisie.
   const dzisiaj = dayIn(facility.timeZone, teraz)
 
   const [laneId, setLaneId] = useState(lanes[0]?.id ?? '')
@@ -233,9 +249,10 @@ export function RecznyWpis({
       })
     : weaponTypes.map((type) => ({ type, remaining: type.pool }))
 
-  const osad = lane
-    ? manualBookingReview({ draft, lane, block, ammunitionKinds })
-    : { problems: ['nieznana-os' as const], exceeded: [] }
+  // Oś dopuszczalnie pusta i orzeka o tym `manualBookingReview`, a nie ten
+  // ekran: „nie ma takiej Osi" jest odmową domeny, a odmowa napisana tutaj
+  // byłaby drugą jej kopią — obok tej, którą na to samo odpowiada serwer.
+  const osad = manualBookingReview({ draft, lane, block, ammunitionKinds })
 
   // Kwota z tego samego rachunku, który policzy serwer. Bez Osi nie ma stawki
   // za Blok, więc nie ma czego pokazać.
@@ -270,6 +287,9 @@ export function RecznyWpis({
         .then((odpowiedz) => {
           setPyta([])
           setWynik(odpowiedz)
+          // Dane od nowa po każdej odpowiedzi — także po odmowie, i to wtedy
+          // najbardziej: odmowa mówi, że termin albo Pula zmieniły się bez nas.
+          onOdswiez()
           if (!odpowiedz.ok) return
           // Pola wracają do pustych wyłącznie po Rezerwacji, która weszła:
           // wyczyszczone po odmowie kazałyby wpisywać wszystko od nowa, żeby
@@ -284,7 +304,7 @@ export function RecznyWpis({
           setEmail('')
           setTelefon('')
           setZgoda(false)
-          onWpisano()
+          onOdswiez()
         })
         .catch((przyczyna: unknown) => {
           // Żądanie, które nie doszło, nie zmienia ekranu — bez tego zdania
@@ -294,7 +314,7 @@ export function RecznyWpis({
         })
         .finally(() => setWysylanie(false))
     },
-    [block, client, draft, dzien, laneId, onWpisano],
+    [block, client, draft, dzien, laneId, onOdswiez],
   )
 
   /**

@@ -192,6 +192,23 @@ describe('odmowy nie do przekroczenia', () => {
     expect(bezBloku).toEqual({ problems: ['termin-niedostepny'], exceeded: [] })
   })
 
+  /**
+   * Osi wolno nie być: w Panelu znika z listy między odczytem a kliknięciem,
+   * a w Edge Function baza nie przypisuje jej tej Strzelnicy. Odpowiedź jest
+   * wtedy jedna i mówi o Osi, a nie o terminie — bez Osi nie ma rozkładu,
+   * w którym termin mógłby być zajęty albo wolny.
+   */
+  it('odpowiada o Osi, gdy Osi nie ma — i nie mówi przy tym o terminie', () => {
+    const bezOsi = manualBookingReview({
+      draft: zgloszenie({ participants: 9 }),
+      lane: undefined,
+      block: undefined,
+      ammunitionKinds: KATALOG_AMUNICJI,
+    })
+
+    expect(bezOsi).toEqual({ problems: ['nieznana-os'], exceeded: [] })
+  })
+
   it('nie bierze składu zerowego ani ułamkowego za przekroczenie pojemności', () => {
     expect(osad(zgloszenie({ participants: 0 }))).toEqual({
       problems: ['liczba-uczestnikow-poza-zakresem'],

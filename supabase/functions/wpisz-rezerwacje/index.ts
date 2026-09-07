@@ -32,37 +32,24 @@ import type {
   ManualBookingRequest,
 } from '../../../packages/shared/src/index.ts'
 import {
-  ammunitionKindFromRow,
-  blockScheduleFromRow,
-  closedDateFromRow,
   facilityFromRow,
   instructorAttends,
   laneFromRow,
   MalformedBookingRequestError,
   manualBookingReview,
-  occupancyFromRow,
-  occupancyWindow,
-  openingHoursFromRow,
   priceBooking,
   ratesFor,
   readManualBookingRequest,
-  rowsOrThrow,
-  scheduleForDay,
   unconfirmedOverrides,
-  weaponOccupancyFromRow,
-  weaponTypeFromRow,
 } from '../../../packages/shared/src/index.ts'
 import type { Client } from '../_shared/baza.ts'
+import {
+  CLOSURE_CONFLICT,
+  EXCLUSION_VIOLATION,
+  WEAPON_POOL_VIOLATION,
+} from '../_shared/baza.ts'
+import { grafikOsi } from '../_shared/grafik.ts'
 import { outcome, panelEndpoint } from '../_shared/http.ts'
-
-/** Naruszenie ograniczenia wyłączności Osi w Postgresie. */
-const EXCLUSION_VIOLATION = '23P01'
-
-/** Naruszenie Puli sztuk Typu broni; własny SQLSTATE `place_booking`. */
-const WEAPON_POOL_VIOLATION = 'WP001'
-
-/** Rezerwacja na czas objęty Blokadą; własny SQLSTATE wyzwalaczy wyłączności. */
-const CLOSURE_CONFLICT = 'LC001'
 
 /**
  * Strzelnica konta, w imieniu którego prosi funkcja — z bazy, a nie z żądania.
@@ -117,53 +104,17 @@ async function handle(
   }
   const lane = laneFromRow(laneResult.data)
 
-  // Zajętość z tego samego widoku, co w Widgecie: to on — a nie zapytanie
-  // pisane tu jeszcze raz — wie, które Rezerwacje trzymają Oś, i to on wystawia
-  // obok nich Blokady. Ręczny wpis ma widzieć jedno i drugie, bo na termin
-  // czyjś nie wchodzi wcale.
-  const okno = occupancyWindow(request.day, facility.timeZone)
-
-  const [schedules, openingHours, exceptions, zajetosc, katalog, wypozyczone, rodzaje] =
-    await Promise.all([
-      client.from('block_schedules').select('*').eq('facility_id', facility.id),
-      client.from('opening_hours').select('*').eq('facility_id', facility.id),
-      client.from('calendar_exceptions').select('*').eq('facility_id', facility.id),
-      client
-        .from('lane_occupancy')
-        .select('*')
-        .eq('facility_id', facility.id)
-        .lt('starts_at', okno.to.toISOString())
-        .gt('ends_at', okno.from.toISOString()),
-      client.from('weapon_types').select('*').eq('facility_id', facility.id),
-      client
-        .from('weapon_occupancy')
-        .select('*')
-        .eq('facility_id', facility.id)
-        .lt('starts_at', okno.to.toISOString())
-        .gt('ends_at', okno.from.toISOString()),
-      client.from('ammunition_kinds').select('*').eq('facility_id', facility.id),
-    ])
-
-  const weaponTypes = rowsOrThrow(katalog).map(weaponTypeFromRow)
-  const ammunitionKinds = rowsOrThrow(rodzaje).map(ammunitionKindFromRow)
-
-  // Dostępność liczona tą samą funkcją, co w Widgecie — razem z powodami,
-  // przez które Blok nie jest wolny. Dopiero `manualBookingReview` rozdziela
-  // je na limity do przekroczenia i odmowy; tutaj nie ma o tym ani jednego
-  // zdania, bo reguła należy do `packages/shared`.
-  const grafik = scheduleForDay({
+  // Grafik dnia razem z katalogami — jedną kopią odczytu, tą samą, którą pyta
+  // zgłoszenie z Widgetu (`_shared/grafik.ts`), więc ręczny wpis widzi
+  // dokładnie tę samą Zajętość: cudze Rezerwacje **i** Blokady. Dopiero
+  // `manualBookingReview` rozdziela powody na limity do przekroczenia i odmowy;
+  // tutaj nie ma o tym ani jednego zdania, bo reguła należy do
+  // `packages/shared`.
+  const { grafik, weaponTypes, ammunitionKinds } = await grafikOsi(client, {
+    facility,
+    lane,
     day: request.day,
-    laneId: lane.id,
-    timeZone: facility.timeZone,
-    timeRules: facility.timeRules,
-    instructorPool: facility.instructorPool,
     intent: request,
-    schedules: rowsOrThrow(schedules).map(blockScheduleFromRow),
-    openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),
-    closedDates: rowsOrThrow(exceptions).map(closedDateFromRow),
-    occupancies: rowsOrThrow(zajetosc).map(occupancyFromRow),
-    weaponTypes,
-    weaponOccupancies: rowsOrThrow(wypozyczone).map(weaponOccupancyFromRow),
     now: new Date(),
   })
 

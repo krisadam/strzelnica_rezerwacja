@@ -22,13 +22,8 @@ import {
   readClosureRequest,
 } from '../../../packages/shared/src/index.ts'
 import type { Client } from '../_shared/baza.ts'
+import { CLOSURE_CONFLICT, EXCLUSION_VIOLATION } from '../_shared/baza.ts'
 import { outcome, panelEndpoint } from '../_shared/http.ts'
-
-/** Naruszenie ograniczenia wyłączności Osi w Postgresie — Blokada na Blokadę. */
-const EXCLUSION_VIOLATION = '23P01'
-
-/** Zderzenie Blokady z Rezerwacją; własny SQLSTATE wyzwalaczy wyłączności. */
-const CLOSURE_CONFLICT = 'LC001'
 
 async function handle(
   request: ClosureRequest,

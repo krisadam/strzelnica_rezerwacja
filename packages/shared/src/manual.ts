@@ -35,6 +35,7 @@ import {
   readRequestBody,
 } from './booking.ts'
 import type { Database } from './database.types.ts'
+import type { Lane } from './rows.ts'
 
 /**
  * Skąd Rezerwacja się wzięła. Czyta to obsługa przy każdej Rezerwacji: „ktoś
@@ -108,7 +109,7 @@ const TERM_READING: Record<Unavailability, ManualBookingProblem | LimitOverride>
 }
 
 /** Czy ta nazwa jest limitem do przekroczenia, a nie odmową. */
-function przekroczenie(nazwa: string): nazwa is LimitOverride {
+function jestPrzekroczeniem(nazwa: string): nazwa is LimitOverride {
   return (LIMIT_OVERRIDES as readonly string[]).includes(nazwa)
 }
 
@@ -131,17 +132,34 @@ export type ManualBookingReview = {
 }
 
 /**
- * Wszystko, co orzeka o ręcznym wpisie — ten sam kształt, co przy zgłoszeniu
- * z Widgetu, bo dane są te same. Różni się wyłącznie osąd.
+ * Wszystko, co orzeka o ręcznym wpisie. Ten sam kształt, co przy zgłoszeniu
+ * z Widgetu — dane są te same, różni się wyłącznie osąd — z jedną różnicą:
+ * Osi wolno tu nie być.
+ *
+ * Wolno, bo dwie drogi dochodzą do tego samego zdania „nie ma takiej Osi"
+ * i mają je mówić tak samo: w Panelu Oś znika z listy między odczytem
+ * a kliknięciem, a w Edge Function baza nie przypisuje jej tej Strzelnicy
+ * (ADR 0010). Osąd o tym zostaje więc tutaj — orzeczenie napisane w ekranie
+ * byłoby drugą kopią odmowy, tą, która rozjedzie się z pierwszą.
  */
+export type ManualBookingCheck = Omit<BookingCheck, 'lane'> & {
+  lane: Lane | undefined
+}
+
 export function manualBookingReview({
   draft,
   lane,
   block,
   ammunitionKinds,
-}: BookingCheck): ManualBookingReview {
+}: ManualBookingCheck): ManualBookingReview {
   const problems: ManualBookingProblem[] = []
   const exceeded: LimitOverride[] = []
+
+  // Bez Osi nie ma o czym dalej orzekać: pojemności nie ma z czym zestawić,
+  // a termin bez rozkładu Osi nie jest ani zajęty, ani wolny. Jedno zdanie
+  // zamiast dwóch — „nie ma takiej Osi" i „nie ma takiego terminu" naraz
+  // kazałyby obsłudze szukać dwóch pomyłek tam, gdzie jest jedna.
+  if (!lane) return { problems: ['nieznana-os'], exceeded: [] }
 
   if (!block) {
     // Blok, którego rozkład Osi nie zna — termin nigdy niewystawiony. Nie jest
@@ -153,7 +171,7 @@ export function manualBookingReview({
     // minął — bo minięcie stanęło za godzinami otwarcia.
     for (const powod of block.refusals) {
       const czytanie = TERM_READING[powod]
-      if (przekroczenie(czytanie)) exceeded.push(czytanie)
+      if (jestPrzekroczeniem(czytanie)) exceeded.push(czytanie)
       // Dwa powody schodzące do jednego zdania mówią je raz. Zdarza się:
       // dzień za horyzontem bywa zarazem terminem poniżej wyprzedzenia.
       else if (!problems.includes(czytanie)) problems.push(czytanie)
@@ -179,9 +197,16 @@ export function manualBookingReview({
 }
 
 /**
- * Limity przekraczane bez potwierdzenia — te, o które trzeba jeszcze zapytać,
- * i te, na które serwer odmawia. Jedna funkcja dla obu, bo pytanie jest to
- * samo: czy obsługa wie, co robi.
+ * Limity przekraczane bez potwierdzenia. Pyta o to serwer, zanim cokolwiek
+ * zapisze: pytanie o pewność zadał ekran, ale odpowiedź na nie przyjechała
+ * z przeglądarki, a między jednym a drugim Pula instruktorów bywa już zajęta
+ * przez klienta — i wtedy wpis przekracza limit, o którym nikogo nie zapytano.
+ *
+ * Wynikiem jest lista, a nie samo „tak" albo „nie", bo o to właśnie pyta się
+ * tej funkcji: **które** to limity. Odmowa serwera nazywa je odtąd zbiorczo
+ * (`niepotwierdzone-przekroczenie`), ale ekran wypisujący je z osobna nie ma
+ * czego dokładać, a odpowiedź zwężona do wartości logicznej trzeba by odkręcać
+ * przy pierwszym takim zdaniu.
  *
  * Potwierdzenie limitu, którego wpis nie przekracza, nie jest tu błędem
  * i przechodzi bez śladu: przy Rezerwacji zostaje `exceeded`, czyli to, co
@@ -228,7 +253,7 @@ function readOverrides(source: Record<string, unknown>): LimitOverride[] {
   }
 
   return overrides.map((wartosc: unknown) => {
-    if (typeof wartosc !== 'string' || !przekroczenie(wartosc)) {
+    if (typeof wartosc !== 'string' || !jestPrzekroczeniem(wartosc)) {
       throw new MalformedBookingRequestError(
         `pole overrides niesie limit, którego nie ma: ${String(wartosc)}`,
       )

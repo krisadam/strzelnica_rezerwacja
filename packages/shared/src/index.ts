@@ -173,6 +173,7 @@ export {
 export type {
   BookingSource,
   LimitOverride,
+  ManualBookingCheck,
   ManualBookingOutcome,
   ManualBookingProblem,
   ManualBookingRequest,
