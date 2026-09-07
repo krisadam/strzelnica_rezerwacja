@@ -227,3 +227,15 @@ Informacja o tym, czy Rezerwacja powstała w Widgecie, czy została wprowadzona
 ręcznie w Panelu. Rezerwacja z Panelu może naruszać limity Strzelnicy
 (pojemność Osi, godziny otwarcia, Pula instruktorów) — takie naruszenie jest
 przy niej trwale odnotowane.
+
+## Zestawienie dnia
+
+Lista tego, co Strzelnica ma przygotować na jeden dzień: ile sztuk każdego Typu
+broni i ile amunicji każdego Rodzaju zejdzie z magazynu oraz na ilu Rezerwacjach
+ma stanąć Instruktor — zsumowane po wszystkich Rezerwacjach tego dnia. Nie
+mówi o Osiach ani o godzinach: te wychodzą dopiero z Rezerwacji, z których
+pozycja Zestawienia się wzięła.
+
+Składają się na nie wyłącznie Rezerwacje **potwierdzone**. Oczekująca termin
+trzyma, ale broni pod niepotwierdzony adres nikt z magazynu nie wyjmuje;
+po anulowanej, odwołanej i wygasłej nie przyjedzie już nikt.

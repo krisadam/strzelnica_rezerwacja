@@ -14,6 +14,7 @@ import type { PanelClient } from './supabase.js'
 import { panelClient } from './supabase.js'
 import { Szczegoly } from './Szczegoly.js'
 import { teksty } from './teksty.js'
+import { Zestawienie } from './Zestawienie.js'
 
 /**
  * Obsłudze należy się zdanie po polsku, a nie komunikat PostgREST-a. Własną
@@ -131,6 +132,10 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
   }
 
   const { dane } = stan
+  // Dzień policzony raz dla obu widoków, które go czytają: kalendarz i
+  // Zestawienie mają pokazywać ten sam dzień, więc nie wolno im go liczyć
+  // osobno — dwa `new Date()` po obu stronach północy pokazałyby dwa różne dni.
+  const pokazywanyDzien = dzien ?? dayIn(dane.facility.timeZone, new Date())
   // Rezerwacja odszukiwana w świeżych danych, a nie pamiętana z chwili
   // kliknięcia. Anulowana w międzyczasie — choćby przez klienta jego własnym
   // linkiem — znika z okna i ekran wraca do listy zamiast pokazywać nieprawdę.
@@ -158,7 +163,7 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
       ) : (
         <>
           <Kalendarz
-            day={dzien ?? dayIn(dane.facility.timeZone, new Date())}
+            day={pokazywanyDzien}
             lanes={dane.lanes}
             bookings={dane.bookings}
             closures={dane.closures}
@@ -167,7 +172,15 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
             onDzien={setDzien}
             onWybierz={(wpis) => setWybraneId(wpis.id)}
           />
-          {/* Ręczny wpis zaraz pod kalendarzem, bo z niego bierze się jego
+          {/* Zestawienie tuż pod kalendarzem, bo czyta jego dzień: to jest
+              ten sam dzień oglądany drugi raz — raz po Osiach, raz po tym, co
+              z magazynu na niego zejdzie. */}
+          <Zestawienie
+            day={pokazywanyDzien}
+            bookings={dane.bookings}
+            onWybierz={(wpis) => setWybraneId(wpis.id)}
+          />
+          {/* Ręczny wpis pod obydwoma odczytami dnia, bo z nich bierze się jego
               pierwsze pytanie: co stoi na Osi w dniu, o który klient właśnie
               pyta przez telefon. */}
           <RecznyWpis client={client} dane={dane} onOdswiez={odswiez} />

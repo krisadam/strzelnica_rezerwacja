@@ -4,11 +4,14 @@ import type {
   LaneClosure,
   LaneEntry,
   LimitOverride,
+  OrderedItem,
   PanelBooking,
   PanelBookingRows,
+  TallyItem,
 } from './index.ts'
 import {
   dayAgenda,
+  dayTally,
   filterBookings,
   IncompletePanelBookingError,
   PANEL_DAYS_BACK,
@@ -42,6 +45,10 @@ function rezerwacja(dane: {
   revocationReason?: string | null
   source?: PanelBooking['source']
   limitOverrides?: readonly LimitOverride[]
+  hasPermit?: boolean
+  withInstructor?: boolean
+  rentals?: readonly OrderedItem[]
+  ammunition?: readonly OrderedItem[]
 }): PanelBooking {
   const day = dane.day ?? '2026-06-15'
   const startsAt = new Date(`${day}T${String(dane.godzina ?? 10).padStart(2, '0')}:00:00Z`)
@@ -62,10 +69,10 @@ function rezerwacja(dane: {
       endsAt: new Date(startsAt.getTime() + 2 * 60 * 60_000),
       timeZone: 'Europe/Warsaw',
       participants: 2,
-      hasPermit: true,
-      withInstructor: false,
-      rentals: [],
-      ammunition: [],
+      hasPermit: dane.hasPermit ?? true,
+      withInstructor: dane.withInstructor ?? false,
+      rentals: dane.rentals ?? [],
+      ammunition: dane.ammunition ?? [],
       amount: 12000,
       contact: { name: 'Jan Przykładowy', email: 'jan@example.pl', phone: '600100200' },
     },
@@ -376,6 +383,133 @@ describe('Lista Rezerwacji z filtrami', () => {
     })
 
     expect(filterBookings([anulowana], {}).map((wpis) => wpis.id)).toEqual(['anulowana'])
+  })
+})
+
+const GLOCK = 'Glock 17'
+const SHADOW = 'CZ Shadow 2'
+const PARABELLUM = '9 × 19 mm Parabellum'
+const BOCZNY = '.22 Long Rifle'
+
+/** Co i ile — pozycje zestawienia sprowadzone do jednego napisu na wiersz. */
+function ile(pozycje: readonly TallyItem[]): string[] {
+  return pozycje.map((pozycja) => `${pozycja.name}: ${pozycja.quantity}`)
+}
+
+describe('Zestawienie dnia', () => {
+  const PORANNA = rezerwacja({
+    id: 'poranna',
+    godzina: 9,
+    rentals: [{ name: GLOCK, quantity: 2 }],
+    ammunition: [{ name: PARABELLUM, quantity: 100 }],
+  })
+
+  const POLUDNIOWA = rezerwacja({
+    id: 'poludniowa',
+    godzina: 12,
+    rentals: [
+      { name: SHADOW, quantity: 3 },
+      { name: GLOCK, quantity: 1 },
+    ],
+    ammunition: [
+      { name: BOCZNY, quantity: 200 },
+      { name: PARABELLUM, quantity: 50 },
+    ],
+  })
+
+  const DZIEN = '2026-06-15'
+
+  it('sumuje Wypożyczenia po Typach broni', () => {
+    const { weapons } = dayTally({ bookings: [PORANNA, POLUDNIOWA], day: DZIEN })
+
+    expect(ile(weapons)).toEqual([`${SHADOW}: 3`, `${GLOCK}: 3`])
+  })
+
+  it('sumuje Zapotrzebowanie po Rodzajach amunicji', () => {
+    const { ammunition } = dayTally({ bookings: [PORANNA, POLUDNIOWA], day: DZIEN })
+
+    expect(ile(ammunition)).toEqual([`${BOCZNY}: 200`, `${PARABELLUM}: 150`])
+  })
+
+  // Instruktor jest człowiekiem do postawienia na Osi, więc liczy się każda
+  // Rezerwacja, na której ma stanąć — nie tylko ta, której go brak Pozwolenia
+  // narzucił. Grafik zmiany wychodzi z jednej liczby i z drugiej tak samo.
+  it('liczy Rezerwacje z Instruktorem — wymaganym i zamówionym', () => {
+    const bezPozwolenia = rezerwacja({ id: 'wymagany', hasPermit: false, withInstructor: true })
+    const zamowiony = rezerwacja({ id: 'zamowiony', hasPermit: true, withInstructor: true })
+    const sama = rezerwacja({ id: 'bez' })
+
+    const { instructorBookings } = dayTally({
+      bookings: [bezPozwolenia, zamowiony, sama],
+      day: DZIEN,
+    })
+
+    expect(instructorBookings.map((wpis) => wpis.id)).toEqual(['wymagany', 'zamowiony'])
+  })
+
+  /**
+   * Zestawienie jest listą do przygotowania, a nie obrazem zajętości: liczy się
+   * to, po co ktoś naprawdę przyjedzie. Oczekująca odpada mimo że trzyma
+   * jeszcze termin — pod zmyślony adres nie wykłada się broni z magazynu.
+   */
+  it.each([
+    ['oczekująca', 'oczekujaca', true],
+    ['wygasła', 'wygasla', false],
+    ['anulowana przez klienta', 'anulowana-przez-klienta', false],
+    ['odwołana przez Strzelnicę', 'odwolana-przez-strzelnice', false],
+  ] as const)('nie wlicza Rezerwacji %s', (_nazwa, status, holdsTerm) => {
+    const odpada = rezerwacja({
+      id: 'odpada',
+      status,
+      holdsTerm,
+      withInstructor: true,
+      rentals: [{ name: GLOCK, quantity: 2 }],
+      ammunition: [{ name: PARABELLUM, quantity: 100 }],
+    })
+
+    const zestawienie = dayTally({ bookings: [odpada], day: DZIEN })
+
+    expect(zestawienie.weapons).toEqual([])
+    expect(zestawienie.ammunition).toEqual([])
+    expect(zestawienie.instructorBookings).toEqual([])
+  })
+
+  it('nie wlicza Rezerwacji innego dnia', () => {
+    const jutrzejsza = rezerwacja({
+      id: 'jutro',
+      day: '2026-06-16',
+      rentals: [{ name: GLOCK, quantity: 5 }],
+    })
+
+    expect(dayTally({ bookings: [PORANNA, jutrzejsza], day: DZIEN }).weapons).toEqual([
+      { name: GLOCK, quantity: 2, shares: [{ booking: PORANNA, quantity: 2 }] },
+    ])
+  })
+
+  /**
+   * Po to zestawienie niesie Rezerwacje, a nie same liczby: „trzy Glocki" bez
+   * nich jest liczbą, której nie da się z niczym skonfrontować, a obsługa pyta
+   * dalej — czyje to i o której.
+   */
+  it('prowadzi z pozycji do Rezerwacji, z których wynikła, od najwcześniejszej', () => {
+    const { weapons } = dayTally({ bookings: [POLUDNIOWA, PORANNA], day: DZIEN })
+    const glock = weapons.find((pozycja) => pozycja.name === GLOCK)
+
+    expect(glock?.shares).toEqual([
+      { booking: PORANNA, quantity: 2 },
+      { booking: POLUDNIOWA, quantity: 1 },
+    ])
+  })
+
+  // Rezerwacja bez sprzętu nie staje przy żadnej pozycji — pusty wiersz „Glock
+  // 17 — 0 szt." kazałby obsłudze wyjmować broń, której nikt nie zamówił.
+  it('pomija Rezerwacje bez sprzętu', () => {
+    const golasem = rezerwacja({ id: 'golasem' })
+
+    const zestawienie = dayTally({ bookings: [golasem], day: DZIEN })
+
+    expect(zestawienie.weapons).toEqual([])
+    expect(zestawienie.ammunition).toEqual([])
   })
 })
 
