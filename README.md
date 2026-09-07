@@ -149,7 +149,8 @@ wyciągnięcia — nie do dopisania testu wyżej.
 `e2e/` to wąska warstwa weryfikacyjna dla tego, czego czysta funkcja nie widzi:
 wyścig o ten sam Blok, przejście całej ścieżki, izolacja Strzelnic, osadzenie
 w ramce, potwierdzenie adresu, anulowanie przez link, logowanie do Panelu,
-odwołanie Rezerwacji przez Strzelnicę.
+odwołanie Rezerwacji przez Strzelnicę, Blokada Osi zdejmująca terminy
+z Widgetu.
 Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
@@ -172,7 +173,8 @@ zmienia: `bookings` niesie dane osobowe, a Osoba rezerwująca nie ma konta,
 którym dałoby się jej pokazać własny wiersz i tylko własny.
 Klucz anonimowy nie ma do tabeli `bookings` żadnej polityki RLS: nie zapisze
 do niej niczego i nie odczyta z niej niczego. Kalendarz czyta zajętość
-z widoku `lane_occupancy` — Oś i zakres czasu, bez danych osobowych.
+z widoku `lane_occupancy` — Oś i zakres czasu, bez danych osobowych, i tak samo
+dla Rezerwacji jak dla [Blokad](#blokady-osi).
 
 Wyłączności Osi pilnuje ograniczenie `exclude` w schemacie, a nie sprawdzenie
 w kodzie: dwa równoczesne zgłoszenia na ten sam Blok przechodzą walidację oba,
@@ -336,6 +338,63 @@ z przyciskiem „Anuluj", którego nie ma czego anulować. Ten sam powód stoi p
 linkiem klienta i w Panelu — list bywa skasowany, a Rezerwacja odwołana zostaje
 w Panelu ze swoim stanem, bo dzwoni się właśnie w jej sprawie.
 
+## Blokady Osi
+
+Wyłączenie Osi ze sprzedaży na czas serwisu albo zawodów. Osobna tabela
+`lane_closures`, a nie Rezerwacja bez klienta (ADR 0011): tamta wymaga
+kontaktu, Uczestników, Kwoty i stawek, a Blokada nie ma z tego ani jednej
+rzeczy — i nie ma stanu, bo jest albo jej nie ma.
+
+Zakres czasu jest **dowolny**: Blokada nie wybiera się z opublikowanych Bloków,
+bo obsługa zamyka Oś na czas serwisu, a nie na wielokrotność Slotu — i wolno jej
+wyjść za horyzont rezerwacji, bo zawody bywają zaplanowane wcześniej, niż
+Strzelnica przyjmuje Rezerwacje. Blok, który zahacza o nią choćby minutą,
+przestaje być do wzięcia — sprzedać połowy Bloku nie ma jak — ale **zostaje na
+grafiku** jako niedostępny, z powodem „termin już zajęty". Zniknięcie zostaje
+dniowi zamkniętemu; Blok znikający wyłącznie od Blokady wystawiałby Osobie
+rezerwującej różnicę między „ktoś tam jest" a „Strzelnica coś naprawia"
+(ADR 0011).
+
+Powód jest wymagany i czyta go wyłącznie obsługa — ticket #16 o niego nie
+prosił, więc jest to świadome rozszerzenie zakresu, opisane w ADR 0011. Klient
+widzi sam zajęty termin, tak samo jak przy cudzej Rezerwacji.
+
+Dla dostępności Blokada i Rezerwacja są **nierozróżnialne** i jest to wykonane
+dosłownie, a nie tylko obiecane: widok `lane_occupancy` wystawia `union all`
+obu tabel, obie wchodzą w jeden kształt `Occupancy` z `packages/shared`,
+a kolizję orzeka o nich jedna funkcja `occupied`. Terminy Osi wyłączonej znikają
+z Widgetu w tej samej chwili, w której Blokada trafia do tabeli — bez czekania
+na cokolwiek. Miejsca w Puli instruktorów Blokada przy tym nie zajmuje: nie ma
+przy niej nikogo do nadzorowania.
+
+Wyłączności między dwiema tabelami nie da się wyrazić ograniczeniem
+wykluczającym — obejmuje ono jedną tabelę — więc stoją tu **dwa wyzwalacze**,
+po jednym z każdej strony, i odmawiają wspólnym SQLSTATE `LC001`. Rezerwacja nie
+wejdzie na czas Blokady, a Blokada na czas Rezerwacji trzymającej termin: tę
+trzeba wcześniej [odwołać](#odwołanie-rezerwacji-przez-strzelnicę), bo klient ma
+dostać powód na piśmie, a nie zastać zamknięte. Wyścig dwóch równoczesnych
+zapisów rozstrzyga blokada doradcza na Strzelnicę, którą biorą obie funkcje
+zapisujące — wyzwalacz cudzego wiersza sprzed zatwierdzenia nie widzi. Blokada
+nie wchodzi też na Blokadę, i tego pilnuje już zwykłe ograniczenie wykluczające
+na jej tabeli.
+
+Zapis idzie Edge Function `zablokuj-os` i idzie nią rolą serwisową, tak samo jak
+odwołanie: konto Panelu prawa do `place_closure` nie ma wcale (ADR 0003).
+Granica Strzelnicy zostaje w bazie — numer konta jedzie parametrem, a o jego
+Strzelnicę pyta `panel_facility_of` (ADR 0010), więc identyfikator obcej Osi
+w żądaniu nie otwiera niczego. Listu nie ma tu żadnego: Blokada nie ma Osoby
+rezerwującej, więc nie ma komu go wysłać.
+
+Blokady czyta Panel wprost z tabeli, polityką na przynależność do Strzelnicy —
+nie widokiem jak Rezerwacje, bo nie ma w niej ani jednej kolumny, której obsługa
+nie ma prawa zobaczyć. Klucz anonimowy nie dostaje do niej ani polityki, ani
+prawa: powód wyłączenia jest sprawą wewnętrzną Strzelnicy, a skutek Blokady
+wychodzi do Widgetu widokiem zajętości.
+
+Zdjęcia Blokady ten ticket nie ma. Wprowadzona pomyłkowo znika dopiero razem
+z ekranem, który będzie umiał ją skasować — osobna tabela czyni to zwykłym
+`delete` na własnym wierszu.
+
 ## Panel
 
 Wejście do Panelu daje konto Supabase Auth powiązane z jedną Strzelnicą przez
@@ -352,11 +411,27 @@ funkcją `booking_holds_term`, co widoki zajętości Widgetu. Kalendarz Panelu
 pokazuje wyłącznie Rezerwacje trzymające termin, lista — wszystkie, ze stanem
 w kolumnie.
 
-Zmienia Panel jedną rzecz: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
-przez Strzelnicę](#odwołanie-rezerwacji-przez-strzelnicę)). Idzie to Edge
-Function, bo tabelę mają zamkniętą obie publiczne role — a ekran szczegółów
-odczytuje po tym dane od nowa, zamiast przepisywać sobie stan z odpowiedzi
-„udało się": między wczytaniem Panelu a kliknięciem klient bywa szybszy.
+W kalendarzu stoją obok nich [Blokady](#blokady-osi), w jednym szeregu i w tym
+samym porządku godzin: obie zajmują Oś, więc dzień Osi czyta się z jednego
+miejsca. Odróżnia je znacznik „Blokada" w miejscu, w którym przy Rezerwacji stoi
+nazwisko, obwódka w innym kolorze i brak przycisku — Blokada nie prowadzi na
+żaden ekran, bo cała jej treść stoi w kolumnie. Blokada dłuższa od doby wypisuje
+się pełnymi chwilami zamiast zakresem godzin: „18:00–12:00" kłamałoby o jej
+długości, i to w stronę, w którą kłamać nie wolno. Na liście Blokad nie ma —
+jej kolumny to Osoba rezerwująca, Uczestnicy i Kwota, a Blokada nie ma ani
+jednej z tych rzeczy.
+
+Zmienia Panel dwie rzeczy: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
+przez Strzelnicę](#odwołanie-rezerwacji-przez-strzelnicę)) i wprowadza Blokadę
+Osi (zobacz [Blokady Osi](#blokady-osi)). Jedno i drugie idzie Edge Function,
+bo obie tabele mają zamknięte obie publiczne role — a ekran odczytuje po tym
+dane od nowa, zamiast przepisywać sobie stan z odpowiedzi „udało się": między
+wczytaniem Panelu a kliknięciem klient bywa szybszy.
+
+Formularz Blokady oknem odczytu **nie** jest przy tym ograniczony, inaczej niż
+pola filtrów: tam okno jest granicą pytania, a tu byłoby granicą zapisu —
+a Blokada obejmuje dowolny zakres czasu, także dalszy niż horyzont. Zapisana
+poza oknem po prostu nie stoi jeszcze w kalendarzu i formularz mówi to wprost.
 
 Ani jedno zapytanie Panelu nie mówi o Strzelnicy: zalogowanemu kontu baza oddaje
 wyłącznie jej wiersze (zobacz [Izolacja Strzelnic](#izolacja-strzelnic)). Warunek
@@ -408,7 +483,7 @@ konta, więc granica nie może przebiegać po nich.
 | --- | --- | --- |
 | `anon` | klucz w kodzie Widgetu, bez tożsamości | oferta wszystkich Strzelnic i nic poza nią |
 | `authenticated` | konto Panelu, `panel_facility()` mówi czyje | jedna Strzelnica, w komplecie — i wyłącznie do odczytu |
-| `service_role` | Edge Functions | każdą tabelę; tędy idzie **każdy** zapis, także odwołanie w imieniu konta Panelu (ADR 0003, ADR 0010) |
+| `service_role` | Edge Functions | każdą tabelę; tędy idzie **każdy** zapis, także odwołanie Rezerwacji i Blokada Osi w imieniu konta Panelu (ADR 0003, ADR 0010) |
 
 Rola serwisowa widzi każdą **tabelę**, ale nie widoku `panel_bookings`: jego
 warunek pyta o zalogowane konto, a rola serwisowa żadnym nie jest. Rezerwacje
@@ -430,6 +505,12 @@ trzema, i przy każdej z tych trzech jest to decyzja:
 | `mail_outbox` | nigdzie i nie jest potrzebna — czyta ją wyłącznie rola serwisowa, obie publiczne role tracą prawo odczytu |
 | `panel_users` | w warunku o konto (`user_id = auth.uid()`), bo ta tabela jest **źródłem** odpowiedzi na „czyja to Strzelnica"; konto widzi z niej jeden wiersz, własny |
 
+Osobno stoi `lane_closures`: politykę na przynależność do Strzelnicy ma, ale
+tylko dla konta Panelu — klucz anonimowy nie dostaje ani jej, ani prawa odczytu.
+Nie jest to bowiem oferta: powód wyłączenia Osi czyta wyłącznie obsługa,
+a klientowi wychodzi sam skutek, widokiem `lane_occupancy` (zobacz
+[Blokady Osi](#blokady-osi)).
+
 Uprawnienia są przy tym drugim zamkiem, nie ozdobą przy RLS, bo dwie rzeczy
 wymykają się politykom z definicji: `truncate` nie podlega RLS wcale (a Supabase
 nadaje to prawo każdej nowej relacji), a `update` i `delete` bez polityki nie są
@@ -447,7 +528,7 @@ prawami, których ta migracja nie dosięga.
 
 Seed zakłada drugą Strzelnicę z wierszem w **każdej** tabeli domenowej — dwiema
 Osiami, własnym rozkładem i godzinami, wyjątkiem kalendarzowym, oboma
-katalogami, dwiema Rezerwacjami z pozycjami i listem w skrzynce. Nie jest to
+katalogami, dwiema Rezerwacjami z pozycjami, Blokadą i listem w skrzynce. Nie jest to
 rozmach: asercja „nie widzę tego wiersza" bez obcego wiersza mierzy pustkę,
 a nie granicę. Pierwsza Rezerwacja celuje w to samo okno czasu, co Rezerwacja
 demo — gdyby Panel dzielił dane po dacie zamiast po Strzelnicy, byłoby to widać.

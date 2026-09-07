@@ -8,6 +8,7 @@
  * Przykładowy, 2 os." to nie są dwa warianty jednego zdania.
  */
 import type {
+  ClosureProblem,
   Database,
   InstructorPresence,
   OrderedItem,
@@ -46,8 +47,16 @@ export const teksty = {
     poprzedniDzien: 'Poprzedni dzień',
     nastepnyDzien: 'Następny dzień',
     dzisiaj: 'Dzisiaj',
-    /** Oś, na której dziś nic nie stoi. Odpowiedź, nie brak treści. */
-    pustaOs: 'Brak Rezerwacji',
+    /**
+     * Oś, na której dziś nic nie stoi — ani Rezerwacja, ani Blokada.
+     * Odpowiedź, nie brak treści: „wolna" jest tym, po co obsługa tu zagląda.
+     */
+    pustaOs: 'Oś wolna cały dzień',
+    /**
+     * Znacznik Blokady w kolumnie Osi. Stoi tam, gdzie przy Rezerwacji stoi
+     * nazwisko — bo to jest odpowiedź na to samo pytanie: kto ma tę Oś.
+     */
+    blokada: 'Blokada',
   },
 
   lista: {
@@ -155,6 +164,56 @@ export const teksty = {
         'Tej Rezerwacji nie ma czego odwoływać — sprawdź jej stan w odświeżonym opisie.',
     } satisfies Record<RevocationProblem, string>,
     blad: 'Nie udało się odwołać Rezerwacji. Spróbuj jeszcze raz za chwilę.',
+  },
+
+  /**
+   * Blokada Osi. Zdania mówią o Osi i o sprzedaży, a nie o kliencie: klienta
+   * przy Blokadzie nie ma i to jest cała różnica między nią a Odwołaniem.
+   */
+  blokada: {
+    naglowek: 'Blokada Osi',
+    wstep:
+      'Oś zniknie ze sprzedaży na wskazany czas — dowolny, także dalszy niż ' +
+      'horyzont rezerwacji; kalendarz wyżej pokaże Blokadę, gdy wejdzie w jego ' +
+      'okno. Klient zobaczy zajęty termin, bez powodu — powód czyta wyłącznie ' +
+      'obsługa.',
+    /**
+     * Nie samo „Oś", choć pole wskazuje to samo, co filtr listy: dwa pola
+     * o jednej nazwie na jednym ekranie każą czytającemu — i testowi
+     * przeglądarkowemu — zgadywać, o które chodzi.
+     */
+    os: 'Oś do wyłączenia',
+    od: 'Od',
+    do: 'Do',
+    powod: 'Powód wyłączenia',
+    /** Podpowiedź, bo powód czyta następna zmiana obsługi, a nie klient. */
+    podpowiedz: 'Np. „Serwis przenośnika tarcz".',
+    zablokuj: 'Wyłącz Oś ze sprzedaży',
+    blokowanie: 'Wyłączamy…',
+    /**
+     * Zdanie o skutku, i wyłącznie o tym, co skutkiem jest: terminu nie ma
+     * w sprzedaży. Ekran czyta dane od nowa, więc Blokada za chwilę stanie
+     * w kalendarzu sama — i to ona jest właściwym potwierdzeniem.
+     */
+    zablokowano: 'Oś wyłączona — terminy zniknęły ze sprzedaży.',
+    /**
+     * Odmowy, każda z podpowiedzią co dalej. Dwie pierwsze wypisuje sam
+     * formularz, jeszcze przed wysłaniem; „termin zajęty" przychodzi z bazy,
+     * bo dopiero ona wie, co stoi na Osi w tej sekundzie.
+     *
+     * „Nieznana Oś" znaczy Oś, której baza tej Strzelnicy nie przypisuje,
+     * a formularz wybiera Oś z listy tej właśnie Strzelnicy: żeby to zdanie
+     * stanęło na ekranie, Oś musiałaby zniknąć między odczytem a kliknięciem.
+     */
+    problem: {
+      'zly-zakres': 'Podaj początek i koniec Blokady — koniec musi być późniejszy.',
+      'brak-powodu': 'Podaj powód wyłączenia — przeczyta go następna zmiana obsługi.',
+      'termin-zajety':
+        'W tym czasie Oś jest już czyjaś. Rezerwację trzeba najpierw odwołać — ' +
+        'klient ma dostać powód, a nie zastać zamknięte.',
+      'nieznana-os': 'Tej Osi już nie ma. Odśwież ekran i sprawdź, co się z nią stało.',
+    } satisfies Record<ClosureProblem, string>,
+    blad: 'Nie udało się wprowadzić Blokady. Spróbuj jeszcze raz za chwilę.',
   },
 
   /**

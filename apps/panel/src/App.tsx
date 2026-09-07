@@ -1,6 +1,7 @@
 import type { BookingFilter, CalendarDay, Environment } from '@strzelnica/shared'
 import { dayIn, MissingSupabaseConfigError, readSupabaseConfig } from '@strzelnica/shared'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Blokada } from './Blokada.js'
 import type { Dane } from './dane.js'
 import { BrakStrzelnicyError, wczytajDane } from './dane.js'
 import { Kalendarz } from './Kalendarz.js'
@@ -159,10 +160,22 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
             day={dzien ?? dayIn(dane.facility.timeZone, new Date())}
             lanes={dane.lanes}
             bookings={dane.bookings}
+            closures={dane.closures}
             okno={dane.okno}
             timeZone={dane.facility.timeZone}
             onDzien={setDzien}
             onWybierz={(wpis) => setWybraneId(wpis.id)}
+          />
+          {/* Blokada stoi pod kalendarzem, a nie pod listą: wyłącza się Oś
+              patrząc na jej dzień, a lista odpowiada na inne pytanie — gdzie
+              jest to jedno zgłoszenie, w sprawie którego dzwoni klient. */}
+          <Blokada
+            client={client}
+            lanes={dane.lanes}
+            bookings={dane.bookings}
+            closures={dane.closures}
+            timeZone={dane.facility.timeZone}
+            onZablokowano={odswiez}
           />
           <Lista
             bookings={dane.bookings}

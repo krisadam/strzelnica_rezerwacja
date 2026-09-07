@@ -327,6 +327,51 @@ export type Database = {
         }
         Relationships: []
       }
+      lane_closures: {
+        Row: {
+          created_at: string
+          ends_at: string
+          facility_id: string
+          id: string
+          lane_id: string
+          reason: string
+          starts_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at: string
+          facility_id: string
+          id?: string
+          lane_id: string
+          reason: string
+          starts_at: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string
+          facility_id?: string
+          id?: string
+          lane_id?: string
+          reason?: string
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lane_closures_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lane_closures_lane_fkey"
+            columns: ["lane_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "lanes"
+            referencedColumns: ["id", "facility_id"]
+          },
+        ]
+      }
       lanes: {
         Row: {
           block_rate_gr: number
@@ -582,36 +627,7 @@ export type Database = {
           starts_at: string | null
           with_instructor: boolean | null
         }
-        Insert: {
-          ends_at?: string | null
-          facility_id?: string | null
-          lane_id?: string | null
-          starts_at?: string | null
-          with_instructor?: boolean | null
-        }
-        Update: {
-          ends_at?: string | null
-          facility_id?: string | null
-          lane_id?: string | null
-          starts_at?: string | null
-          with_instructor?: boolean | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bookings_facility_id_fkey"
-            columns: ["facility_id"]
-            isOneToOne: false
-            referencedRelation: "facilities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bookings_lane_fkey"
-            columns: ["lane_id", "facility_id"]
-            isOneToOne: false
-            referencedRelation: "lanes"
-            referencedColumns: ["id", "facility_id"]
-          },
-        ]
+        Relationships: []
       }
       panel_bookings: {
         Row: {
@@ -751,6 +767,16 @@ export type Database = {
           p_starts_at: string
           p_status: Database["public"]["Enums"]["booking_status"]
           p_with_instructor: boolean
+        }
+        Returns: string
+      }
+      place_closure: {
+        Args: {
+          p_ends_at: string
+          p_lane_id: string
+          p_reason: string
+          p_starts_at: string
+          p_user_id: string
         }
         Returns: string
       }

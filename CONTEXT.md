@@ -209,7 +209,17 @@ o stawkę za uczestnictwo.
 Wyłączenie Osi z rezerwacji na wskazany czas, wprowadzane przez Panel
 (serwis, zawody, przerwa techniczna). Dla logiki dostępności zachowuje się
 identycznie jak Rezerwacja — zajmuje Oś na wyłączność — ale nie ma Osoby
-rezerwującej ani Kwoty do zapłaty.
+rezerwującej ani Kwoty do zapłaty. Nie ma też stanu: jest albo jej nie ma.
+
+Czasu nie bierze z rozkładu: Blokada obejmuje dowolny zakres, od kwadransa na
+wymianę tarczy do weekendu zawodów. Blok, który zahacza o nią choćby minutą,
+przestaje być do wzięcia — sprzedać połowy Bloku nie ma jak.
+
+Niesie **powód**, i jest on jej częścią, a nie notatką obok — jak przy
+Odwołaniu, tylko czytelnikiem jest tu Strzelnica: Oś zdjęta ze sprzedaży bez
+powodu każe następnej zmianie obsługi dzwonić i pytać, czy wolno ją włączyć.
+Do Osoby rezerwującej powód nie wychodzi; ona widzi Zajętość, tak samo jak przy
+cudzej Rezerwacji.
 
 ## Źródło rezerwacji
 

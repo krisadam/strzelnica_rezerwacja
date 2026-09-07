@@ -181,6 +181,30 @@ cross join lateral (
 where f.id = '00000000-0000-0000-0000-000000000001'
 on conflict (id) do nothing;
 
+-- Jedna Blokada, żeby grafik demo pokazywał także Oś wyłączoną ze sprzedaży —
+-- i pokazywał to na Osi innej niż Rezerwacja, bo Blokada nie jest jej
+-- odmianą. Celuje w środę oddaloną o co najmniej 18 dni, w godziny 12:00–16:00:
+-- zakres jest dowolny, więc **nie** trafia w siatkę Bloków i zdejmuje trzy
+-- z nich, dwa pokrywając częściowo. Odległość trzyma go z dala od terminów,
+-- w które celują testy przeglądarkowe.
+insert into public.lane_closures (id, facility_id, lane_id, starts_at, ends_at, reason)
+select
+  '00000000-0000-0000-0000-000000000301',
+  f.id,
+  '00000000-0000-0000-0000-0000000000a2',
+  poczatek,
+  poczatek + interval '240 minutes',
+  'Serwis przenośnika tarcz'
+from public.facilities f
+cross join lateral (
+  select (
+    (current_date + 18 + ((10 - extract(isodow from current_date + 18)::int) % 7))::timestamp
+      + interval '720 minutes'
+  ) at time zone f.timezone as poczatek
+) t
+where f.id = '00000000-0000-0000-0000-000000000001'
+on conflict (id) do nothing;
+
 -- Katalog Typów broni. Pule celowo różne: „Glock 17" starcza na kilka
 -- Rezerwacji naraz, a „CZ Shadow 2" jest jeden — więc Rezerwacja poniżej
 -- wyczerpuje go w swoim terminie i grafik demo pokazuje Typ niedostępny.
@@ -491,6 +515,28 @@ values (
   100,
   220
 )
+on conflict (id) do nothing;
+
+-- Blokada obcej Strzelnicy: inna Oś, inny dzień i inny powód niż
+-- w demonstracyjnej. Jest tu z tego samego powodu, co reszta jej wierszy —
+-- asercja „nie widzę tej Blokady" bez obcej Blokady mierzy pustkę, a nie
+-- granicę.
+insert into public.lane_closures (id, facility_id, lane_id, starts_at, ends_at, reason)
+select
+  '00000000-0000-0000-0000-000000000302',
+  f.id,
+  '00000000-0000-0000-0000-0000000000a4',
+  poczatek,
+  poczatek + interval '120 minutes',
+  'Zawody okręgowe obcej Strzelnicy'
+from public.facilities f
+cross join lateral (
+  select (
+    (current_date + 16 + ((11 - extract(isodow from current_date + 16)::int) % 7))::timestamp
+      + interval '540 minutes'
+  ) at time zone f.timezone as poczatek
+) t
+where f.id = '00000000-0000-0000-0000-000000000002'
 on conflict (id) do nothing;
 
 -- List, który poszedł do obcego klienta — w środowisku bez dostawcy poczty
