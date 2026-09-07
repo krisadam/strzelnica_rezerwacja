@@ -1,8 +1,8 @@
 /**
  * Panel: co Użytkownik panelu widzi o Rezerwacjach swojej Strzelnicy i jak to
- * jest poukładane. Dwa spojrzenia na ten sam zbiór — kalendarz dnia z podziałem
- * na Osie i lista z filtrami — więc jeden kształt Rezerwacji i dwie czyste
- * funkcje, które go układają.
+ * jest poukładane. Trzy spojrzenia na ten sam zbiór — kalendarz dnia z podziałem
+ * na Osie, lista z filtrami i Zestawienie dnia — więc jeden kształt Rezerwacji
+ * i trzy czyste funkcje, które go układają.
  *
  * Wielodostępności nie ma tu ani śladu i być nie może: do przeglądarki Panelu
  * przychodzą wyłącznie Rezerwacje jego Strzelnicy, bo odcina je widok
@@ -15,7 +15,7 @@ import type { CalendarDay } from './calendar.ts'
 import type { LaneClosure } from './closure.ts'
 import { closureOccupancy } from './closure.ts'
 import type { Database } from './database.types.ts'
-import type { BookingSummary } from './mail.ts'
+import type { BookingSummary, OrderedItem } from './mail.ts'
 import type { BookingSource, LimitOverride } from './manual.ts'
 
 type BookingStatus = Database['public']['Enums']['booking_status']
@@ -302,6 +302,120 @@ export function filterBookings(
         (!day || wpis.booking.day === day) && (!laneId || wpis.laneId === laneId),
     ),
   )
+}
+
+/**
+ * Udział jednej Rezerwacji w pozycji Zestawienia: która i ile z niej sztuk.
+ * Bez niego pozycja jest liczbą, której nie da się z niczym skonfrontować —
+ * a obsługa czytająca „Glock 17 — 3 szt." pyta dalej: czyje to i o której.
+ */
+export type TallyShare = {
+  booking: PanelBooking
+  quantity: number
+}
+
+/** Pozycja Zestawienia: co przygotować, ile sztuk i z czego ta liczba wyszła. */
+export type TallyItem = {
+  /**
+   * Nazwa z katalogu Strzelnicy — „Glock 17", a nie identyfikator, bo czyta ją
+   * człowiek wykładający broń na stanowisko. Jest tu zarazem kluczem sumowania
+   * i wolno jej nim być: schemat trzyma nazwy Typów broni i Rodzajów amunicji
+   * unikalne w obrębie Strzelnicy, a Panel widzi dokładnie jedną Strzelnicę.
+   */
+  name: string
+  /** Suma sztuk po wszystkich Rezerwacjach dnia. */
+  quantity: number
+  /** Rezerwacje, z których ta suma się złożyła — od najwcześniejszej. */
+  shares: readonly TallyShare[]
+}
+
+/**
+ * Co Strzelnica ma przygotować na jeden dzień: sprzęt i ludzie, w trzech
+ * listach. Sprzęt liczy się w sztukach, Instruktor w Rezerwacjach — to dwie
+ * różne jednostki, więc stoją osobno, zamiast udawać wiersz „Instruktor —
+ * 2 szt.".
+ */
+export type DayTally = {
+  /** Wypożyczenia zsumowane po Typach broni. */
+  weapons: TallyItem[]
+  /** Zapotrzebowanie zsumowane po Rodzajach amunicji. */
+  ammunition: TallyItem[]
+  /** Rezerwacje dnia, na których ma stanąć Instruktor — od najwcześniejszej. */
+  instructorBookings: PanelBooking[]
+}
+
+export type DayTallyInput = {
+  bookings: readonly PanelBooking[]
+  /** Dzień kalendarza Strzelnicy; Rezerwacja niesie swój w tej samej strefie. */
+  day: CalendarDay
+}
+
+/**
+ * Pozycje Rezerwacji zsumowane po nazwie z katalogu. Wypożyczenia
+ * i Zapotrzebowanie przechodzą tą samą drogą, bo w zestawieniu różnią się
+ * wyłącznie nagłówkiem listy — tak samo jak w opisie Rezerwacji na piśmie.
+ *
+ * Porządek jest alfabetyczny, bo innego tu nie ma: wchodzą same pozycje
+ * Rezerwacji, a kolejność katalogu została w bazie. Alfabet i tak jest tym,
+ * czym czyta się listę do skompletowania — szuka się w niej nazwy.
+ */
+function sumujPozycje(
+  bookings: readonly PanelBooking[],
+  pozycje: (wpis: PanelBooking) => readonly OrderedItem[],
+): TallyItem[] {
+  const wedlug = new Map<string, { quantity: number; shares: TallyShare[] }>()
+
+  for (const booking of bookings) {
+    for (const pozycja of pozycje(booking)) {
+      const dotad = wedlug.get(pozycja.name)
+      if (dotad) {
+        dotad.quantity += pozycja.quantity
+        dotad.shares.push({ booking, quantity: pozycja.quantity })
+      } else {
+        wedlug.set(pozycja.name, {
+          quantity: pozycja.quantity,
+          shares: [{ booking, quantity: pozycja.quantity }],
+        })
+      }
+    }
+  }
+
+  return [...wedlug]
+    .map(([name, pozycja]) => ({ name, ...pozycja }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'pl'))
+}
+
+/**
+ * Zestawienie dnia: jedna lista tego, co trzeba na dany dzień przygotować,
+ * zsumowana po wszystkich Rezerwacjach — trzecie spojrzenie na ten sam zbiór,
+ * obok kalendarza i listy. Kalendarz odpowiada, co dzieje się na Osi, lista —
+ * gdzie jest to jedno zgłoszenie, a Zestawienie: ile czego wyjąć z magazynu
+ * i ilu ludzi postawić na zmianie.
+ *
+ * Wchodzą wyłącznie Rezerwacje **potwierdzone**, i jest to inna granica niż
+ * `holdsTerm` kalendarza: oczekująca termin trzyma, ale broni pod niepotwierdzony
+ * adres nikt nie wykłada — jeszcze się nie wie, czy ten ktoś istnieje.
+ * Anulowana, odwołana i wygasła odpadają tym samym warunkiem i z tego samego
+ * powodu: po nich nikt nie przyjedzie.
+ *
+ * Instruktor liczy się w Rezerwacjach, na których ma stanąć — wymagany brakiem
+ * Pozwolenia i zamówiony dobrowolnie tak samo, bo grafik zmiany wychodzi
+ * z jednej liczby i z drugiej jednakowo. To ta sama miara, którą Rezerwacja
+ * zajmuje miejsce w Puli instruktorów.
+ *
+ * Rezerwacja, która nic nie zamówiła, nie staje przy żadnej pozycji: wiersz
+ * „Glock 17 — 0 szt." kazałby wyjąć broń, której nikt nie chce.
+ */
+export function dayTally({ bookings, day }: DayTallyInput): DayTally {
+  const dnia = poCzasie(
+    bookings.filter((wpis) => wpis.booking.day === day && wpis.status === 'potwierdzona'),
+  )
+
+  return {
+    weapons: sumujPozycje(dnia, (wpis) => wpis.booking.rentals),
+    ammunition: sumujPozycje(dnia, (wpis) => wpis.booking.ammunition),
+    instructorBookings: dnia.filter((wpis) => wpis.booking.withInstructor),
+  }
 }
 
 /**

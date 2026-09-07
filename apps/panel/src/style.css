@@ -286,6 +286,66 @@ body {
   margin: 0.75rem 0 0;
 }
 
+/* Zestawienie czyta ten sam dzień, co kalendarz nad nim, więc stoi bliżej
+   niego niż formularze — i bez odcinającej linii, którą mają one: niczego nie
+   zmienia, tylko czyta to samo drugi raz. */
+.zestawienie {
+  margin: 1.5rem 0 0;
+}
+
+.zestawienie__dzien {
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+
+.zestawienie__wstep {
+  color: var(--przygaszony);
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
+/* Trzy grupy obok siebie, bo odpowiadają na trzy niezależne pytania — a na
+   wąskim ekranie pod sobą, w porządku, w jakim kompletuje się dzień. */
+.zestawienie__grupy {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+
+.zestawienie__grupa {
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.zestawienie__pozycje {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Suma wybita, bo po nią się tu przychodzi; Rezerwacje pod nią są dopowiedzeniem
+   i stoją mniejszym drukiem, wcięte pod swoją pozycją. */
+.zestawienie__ile {
+  display: block;
+  font-weight: 600;
+}
+
+.zestawienie__zrodla {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0 0 0 0.9rem;
+  border-left: 2px solid var(--ramka);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--przygaszony);
+  font-size: 0.85rem;
+}
+
 .lista {
   margin: 2rem 0 0;
 }

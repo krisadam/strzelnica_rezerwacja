@@ -151,7 +151,8 @@ wyciągnięcia — nie do dopisania testu wyżej.
 wyścig o ten sam Blok, przejście całej ścieżki, izolacja Strzelnic, osadzenie
 w ramce, potwierdzenie adresu, anulowanie przez link, logowanie do Panelu,
 odwołanie Rezerwacji przez Strzelnicę, Blokada Osi zdejmująca terminy
-z Widgetu, ręczna Rezerwacja telefoniczna z przekroczonym limitem.
+z Widgetu, ręczna Rezerwacja telefoniczna z przekroczonym limitem, przejście
+z pozycji Zestawienia dnia do Rezerwacji.
 Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
@@ -460,6 +461,51 @@ klientowi odmową, obsłudze pytaniem o pewność. Sam zapis wykonuje `place_boo
 ta sama funkcja bazodanowa: ręczny wpis ma przejść przez tę samą blokadę doradczą,
 to samo zamiatanie wygasłych i to samo sprawdzenie Puli sztuk broni.
 
+## Dzienne zestawienie sprzętu
+
+Obsługa, która przychodzi rano przygotować obiekt, ma jedno pytanie: co dzisiaj
+wyjąć. Kalendarz odpowiada na nie po Rezerwacji naraz — dziesięć Rezerwacji to
+dziesięć razy „a ile tu broni", liczone w pamięci i mylone przy trzeciej.
+Zestawienie liczy to raz: sztuki każdego Typu broni, sztuki amunicji każdego
+Rodzaju i liczbę Rezerwacji, na których ma stanąć Instruktor.
+
+Wchodzą wyłącznie Rezerwacje **potwierdzone**, i jest to inna granica niż
+`holds_term`, którym rządzi się kalendarz. Oczekująca termin trzyma — Oś jest
+zajęta i nikt inny jej nie kupi — ale broni pod niepotwierdzony adres nikt
+z magazynu nie wykłada, bo do upływu Czasu na potwierdzenie nie wiadomo nawet,
+czy ten ktoś istnieje. Anulowana, odwołana i wygasła odpadają tym samym
+warunkiem i z tego samego powodu: po żadnej z nich nikt nie przyjedzie.
+
+Instruktor liczy się w **Rezerwacjach**, a nie w sztukach — jest człowiekiem do
+postawienia na Osi, więc miarą jest to, ile razy ma gdzieś stanąć. Liczy się
+przy tym tak samo ten wymagany brakiem Pozwolenia, jak i zamówiony dobrowolnie:
+grafik zmiany wychodzi z jednego i z drugiego jednakowo — to ta sama miara,
+którą Rezerwacja zajmuje miejsce w Puli instruktorów.
+
+Każda pozycja prowadzi do Rezerwacji, z których wynikła — z godziną, Osią
+i nazwiskiem, bo to są trzy pytania padające zaraz po „ile": kiedy wyłożyć,
+gdzie i komu. Bez nich „trzy Glocki" jest liczbą, której nie da się z niczym
+skonfrontować, a właśnie po konfrontację obsługa sięga, gdy w magazynie leżą
+dwa.
+
+Sumuje się po **nazwie** z katalogu, a nie po jego identyfikatorze, i wolno tak:
+schemat trzyma nazwy Typów broni i Rodzajów amunicji unikalne w obrębie
+Strzelnicy (`unique (facility_id, name)`), a Panel widzi dokładnie jedną
+Strzelnicę. Nazwa jest zarazem tym, co stoi na ekranie — „Glock 17" wykłada się
+z magazynu, nie UUID.
+
+Dzień Zestawienie bierze z kalendarza nad sobą i nie ma własnego pola daty: to
+jest jeden dzień oglądany dwa razy — raz po Osiach, raz po tym, co z magazynu na
+niego zejdzie — a dwa pola daty na jednym ekranie każą czytającemu zgadywać,
+którym z nich przesuwa się to, na co właśnie patrzy.
+
+Żadnego nowego odczytu z bazy przy tym nie ma i być nie musi: Zestawienie liczy
+się z tych samych Rezerwacji okna, które Panel już wczytał, czystą funkcją
+`dayTally` z `packages/shared`. Tam też mieszkają wszystkie jego reguły — co się
+wlicza, co nie i w jakim porządku — i tam mają pokrycie. Testowi
+przeglądarkowemu zostaje jedna rzecz, której czysta funkcja nie widzi: czy
+pozycja naprawdę otwiera Rezerwację, z której się wzięła.
+
 ## Panel
 
 Wejście do Panelu daje konto Supabase Auth powiązane z jedną Strzelnicą przez
@@ -474,7 +520,8 @@ nie mówi nic. Widok wystawia dokładnie te kolumny, których Panel potrzebuje,
 i dokłada `holds_term` — czy Rezerwacja trzyma jeszcze termin — liczone tą samą
 funkcją `booking_holds_term`, co widoki zajętości Widgetu. Kalendarz Panelu
 pokazuje wyłącznie Rezerwacje trzymające termin, lista — wszystkie, ze stanem
-w kolumnie.
+w kolumnie, a [Zestawienie dnia](#dzienne-zestawienie-sprzętu) — wyłącznie
+potwierdzone.
 
 W kalendarzu stoją obok nich [Blokady](#blokady-osi), w jednym szeregu i w tym
 samym porządku godzin: obie zajmują Oś, więc dzień Osi czyta się z jednego

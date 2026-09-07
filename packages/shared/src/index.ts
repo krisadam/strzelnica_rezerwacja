@@ -181,6 +181,7 @@ export type {
 } from './manual.ts'
 export {
   dayAgenda,
+  dayTally,
   filterBookings,
   PANEL_DAYS_BACK,
   panelOccupancy,
@@ -190,6 +191,8 @@ export {
 export type {
   BookingFilter,
   DayAgendaInput,
+  DayTally,
+  DayTallyInput,
   LaneAgenda,
   LaneEntry,
   PanelBooking,
@@ -198,6 +201,8 @@ export type {
   PanelWeaponOccupancyInput,
   PanelWindow,
   PanelWindowInput,
+  TallyItem,
+  TallyShare,
 } from './panel.ts'
 export {
   ammunitionKindFromRow,

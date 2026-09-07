@@ -116,3 +116,29 @@ test('Użytkownik panelu widzi Rezerwację w kalendarzu, na liście i w szczegó
   await expect(opis).toContainText('.22 Long Rifle — 200 szt.')
   await expect(opis).toContainText('370,00 zł')
 })
+
+/**
+ * Zestawienie dnia. Sumowanie i to, co się do niego wlicza, ma pokrycie
+ * w `packages/shared` — tutaj chodzi o jedyną rzecz, której czysta funkcja nie
+ * zobaczy: czy pozycja naprawdę prowadzi do Rezerwacji, z której się wzięła.
+ *
+ * Bez liczb w asercjach, i to celowo: Osi są dwie, a testów rezerwujących
+ * więcej, więc suma dnia bywa cudza. Nazwa pozycji i przejście do Rezerwacji
+ * należą do tej jednej, o którą tu pytamy.
+ */
+test('pozycja Zestawienia prowadzi do Rezerwacji, z której wynikła', async ({ page }) => {
+  await zalogujDoPanelu(page, OBSLUGA_DEMO)
+  await page.getByLabel('Dzień kalendarza').fill(await dzienRezerwacji(REZERWACJA_DEMO))
+
+  const zestawienie = page.locator('.zestawienie')
+  await expect(zestawienie).toContainText('CZ Shadow 2')
+  await expect(zestawienie).toContainText('.22 Long Rifle')
+
+  await zestawienie
+    .getByRole('button', { name: new RegExp(KLIENT_DEMO) })
+    .first()
+    .click()
+
+  await expect(page.getByRole('heading', { name: 'Szczegóły Rezerwacji' })).toBeVisible()
+  await expect(page.locator('.opis')).toContainText(KLIENT_DEMO)
+})

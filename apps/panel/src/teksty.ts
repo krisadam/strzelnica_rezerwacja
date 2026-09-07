@@ -63,6 +63,41 @@ export const teksty = {
     blokada: 'Blokada',
   },
 
+  /**
+   * Zestawienie dnia. Zdania mówią o magazynie i o zmianie, a nie o kliencie:
+   * to jest lista do skompletowania przed otwarciem, a nie opis czyjejś
+   * Rezerwacji.
+   */
+  zestawienie: {
+    naglowek: 'Zestawienie dnia',
+    wstep:
+      'Co przygotować na ten dzień, zsumowane po wszystkich Rezerwacjach — ' +
+      'dzień bierze się z kalendarza wyżej. Liczą się wyłącznie potwierdzone: ' +
+      'oczekująca termin wprawdzie trzyma, ale do potwierdzenia adresu nie ' +
+      'wiadomo nawet, czy ten ktoś istnieje, a po anulowanej, odwołanej ' +
+      'i wygasłej nie przyjedzie już nikt.',
+    bron: 'Broń do wypożyczenia',
+    /** Nikt nie zamawia broni — odpowiedź, nie brak treści. */
+    brakBroni: 'Tego dnia nikt nie wypożycza broni.',
+    amunicja: 'Amunicja',
+    brakAmunicji: 'Tego dnia nikt nie zamawia amunicji.',
+    instruktor: 'Instruktor',
+    /**
+     * Rezerwacje, a nie sztuki: Instruktor jest człowiekiem do postawienia na
+     * Osi, więc liczy się tym, ile razy ma gdzieś stanąć.
+     */
+    ilu: (ile: number) => `Rezerwacji z Instruktorem: ${ile}`,
+    brakInstruktora: 'Tego dnia żadna Rezerwacja nie potrzebuje Instruktora.',
+    /**
+     * Nic do przygotowania — a to nie to samo, co brak Rezerwacji: dzień pełen
+     * strzelających z własnej broni wygląda tutaj tak samo jak pusty, i słusznie,
+     * bo z magazynu nie schodzi wtedy nic.
+     */
+    pusto:
+      'Tego dnia nie ma czego przygotować — żadna potwierdzona Rezerwacja nie ' +
+      'zamawia sprzętu ani Instruktora.',
+  },
+
   lista: {
     naglowek: 'Lista Rezerwacji',
     dzien: 'Dzień',
@@ -392,12 +427,19 @@ export const teksty = {
 }
 
 /**
+ * Pozycja zamówienia jednym napisem: nazwa z katalogu i liczba sztuk. Osobno,
+ * bo czytają ją dwa ekrany — opis Rezerwacji i Zestawienie dnia — a dwie kopie
+ * tego myślnika rozjechałyby się przy pierwszej poprawce jednej z nich.
+ */
+export function opisPozycji(pozycja: OrderedItem): string {
+  return `${pozycja.name} — ${teksty.sztuki(pozycja.quantity)}`
+}
+
+/**
  * Zamówiony sprzęt jednym zdaniem. Ta sama postać, co w Widgecie i w liście
  * do Strzelnicy — obsługa czyta to samo, co dostał klient.
  */
 export function opisZamowionych(pozycje: readonly OrderedItem[], brak: string): string {
   if (pozycje.length === 0) return brak
-  return pozycje
-    .map((pozycja) => `${pozycja.name} — ${teksty.sztuki(pozycja.quantity)}`)
-    .join(', ')
+  return pozycje.map(opisPozycji).join(', ')
 }
