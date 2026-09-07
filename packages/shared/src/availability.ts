@@ -53,17 +53,17 @@ export type TimeRules = {
 }
 
 /**
- * Zajęcie Osi na wyłączność w konkretnym czasie. Rezerwacja i Blokada
- * (ticket #16) różnią się wszystkim poza tym jednym — dla dostępności są tym
- * samym, więc dostają jeden kształt i jedną regułę kolizji.
+ * Zajęcie Osi na wyłączność w konkretnym czasie. Rezerwacja i Blokada różnią
+ * się wszystkim poza tym jednym — dla dostępności są tym samym, więc dostają
+ * jeden kształt i jedną regułę kolizji (`occupied`).
  */
 export type Occupancy = {
   laneId: string
   startsAt: Date
   endsAt: Date
   /**
-   * Czy zajmuje miejsce w Puli instruktorów. Blokada (ticket #16) nie zajmuje
-   * go nigdy — nie ma przy niej nikogo do nadzorowania.
+   * Czy zajmuje miejsce w Puli instruktorów. Blokada nie zajmuje go nigdy —
+   * nie ma przy niej nikogo do nadzorowania (`closureOccupancy`).
    */
   withInstructor: boolean
 }
@@ -285,7 +285,9 @@ type BlockContext = {
   beyondHorizon: boolean
   minLeadMinutes: number
   now: Date
-  /** Zawężone do Osi, o którą pytamy — kolizja i tak sprawdza tylko ją. */
+  /** Oś, o którą pytamy: `occupied` sam zawęża do niej Zajętość. */
+  laneId: string
+  /** Cała Zajętość Strzelnicy — Rezerwacje i Blokady, ze wszystkich Osi. */
   occupancies: readonly Occupancy[]
   /** Czy pytający potrzebuje Instruktora; jeśli nie, Pula go nie dotyczy. */
   needsInstructor: boolean
@@ -311,6 +313,24 @@ function overlaps(zakres: { startsAt: Date; endsAt: Date }, startsAt: Date, ends
   return zakres.startsAt < endsAt && zakres.endsAt > startsAt
 }
 
+/**
+ * Czy Oś jest w tym czasie czyjaś. Jedna reguła kolizji dla wszystkiego, co
+ * zajmuje Oś na wyłączność: pyta ją dostępność Bloku i pyta ją formularz
+ * Blokady w Panelu (`closureProblems`). Druga jej kopia — „a teraz to samo dla
+ * Blokad" — znaczyłaby Blokadę wpuszczoną na cudzy termin albo Blok zdjęty bez
+ * powodu.
+ */
+export function occupied(
+  occupancies: readonly Occupancy[],
+  laneId: string,
+  startsAt: Date,
+  endsAt: Date,
+): boolean {
+  return occupancies.some(
+    (occupancy) => occupancy.laneId === laneId && overlaps(occupancy, startsAt, endsAt),
+  )
+}
+
 function reasonFor(
   schedule: BlockSchedule,
   startsAt: Date,
@@ -331,7 +351,7 @@ function reasonFor(
   // Powód ostatni, bo jedyny mówiący o kimś innym niż sam Blok. Blok, którego
   // Strzelnica i tak nie sprzedaje, ma o tym powiedzieć wprost — a nie zwalać
   // na Osobę rezerwującą, która akurat wpisała go ręcznie w Panelu.
-  if (context.occupancies.some((occupancy) => overlaps(occupancy, startsAt, endsAt))) {
+  if (occupied(context.occupancies, context.laneId, startsAt, endsAt)) {
     return 'termin-zajety'
   }
   // Powód wychodzący poza sam termin: mówi nie o Bloku, tylko o tym, kto pyta.
@@ -394,7 +414,8 @@ export function scheduleForDay(input: DayAvailabilityInput): DaySchedule {
     beyondHorizon: input.day > bookingHorizon(input),
     minLeadMinutes: input.timeRules.minLeadMinutes,
     now: input.now,
-    occupancies: input.occupancies.filter((occupancy) => occupancy.laneId === input.laneId),
+    laneId: input.laneId,
+    occupancies: input.occupancies,
     needsInstructor: instructorAttends(input.intent),
     instructorPool: input.instructorPool,
     instructorOccupancies: input.occupancies.filter((occupancy) => occupancy.withInstructor),

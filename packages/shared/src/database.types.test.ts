@@ -143,6 +143,46 @@ describe('typy ze schematu bazy', () => {
     expect(rezerwacja.cancelled_at).toBeUndefined()
   })
 
+  // Blokada nie ma klienta, Kwoty ani stanu — i to jest treść, nie brak.
+  // Gdyby którakolwiek z tych kolumn tu doszła, Blokada stałaby się Rezerwacją
+  // bez nazwiska, czyli tym, czego ADR 0011 nie chce.
+  it('Blokada niesie Oś, zakres czasu i powód — i nic poza tym', () => {
+    const blokada: Tables<'lane_closures'> = {
+      id: '00000000-0000-0000-0000-000000000301',
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      lane_id: '00000000-0000-0000-0000-0000000000a2',
+      starts_at: '2026-06-17T10:00:00Z',
+      ends_at: '2026-06-17T14:00:00Z',
+      reason: 'Serwis przenośnika tarcz',
+      created_at: '2026-06-01T00:00:00Z',
+    }
+
+    expect(Object.keys(blokada)).toEqual([
+      'id',
+      'facility_id',
+      'lane_id',
+      'starts_at',
+      'ends_at',
+      'reason',
+      'created_at',
+    ])
+  })
+
+  it('zapis Blokady wymaga Osi, zakresu i powodu', () => {
+    const nowa: TablesInsert<'lane_closures'> = {
+      facility_id: '00000000-0000-0000-0000-000000000001',
+      lane_id: '00000000-0000-0000-0000-0000000000a2',
+      starts_at: '2026-06-17T10:00:00Z',
+      ends_at: '2026-06-17T14:00:00Z',
+      reason: 'Serwis przenośnika tarcz',
+    }
+
+    // Powód nie ma wartości domyślnej i mieć nie może: Oś wyłączona ze
+    // sprzedaży bez powodu każe kolejnej zmianie obsługi dzwonić i pytać.
+    expect(nowa.reason).not.toBe('')
+    expect(nowa.created_at).toBeUndefined()
+  })
+
   it('Typ broni niesie pulę sztuk i cenę za sztukę', () => {
     const typ: Tables<'weapon_types'> = {
       id: '00000000-0000-0000-0000-0000000000c1',
@@ -226,8 +266,10 @@ describe('typy ze schematu bazy', () => {
     ])
   })
 
-  // Publiczny odczyt Rezerwacji idzie wyłącznie tędy: bez kontaktu, bez liczby
-  // Uczestników, bez stanu. Kolumna, która by się tu pojawiła, byłaby wyciekiem.
+  // Publiczny odczyt Rezerwacji **i Blokad** idzie wyłącznie tędy: bez
+  // kontaktu, bez liczby Uczestników, bez stanu i bez powodu wyłączenia Osi.
+  // Kolumna, która by się tu pojawiła, byłaby wyciekiem — a rozróżnienie
+  // „Rezerwacja czy Blokada" byłoby cudzą sprawą podaną klientowi.
   it('zajętość Osi nie zna nikogo z nazwiska', () => {
     const zajetosc: Tables<'lane_occupancy'> = {
       facility_id: '00000000-0000-0000-0000-000000000001',

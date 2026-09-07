@@ -34,13 +34,35 @@ export async function dzienRezerwacji(bookingId: string): Promise<string> {
   )
   if (!wiersz) throw new Error(`Rezerwacji ${bookingId} nie ma w bazie.`)
 
-  // `sv-SE` daje zapis `RRRR-MM-DD` — dokładnie ten, którego oczekuje pole daty.
+  return dzienStrzelnicy(new Date(wiersz.starts_at))
+}
+
+/**
+ * Dzień, który w strefie Strzelnicy trwa we wskazanej chwili. `sv-SE` daje
+ * zapis `RRRR-MM-DD` — dokładnie ten, którego oczekuje pole daty.
+ */
+function dzienStrzelnicy(chwila: Date): string {
   return new Intl.DateTimeFormat('sv-SE', {
     timeZone: STREFA_DEMO,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date(wiersz.starts_at))
+  }).format(chwila)
+}
+
+/**
+ * Dzień kalendarza Strzelnicy oddalony o tyle dni od dzisiejszego — ten sam,
+ * na którym stanie kalendarz Widgetu po tylu kliknięciach w „Następny dzień".
+ *
+ * Liczony na kalendarzu, a nie dodaniem dób do „teraz": doba zmiany czasu ma
+ * dwadzieścia trzy albo dwadzieścia pięć godzin, więc test odpalony blisko
+ * północy przeskoczyłby wtedy o dzień za daleko albo za blisko.
+ */
+export function dzienZaDni(oIleDni: number): string {
+  const [rok, miesiac, dzien] = dzienStrzelnicy(new Date()).split('-').map(Number)
+  if (!rok || !miesiac || !dzien) throw new Error('Nie udało się odczytać dzisiejszego dnia.')
+
+  return new Date(Date.UTC(rok, miesiac - 1, dzien + oIleDni)).toISOString().slice(0, 10)
 }
 
 /**

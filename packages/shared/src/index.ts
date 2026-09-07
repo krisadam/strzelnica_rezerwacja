@@ -9,6 +9,7 @@ export {
   formatMoment,
   formatTimeRange,
   InvalidCalendarDayError,
+  localMomentToInstant,
   weekdayOf,
   zonedMinuteToInstant,
 } from './calendar.ts'
@@ -18,6 +19,7 @@ export {
   instructorAttends,
   instructorPresence,
   occupancyWindow,
+  occupied,
   remainingWeapons,
   scheduleForDay,
 } from './availability.ts'
@@ -78,6 +80,22 @@ export type {
   CancellationStateInput,
 } from './cancellation.ts'
 export {
+  closureOccupancy,
+  closureProblems,
+  MalformedClosureRequestError,
+  readClosureRequest,
+  writeClosureRequest,
+} from './closure.ts'
+export type {
+  ClosureCheck,
+  ClosureDraft,
+  ClosureOutcome,
+  ClosureProblem,
+  ClosureRequest,
+  ClosureRequestWire,
+  LaneClosure,
+} from './closure.ts'
+export {
   MalformedRevocationRequestError,
   readRevocationRequest,
   revocable,
@@ -137,12 +155,20 @@ export type {
   BookingProblem,
   BookingRequest,
 } from './booking.ts'
-export { dayAgenda, filterBookings, PANEL_DAYS_BACK, panelWindow } from './panel.ts'
+export {
+  dayAgenda,
+  filterBookings,
+  PANEL_DAYS_BACK,
+  panelOccupancy,
+  panelWindow,
+} from './panel.ts'
 export type {
   BookingFilter,
   DayAgendaInput,
   LaneAgenda,
+  LaneEntry,
   PanelBooking,
+  PanelOccupancyInput,
   PanelWindow,
   PanelWindowInput,
 } from './panel.ts'
@@ -157,6 +183,7 @@ export {
   IncompleteOccupancyError,
   IncompletePanelBookingError,
   InvalidWeekdayError,
+  laneClosureFromRow,
   laneFromRow,
   occupancyFromRow,
   openingHoursFromRow,

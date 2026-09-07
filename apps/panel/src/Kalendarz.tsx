@@ -1,9 +1,17 @@
-import type { CalendarDay, Lane, PanelBooking, PanelWindow } from '@strzelnica/shared'
+import type {
+  CalendarDay,
+  Lane,
+  LaneClosure,
+  LaneEntry,
+  PanelBooking,
+  PanelWindow,
+} from '@strzelnica/shared'
 import {
   addDays,
   dayAgenda,
   dayIn,
   formatDayLabel,
+  formatMoment,
   formatTimeRange,
 } from '@strzelnica/shared'
 import { teksty } from './teksty.js'
@@ -13,8 +21,8 @@ import { teksty } from './teksty.js'
  * spojrzeniem. Osie stoją obok siebie, bo Oś jest wyłączna: to, co widać
  * w jednej kolumnie, nie dzieje się w żadnej innej.
  *
- * Układa go `dayAgenda` z `@strzelnica/shared`, razem z regułą, które
- * Rezerwacje na tym ekranie w ogóle się liczą. Tutaj zostaje rysowanie.
+ * Układa go `dayAgenda` z `@strzelnica/shared`, razem z regułą, co na tym
+ * ekranie w ogóle się liczy. Tutaj zostaje rysowanie.
  */
 function Wpis({
   booking,
@@ -26,14 +34,70 @@ function Wpis({
   const { startsAt, endsAt, timeZone, participants, contact } = booking.booking
 
   return (
+    <button type="button" className="wpis" onClick={() => onWybierz(booking)}>
+      <span className="wpis__czas">{formatTimeRange(startsAt, endsAt, timeZone)}</span>
+      <span className="wpis__klient">{contact.name}</span>
+      <span className="wpis__bok">
+        {teksty.uczestnicy(participants)} · {teksty.stan[booking.status]}
+      </span>
+    </button>
+  )
+}
+
+/**
+ * Blokada w kolumnie Osi. Nie jest przyciskiem, bo nie ma ekranu, na który
+ * miałaby prowadzić: cała jej treść stoi tutaj — kiedy i dlaczego. Odróżnia ją
+ * od Rezerwacji znacznik i obwódka, a nie sam brak nazwiska; „bez klienta"
+ * wyglądałoby na daną, której nie doczytaliśmy.
+ *
+ * Blokada wychodząca poza pokazany dzień pisze się pełnymi chwilami, a nie
+ * zakresem godzin: „18:00–12:00" przy Blokadzie trzydniowej kłamałoby o jej
+ * długości, i to w stronę, w którą kłamać nie wolno — obsługa sprzedałaby
+ * termin, którego nie ma.
+ */
+function WpisBlokady({
+  closure,
+  beyondDay,
+  timeZone,
+}: {
+  closure: LaneClosure
+  beyondDay: boolean
+  timeZone: string
+}) {
+  return (
+    <div className="wpis wpis--blokada">
+      <span className="wpis__czas">
+        {beyondDay
+          ? `${formatMoment(closure.startsAt, timeZone)} – ${formatMoment(closure.endsAt, timeZone)}`
+          : formatTimeRange(closure.startsAt, closure.endsAt, timeZone)}
+      </span>
+      <span className="wpis__klient">{teksty.kalendarz.blokada}</span>
+      <span className="wpis__bok">{closure.reason}</span>
+    </div>
+  )
+}
+
+/** Jeden wiersz kolumny Osi — Rezerwacja albo Blokada. */
+function Pozycja({
+  entry,
+  timeZone,
+  onWybierz,
+}: {
+  entry: LaneEntry
+  timeZone: string
+  onWybierz: (booking: PanelBooking) => void
+}) {
+  return (
     <li>
-      <button type="button" className="wpis" onClick={() => onWybierz(booking)}>
-        <span className="wpis__czas">{formatTimeRange(startsAt, endsAt, timeZone)}</span>
-        <span className="wpis__klient">{contact.name}</span>
-        <span className="wpis__bok">
-          {teksty.uczestnicy(participants)} · {teksty.stan[booking.status]}
-        </span>
-      </button>
+      {entry.kind === 'rezerwacja' ? (
+        <Wpis booking={entry.booking} onWybierz={onWybierz} />
+      ) : (
+        <WpisBlokady
+          closure={entry.closure}
+          beyondDay={entry.beyondDay}
+          timeZone={timeZone}
+        />
+      )}
     </li>
   )
 }
@@ -42,6 +106,7 @@ export function Kalendarz({
   day,
   lanes,
   bookings,
+  closures,
   okno,
   timeZone,
   onDzien,
@@ -50,6 +115,8 @@ export function Kalendarz({
   day: CalendarDay
   lanes: readonly Lane[]
   bookings: readonly PanelBooking[]
+  /** Blokady Strzelnicy — w kolumnie Osi stoją obok Rezerwacji, bo zajmują ją tak samo. */
+  closures: readonly LaneClosure[]
   /** Zakres dni, z którego Panel wczytał Rezerwacje — poza nim nie ma czego pokazać. */
   okno: PanelWindow
   /** Strefa Strzelnicy — jej zegar, nie zegar przeglądarki obsługi. */
@@ -57,7 +124,7 @@ export function Kalendarz({
   onDzien: (day: CalendarDay) => void
   onWybierz: (booking: PanelBooking) => void
 }) {
-  const grafik = dayAgenda({ lanes, bookings, day })
+  const grafik = dayAgenda({ lanes, bookings, closures, day, timeZone })
 
   return (
     <section className="kalendarz">
@@ -89,7 +156,7 @@ export function Kalendarz({
             type="date"
             value={day}
             // Granice okna odczytu, nie ozdoba: dzień spoza niego dostałby
-            // odpowiedź „Brak Rezerwacji" od ekranu, który o niego nie pytał.
+            // odpowiedź „Oś wolna" od ekranu, który o niego nie pytał.
             min={okno.from}
             max={okno.to}
             onChange={(zdarzenie) =>
@@ -107,18 +174,23 @@ export function Kalendarz({
       </div>
 
       <div className="osie">
-        {grafik.map(({ lane, bookings: dnia }) => (
+        {grafik.map(({ lane, entries }) => (
           // Nazwą kolumny jest jej nagłówek, powiedziane wprost: kalendarz
           // czyta się kolumnami, a kolumna bez nazwy jest dla czytającego
           // ekranem jednym ciągiem Rezerwacji bez podziału na Osie.
           <section key={lane.id} className="os" aria-labelledby={`os-${lane.id}`}>
             <h3 id={`os-${lane.id}`}>{lane.name}</h3>
-            {dnia.length === 0 ? (
+            {entries.length === 0 ? (
               <p className="komunikat">{teksty.kalendarz.pustaOs}</p>
             ) : (
               <ul className="os__wpisy">
-                {dnia.map((wpis) => (
-                  <Wpis key={wpis.id} booking={wpis} onWybierz={onWybierz} />
+                {entries.map((wpis) => (
+                  <Pozycja
+                    key={wpis.id}
+                    entry={wpis}
+                    timeZone={timeZone}
+                    onWybierz={onWybierz}
+                  />
                 ))}
               </ul>
             )}

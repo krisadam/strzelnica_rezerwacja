@@ -40,9 +40,12 @@ import {
 const OBCA = {
   strzelnica: '00000000-0000-0000-0000-000000000002',
   os: '00000000-0000-0000-0000-0000000000a3',
+  /** Druga Oś obcej Strzelnicy — ta, na której stoi jej Blokada. */
+  osZBlokada: '00000000-0000-0000-0000-0000000000a4',
   rezerwacja: '00000000-0000-0000-0000-0000000000b2',
   wypozyczenie: '00000000-0000-0000-0000-0000000000d2',
   zapotrzebowanie: '00000000-0000-0000-0000-0000000000f2',
+  blokada: '00000000-0000-0000-0000-000000000302',
   list: '00000000-0000-0000-0000-000000000201',
 }
 
@@ -109,6 +112,10 @@ const OBCE_WIERSZE: { co: string; zapytanie: string; swiadek?: string }[] = [
   {
     co: 'katalog Rodzajów amunicji',
     zapytanie: `ammunition_kinds?facility_id=eq.${OBCA.strzelnica}&select=id`,
+  },
+  {
+    co: 'Blokady',
+    zapytanie: `lane_closures?facility_id=eq.${OBCA.strzelnica}&select=id`,
   },
   { co: 'Rezerwacje', zapytanie: `bookings?facility_id=eq.${OBCA.strzelnica}&select=id` },
   {
@@ -230,10 +237,36 @@ const ZAPISY_W_OBCEJ = [
     zapytanie: `panel_users?user_id=eq.${KONTO_DEMO}`,
     init: { method: 'PATCH', body: JSON.stringify({ facility_id: OBCA.strzelnica }) },
   },
+  {
+    co: 'dopisanie Blokady na obcej Osi',
+    zapytanie: 'lane_closures',
+    init: {
+      method: 'POST',
+      body: JSON.stringify({
+        facility_id: OBCA.strzelnica,
+        lane_id: OBCA.os,
+        starts_at: '2030-01-01T10:00:00Z',
+        ends_at: '2030-01-01T12:00:00Z',
+        reason: 'Wtręt',
+      }),
+    },
+  },
+  {
+    co: 'usunięcie obcej Blokady',
+    zapytanie: `lane_closures?id=eq.${OBCA.blokada}`,
+    init: { method: 'DELETE' },
+  },
 ]
 
 /** Druga Strzelnica w kształcie, w jakim zostawił ją seed. */
 async function drugaStrzelnicaJestNietknieta(): Promise<void> {
+  // Blokady dokładnie jedna, ta z seeda: dopisana albo skasowana obcą ręką
+  // byłaby Osią wyłączoną — albo puszczoną do sprzedaży — bez wiedzy jej
+  // Strzelnicy.
+  expect(
+    await baza<unknown[]>(`lane_closures?facility_id=eq.${OBCA.strzelnica}&select=id`),
+  ).toHaveLength(1)
+
   const [rezerwacja] = await baza<{ participants: number }[]>(
     `bookings?id=eq.${OBCA.rezerwacja}&select=participants`,
   )
@@ -432,6 +465,96 @@ test('klucz anonimowy nie odczyta danych osobowych żadnej Strzelnicy', async ()
   // pełne. Ta asercja pilnuje poprzedniej pętli, nie bazy.
   const osobowe = await baza<{ contact_name: string }[]>('bookings?select=contact_name')
   expect(osobowe.length).toBeGreaterThan(0)
+})
+
+/**
+ * Blokada obcej Osi — druga rzecz, którą konto Panelu w bazie **zapisuje**
+ * (ADR 0010) — pytana obiema drogami, którymi ktoś by o nią poprosił,
+ * i z identyfikatorem obcej Osi wypisanym w tym pliku.
+ *
+ * Wprost do funkcji bazodanowej drogi nie ma, tak samo jak przy odwołaniu:
+ * prawo jej wykonania mają wyłącznie Edge Functions (ADR 0003). Tą, która
+ * jest, granicę stawia baza — pustą odpowiedzią na obcą Oś, a nie zaufaniem do
+ * tego, co przyszło w żądaniu.
+ */
+test('Użytkownik panelu nie wyłączy ze sprzedaży obcej Osi', async () => {
+  // Wołanie Edge Function niżej przechodzi przez jej zimny start.
+  test.slow()
+
+  const zadanie = {
+    p_lane_id: OBCA.os,
+    p_starts_at: '2030-01-01T10:00:00Z',
+    p_ends_at: '2030-01-01T12:00:00Z',
+    p_reason: 'Wtręt.',
+    // Konto podstawione własne: gdyby prawo do tej funkcji istniało,
+    // przeglądarka podawałaby tu dowolne.
+    p_user_id: KONTO_DEMO,
+  }
+
+  const wprost = await bazaJakoUzytkownikPanelu(
+    OBSLUGA_DEMO,
+    HASLO_PANELU,
+    'rpc/place_closure',
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(zadanie) },
+  )
+  expect({ wprost: wprost.status >= 400 }).toEqual({ wprost: true })
+
+  const anonimowo = await bazaAnonimowo('rpc/place_closure', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(zadanie),
+  })
+  expect({ anonimowo: anonimowo.status >= 400 }).toEqual({ anonimowo: true })
+
+  // Droga, która jest: Edge Function z tokenem konta demo. Obca Oś jest dla
+  // niej nieznana — mimo że jej identyfikator jest prawdziwy.
+  const funkcja = await funkcjaJakoUzytkownikPanelu(
+    OBSLUGA_DEMO,
+    HASLO_PANELU,
+    'zablokuj-os',
+    {
+      laneId: OBCA.os,
+      startsAt: '2030-01-01T10:00:00Z',
+      endsAt: '2030-01-01T12:00:00Z',
+      reason: 'Wtręt.',
+    },
+  )
+  expect(funkcja.status).toBe(200)
+  expect(await funkcja.json()).toEqual({ ok: false, problem: 'nieznana-os' })
+
+  await drugaStrzelnicaJestNietknieta()
+})
+
+/**
+ * Blokady klucz anonimowy nie czyta wcale, choć widzi jej **skutek**. To jest
+ * cała treść decyzji z migracji: powód wyłączenia jest sprawą wewnętrzną
+ * Strzelnicy („Serwis po awarii" nie jest zdaniem do klienta), a zajętość
+ * wychodzi do Widgetu widokiem — bez rozróżnienia, czy termin wziął klient,
+ * czy zdjęła go obsługa.
+ */
+test('klucz anonimowy widzi skutek Blokady, ale nie ją samą', async () => {
+  const [blokada] = await baza<{ starts_at: string }[]>(
+    `lane_closures?id=eq.${OBCA.blokada}&select=starts_at`,
+  )
+  expect(blokada, 'seed nie ma czego chować: Blokada').toBeDefined()
+
+  expect(await wierszeAnonimowo(`lane_closures?id=eq.${OBCA.blokada}&select=id`)).toEqual([])
+  expect(await wierszeAnonimowo('lane_closures?select=reason')).toEqual([])
+
+  // A termin tej Blokady stoi w zajętości — i to bez powodu przy nim.
+  const zajetosc = await wierszeAnonimowo(
+    `lane_occupancy?lane_id=eq.${OBCA.osZBlokada}&starts_at=eq.${encodeURIComponent(
+      blokada?.starts_at ?? '',
+    )}&select=*`,
+  )
+  expect(zajetosc).toHaveLength(1)
+  expect(Object.keys(zajetosc[0] as object)).toEqual([
+    'facility_id',
+    'lane_id',
+    'starts_at',
+    'ends_at',
+    'with_instructor',
+  ])
 })
 
 /**

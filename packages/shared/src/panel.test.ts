@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import type { PanelBooking, PanelBookingRows } from './index.ts'
+import type {
+  DayAgendaInput,
+  LaneClosure,
+  LaneEntry,
+  PanelBooking,
+  PanelBookingRows,
+} from './index.ts'
 import {
   dayAgenda,
   filterBookings,
   IncompletePanelBookingError,
   PANEL_DAYS_BACK,
   panelBookingsFromRows,
+  panelOccupancy,
   panelWindow,
   UnknownLaneError,
 } from './index.ts'
@@ -59,72 +66,96 @@ function rezerwacja(dane: {
   }
 }
 
+const STREFA = 'Europe/Warsaw'
+
+/**
+ * Blokada sprowadzona do tego, o co pytają te testy: kiedy, na której Osi.
+ * Powód ma własne pokrycie tam, gdzie o niego orzeka `closureProblems`.
+ */
+function blokada(dane: { id: string; laneId?: string; od: string; do: string }): LaneClosure {
+  return {
+    id: dane.id,
+    laneId: dane.laneId ?? OS_PISTOLETOWA,
+    startsAt: new Date(dane.od),
+    endsAt: new Date(dane.do),
+    reason: 'Serwis',
+  }
+}
+
+/** Grafik dnia z domyślnie pustym wszystkim — test dokłada to, o co pyta. */
+function grafikDnia(
+  dane: Partial<DayAgendaInput<{ id: string; name: string }>> = {},
+): ReturnType<typeof dayAgenda<{ id: string; name: string }>> {
+  return dayAgenda({
+    lanes: OSIE,
+    bookings: [],
+    closures: [],
+    day: '2026-06-15',
+    timeZone: STREFA,
+    ...dane,
+  })
+}
+
+/**
+ * Co stanęło na Osi, znacznikiem i numerem. Znacznik jest tu treścią, nie
+ * ozdobą asercji: kalendarz ma odróżniać Blokadę od Rezerwacji, a lista samych
+ * numerów przeszłaby test także wtedy, gdyby wyglądały tak samo.
+ */
+function czym(entries: readonly LaneEntry[]): string[] {
+  return entries.map((wpis) => `${wpis.kind}:${wpis.id}`)
+}
+
 describe('Kalendarz dnia z podziałem na Osie', () => {
   it('rozdziela Rezerwacje dnia po Osiach, każdą pod swoją', () => {
     const pistolet = rezerwacja({ id: 'p', laneId: OS_PISTOLETOWA })
     const karabin = rezerwacja({ id: 'k', laneId: OS_KARABINOWA })
 
-    const grafik = dayAgenda({
-      lanes: OSIE,
-      bookings: [karabin, pistolet],
-      day: '2026-06-15',
-    })
+    const grafik = grafikDnia({ bookings: [karabin, pistolet] })
 
     expect(grafik.map((os) => os.lane.name)).toEqual([
       'Oś pistoletowa nr 1',
       'Oś karabinowa nr 2',
     ])
-    expect(grafik[0]?.bookings.map((wpis) => wpis.id)).toEqual(['p'])
-    expect(grafik[1]?.bookings.map((wpis) => wpis.id)).toEqual(['k'])
+    expect(czym(grafik[0]?.entries ?? [])).toEqual(['rezerwacja:p'])
+    expect(czym(grafik[1]?.entries ?? [])).toEqual(['rezerwacja:k'])
   })
 
   it('układa Rezerwacje Osi w porządku godzin, nie w porządku odczytu', () => {
-    const grafik = dayAgenda({
-      lanes: OSIE,
+    const grafik = grafikDnia({
       bookings: [
         rezerwacja({ id: 'wieczor', godzina: 18 }),
         rezerwacja({ id: 'rano', godzina: 8 }),
         rezerwacja({ id: 'poludnie', godzina: 12 }),
       ],
-      day: '2026-06-15',
     })
 
-    expect(grafik[0]?.bookings.map((wpis) => wpis.id)).toEqual([
-      'rano',
-      'poludnie',
-      'wieczor',
+    expect(czym(grafik[0]?.entries ?? [])).toEqual([
+      'rezerwacja:rano',
+      'rezerwacja:poludnie',
+      'rezerwacja:wieczor',
     ])
   })
 
   // Oś, na której dziś nic nie ma, jest odpowiedzią — i to tą, po którą obsługa
   // najczęściej tu zagląda. Zniknięcie wyglądałoby na Oś wycofaną z obiektu.
   it('zostawia Oś bez Rezerwacji na ekranie, z pustą listą', () => {
-    const grafik = dayAgenda({
-      lanes: OSIE,
-      bookings: [rezerwacja({ id: 'p', laneId: OS_PISTOLETOWA })],
-      day: '2026-06-15',
-    })
+    const grafik = grafikDnia({ bookings: [rezerwacja({ id: 'p', laneId: OS_PISTOLETOWA })] })
 
     expect(grafik).toHaveLength(2)
-    expect(grafik[1]?.bookings).toEqual([])
+    expect(grafik[1]?.entries).toEqual([])
   })
 
   it('nie wpuszcza Rezerwacji innego dnia', () => {
-    const grafik = dayAgenda({
-      lanes: OSIE,
-      bookings: [rezerwacja({ id: 'jutro', day: '2026-06-16' })],
-      day: '2026-06-15',
-    })
+    const grafik = grafikDnia({ bookings: [rezerwacja({ id: 'jutro', day: '2026-06-16' })] })
 
-    expect(grafik.flatMap((os) => os.bookings)).toEqual([])
+    expect(grafik.flatMap((os) => os.entries)).toEqual([])
   })
 
   // Kalendarz odpowiada na pytanie „co dzieje się na Osi". Rezerwacja, która nie
   // trzyma już terminu, nie dzieje się na niej wcale — a pokazana zajmowałaby
   // godzinę, którą obsługa może komuś sprzedać przez telefon.
   it('pomija Rezerwacje, które terminu już nie trzymają', () => {
-    const grafik = dayAgenda({
-      lanes: OSIE,
+    const grafik = grafikDnia({
       bookings: [
         rezerwacja({ id: 'stoi' }),
         rezerwacja({
@@ -134,22 +165,157 @@ describe('Kalendarz dnia z podziałem na Osie', () => {
         }),
         rezerwacja({ id: 'wygasla', status: 'oczekujaca', holdsTerm: false }),
       ],
-      day: '2026-06-15',
     })
 
-    expect(grafik[0]?.bookings.map((wpis) => wpis.id)).toEqual(['stoi'])
+    expect(czym(grafik[0]?.entries ?? [])).toEqual(['rezerwacja:stoi'])
   })
 
   // Rezerwacja oczekująca trzyma Oś tak samo jak potwierdzona, dopóki nie minie
   // Czas na potwierdzenie — więc obsługa ma ją w kalendarzu widzieć.
   it('pokazuje Rezerwację oczekującą, która wciąż trzyma termin', () => {
-    const grafik = dayAgenda({
-      lanes: OSIE,
+    const grafik = grafikDnia({
       bookings: [rezerwacja({ id: 'czeka', status: 'oczekujaca', holdsTerm: true })],
-      day: '2026-06-15',
     })
 
-    expect(grafik[0]?.bookings.map((wpis) => wpis.id)).toEqual(['czeka'])
+    expect(czym(grafik[0]?.entries ?? [])).toEqual(['rezerwacja:czeka'])
+  })
+
+  // Blokada zajmuje Oś tak samo jak Rezerwacja, więc stoi w tym samym szeregu
+  // i w tym samym porządku godzin — a nie w osobnej liście pod spodem, gdzie
+  // czytający musiałby złożyć dzień Osi z dwóch miejsc.
+  it('stawia Blokadę w szeregu z Rezerwacjami, w porządku godzin', () => {
+    const grafik = grafikDnia({
+      bookings: [rezerwacja({ id: 'rezerwacja', godzina: 10 })],
+      closures: [
+        blokada({ id: 'po', od: '2026-06-15T14:00:00Z', do: '2026-06-15T16:00:00Z' }),
+        blokada({ id: 'przed', od: '2026-06-15T06:00:00Z', do: '2026-06-15T08:00:00Z' }),
+      ],
+    })
+
+    expect(czym(grafik[0]?.entries ?? [])).toEqual([
+      'blokada:przed',
+      'rezerwacja:rezerwacja',
+      'blokada:po',
+    ])
+  })
+
+  it('trzyma Blokadę przy jej Osi', () => {
+    const grafik = grafikDnia({
+      closures: [
+        blokada({
+          id: 'karabinowa',
+          laneId: OS_KARABINOWA,
+          od: '2026-06-15T08:00:00Z',
+          do: '2026-06-15T10:00:00Z',
+        }),
+      ],
+    })
+
+    expect(grafik[0]?.entries).toEqual([])
+    expect(czym(grafik[1]?.entries ?? [])).toEqual(['blokada:karabinowa'])
+  })
+
+  // Blokada bierze dowolny zakres czasu, więc bywa dłuższa od doby: Oś
+  // wyłączona na trzy dni serwisu jest wyłączona każdego z nich. Kalendarz
+  // filtrujący po dniu **początku** pokazałby ją tylko pierwszego — i drugiego
+  // dnia obsługa sprzedałaby termin, którego nie ma.
+  it('pokazuje Blokadę zaczętą wcześniej i kończącą się później', () => {
+    const grafik = grafikDnia({
+      closures: [
+        blokada({ id: 'trzydniowa', od: '2026-06-14T06:00:00Z', do: '2026-06-17T06:00:00Z' }),
+      ],
+    })
+
+    expect(czym(grafik[0]?.entries ?? [])).toEqual(['blokada:trzydniowa'])
+    expect(grafik[0]?.entries[0]).toMatchObject({ beyondDay: true })
+  })
+
+  it('nie mówi o wyjściu poza dzień przy Blokadzie, która się w nim mieści', () => {
+    const grafik = grafikDnia({
+      closures: [
+        // Doba Strzelnicy 15 czerwca to 14.06 22:00 – 15.06 22:00 UTC; ta
+        // Blokada trwa od jej pierwszej minuty do ostatniej.
+        blokada({ id: 'calodobowa', od: '2026-06-14T22:00:00Z', do: '2026-06-15T22:00:00Z' }),
+      ],
+    })
+
+    expect(grafik[0]?.entries[0]).toMatchObject({ beyondDay: false })
+  })
+
+  // Granice doby domknięte tak samo jak wszędzie: od początku włącznie, od
+  // końca wyłącznie. Blokada kończąca się o północy należy do dnia, który się
+  // nią domyka, a nie do następnego.
+  it('nie wpuszcza Blokady, która kończy się z początkiem dnia', () => {
+    const grafik = grafikDnia({
+      closures: [
+        blokada({ id: 'wczorajsza', od: '2026-06-14T18:00:00Z', do: '2026-06-14T22:00:00Z' }),
+      ],
+    })
+
+    expect(grafik.flatMap((os) => os.entries)).toEqual([])
+  })
+
+  it('nie wpuszcza Blokady, która zaczyna się z końcem dnia', () => {
+    const grafik = grafikDnia({
+      closures: [
+        blokada({ id: 'jutrzejsza', od: '2026-06-15T22:00:00Z', do: '2026-06-16T02:00:00Z' }),
+      ],
+    })
+
+    expect(grafik.flatMap((os) => os.entries)).toEqual([])
+  })
+})
+
+/**
+ * Zajętość Osi złożona z tego, co Panel ma pod ręką. Idzie stąd wprost do
+ * `closureProblems`, więc pomyłka tutaj znaczy Blokadę wpuszczoną na cudzy
+ * termin albo odmowę na terminie wolnym.
+ */
+describe('Zajętość Osi widziana z Panelu', () => {
+  it('bierze Rezerwacje trzymające termin, razem z ich Instruktorem', () => {
+    const zajetosc = panelOccupancy({
+      bookings: [rezerwacja({ id: 'stoi', godzina: 10 })],
+      closures: [],
+    })
+
+    expect(zajetosc).toEqual([
+      {
+        laneId: OS_PISTOLETOWA,
+        startsAt: new Date('2026-06-15T10:00:00Z'),
+        endsAt: new Date('2026-06-15T12:00:00Z'),
+        withInstructor: false,
+      },
+    ])
+  })
+
+  // Rezerwacja, która terminu nie trzyma, nie odbiera go nikomu — także
+  // Blokadzie. Wpuszczona tutaj kazałaby obsłudze odwoływać coś, co już nie
+  // istnieje, żeby wyłączyć Oś na serwis.
+  it('pomija Rezerwacje, które terminu już nie trzymają', () => {
+    const zajetosc = panelOccupancy({
+      bookings: [rezerwacja({ id: 'wygasla', status: 'oczekujaca', holdsTerm: false })],
+      closures: [],
+    })
+
+    expect(zajetosc).toEqual([])
+  })
+
+  it('bierze Blokady i nie daje im Instruktora', () => {
+    const zajetosc = panelOccupancy({
+      bookings: [],
+      closures: [
+        blokada({ id: 'serwis', od: '2026-06-15T08:00:00Z', do: '2026-06-15T10:00:00Z' }),
+      ],
+    })
+
+    expect(zajetosc).toEqual([
+      {
+        laneId: OS_PISTOLETOWA,
+        startsAt: new Date('2026-06-15T08:00:00Z'),
+        endsAt: new Date('2026-06-15T10:00:00Z'),
+        withInstructor: false,
+      },
+    ])
   })
 })
 

@@ -9,8 +9,11 @@
  * `panel_bookings` w bazie. Funkcja, która filtrowałaby po Strzelnicy tutaj,
  * byłaby drugą granicą — a druga granica to ta, o której się zapomina.
  */
-import { addDays, dayIn } from './calendar.ts'
+import type { Occupancy } from './availability.ts'
+import { addDays, dayIn, zonedMinuteToInstant } from './calendar.ts'
 import type { CalendarDay } from './calendar.ts'
+import type { LaneClosure } from './closure.ts'
+import { closureOccupancy } from './closure.ts'
 import type { Database } from './database.types.ts'
 import type { BookingSummary } from './mail.ts'
 
@@ -43,36 +46,76 @@ export type PanelBooking = {
   booking: BookingSummary
 }
 
-/** Rezerwacje w porządku, w jakim czyta je człowiek: od najwcześniejszej. */
-function poCzasie(bookings: readonly PanelBooking[]): PanelBooking[] {
-  return [...bookings].sort(
-    (a, b) => a.booking.startsAt.getTime() - b.booking.startsAt.getTime(),
-  )
-}
+/**
+ * Co stoi na Osi w kalendarzu dnia. Rezerwacja i Blokada zajmują Oś na
+ * wyłączność, więc stoją w jednym szeregu i w jednym porządku godzin — ale
+ * znacznikiem odróżnialne, bo obsługa czyta z tego dwie różne rzeczy: przy
+ * jednej ma kogo przyjąć, przy drugiej ma czego nie sprzedawać.
+ *
+ * To, co dla kalendarza wspólne — numer, Oś i zakres czasu — stoi **przy
+ * wpisie**, a nie po znaczniku w każdym miejscu, które o to pyta: układanie
+ * godzin, rozdzielanie po Osiach i klucz na ekranie potrzebują tego samego,
+ * a rozgałęzienie powtórzone w każdym z nich byłoby tym samym pytaniem
+ * zadanym trzy razy. Znacznik zostaje jednemu miejscu, które naprawdę robi coś
+ * innego dla jednego i drugiego: rysowaniu.
+ */
+export type LaneEntry = {
+  /** Numer Rezerwacji albo Blokady; na ekranie jest kluczem wpisu. */
+  id: string
+  laneId: string
+  startsAt: Date
+  endsAt: Date
+} & (
+  | { kind: 'rezerwacja'; booking: PanelBooking }
+  | {
+      kind: 'blokada'
+      closure: LaneClosure
+      /**
+       * Czy Blokada wychodzi poza pokazany dzień — którymkolwiek końcem.
+       * Blokada bierze dowolny zakres czasu, więc bywa dłuższa od doby, a sam
+       * zakres godzin („18:00–12:00") kłamałby wtedy o jej długości.
+       */
+      beyondDay: boolean
+    }
+)
 
-/** Rezerwacje jednej Osi w jednym dniu, w porządku godzin. */
+/** Co stoi na jednej Osi w jednym dniu, w porządku godzin. */
 export type LaneAgenda<L> = {
   lane: L
-  bookings: PanelBooking[]
+  entries: LaneEntry[]
 }
 
 export type DayAgendaInput<L> = {
   /** Osie Strzelnicy w porządku, w jakim mają stanąć na ekranie. */
   lanes: readonly L[]
   bookings: readonly PanelBooking[]
+  /** Blokady Strzelnicy; dla kalendarza zajmują Oś tak samo jak Rezerwacje. */
+  closures: readonly LaneClosure[]
   /** Dzień kalendarza Strzelnicy; Rezerwacja niesie swój w tej samej strefie. */
   day: CalendarDay
+  /**
+   * Strefa Strzelnicy. Rezerwacja niesie swój dzień policzony jej zegarem,
+   * a Blokada nie ma jednego dnia: trwa dowolnie długo, więc o tym, czy stoi
+   * na pokazanym dniu, rozstrzyga zachodzenie na dobę — a doba jest dobą
+   * Strzelnicy.
+   */
+  timeZone: string
 }
 
 /**
- * Kalendarz dnia z podziałem na Osie. Oś bez Rezerwacji zostaje na ekranie
- * z pustą listą — zniknięcie wyglądałoby na Oś wycofaną z obiektu, a nie na
- * wolne popołudnie, a to właśnie wolne popołudnie obsługa tu szuka.
+ * Kalendarz dnia z podziałem na Osie. Oś, na której nic nie stoi, zostaje na
+ * ekranie z pustą listą — zniknięcie wyglądałoby na Oś wycofaną z obiektu,
+ * a nie na wolne popołudnie, a to właśnie wolne popołudnie obsługa tu szuka.
  *
  * Wchodzą wyłącznie Rezerwacje trzymające termin: kalendarz odpowiada na
  * pytanie „co dzieje się na Osi", a Rezerwacja anulowana, odwołana albo wygasła
  * nie dzieje się na niej wcale. Po tamte jest lista — tam stan jest kolumną,
  * a nie powodem zniknięcia.
+ *
+ * Blokady wchodzą wszystkie, bo Blokada stanów nie ma: jest albo jej nie ma.
+ * Wchodzi też ta zaczęta wczoraj i ta kończąca się pojutrze — Oś wyłączona na
+ * trzy dni serwisu jest wyłączona każdego z nich, a kalendarz filtrujący po
+ * dniu **początku** pokazałby ją tylko pierwszego.
  *
  * Oś przychodzi w całości i w całości wraca, więc wołający sam decyduje, co
  * o niej pokazuje. Ta funkcja układa godziny, a nie opisuje Osie.
@@ -80,14 +123,83 @@ export type DayAgendaInput<L> = {
 export function dayAgenda<L extends { id: string }>({
   lanes,
   bookings,
+  closures,
   day,
+  timeZone,
 }: DayAgendaInput<L>): LaneAgenda<L>[] {
-  const dnia = bookings.filter((wpis) => wpis.holdsTerm && wpis.booking.day === day)
+  const rezerwacje: LaneEntry[] = bookings
+    .filter((wpis) => wpis.holdsTerm && wpis.booking.day === day)
+    .map((booking) => ({
+      kind: 'rezerwacja',
+      id: booking.id,
+      laneId: booking.laneId,
+      startsAt: booking.booking.startsAt,
+      endsAt: booking.booking.endsAt,
+      booking,
+    }))
+
+  // Doba Strzelnicy: od jej północy do północy następnej. Ta sama granica, co
+  // przy oknie odczytu Panelu — dzień domyka minuta 1440, a nie 1439.
+  const poczatekDnia = zonedMinuteToInstant(day, 0, timeZone)
+  const koniecDnia = zonedMinuteToInstant(day, 1440, timeZone)
+  const blokady: LaneEntry[] = closures
+    // Zachodzenie liczone tą samą regułą, co kolizja: Blokada kończąca się
+    // o północy należy do dnia, który się nią domyka, a nie do następnego.
+    .filter((closure) => closure.startsAt < koniecDnia && closure.endsAt > poczatekDnia)
+    .map((closure) => ({
+      kind: 'blokada',
+      id: closure.id,
+      laneId: closure.laneId,
+      startsAt: closure.startsAt,
+      endsAt: closure.endsAt,
+      closure,
+      beyondDay: closure.startsAt < poczatekDnia || closure.endsAt > koniecDnia,
+    }))
+
+  const wpisy = [...rezerwacje, ...blokady]
 
   return lanes.map((lane) => ({
     lane,
-    bookings: poCzasie(dnia.filter((wpis) => wpis.laneId === lane.id)),
+    entries: wpisy
+      .filter((wpis) => wpis.laneId === lane.id)
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
   }))
+}
+
+export type PanelOccupancyInput = {
+  bookings: readonly PanelBooking[]
+  closures: readonly LaneClosure[]
+}
+
+/**
+ * Zajętość Osi złożona z tego, co Panel ma pod ręką — bo widoków zajętości
+ * Widgetu nie czyta wcale i nie ma do nich prawa (ADR 0009): one wystawiają
+ * zajętość **wszystkich** Strzelnic, a konto Panelu widzi jedną.
+ *
+ * Wychodzi z tego ta sama `Occupancy`, którą liczy dostępność w Widgecie, więc
+ * formularz Blokady pyta o kolizję tę samą funkcję, co kalendarz klienta.
+ * Wchodzą Rezerwacje trzymające termin — wygasła nie zajmuje już nic — i każda
+ * Blokada.
+ */
+export function panelOccupancy({ bookings, closures }: PanelOccupancyInput): Occupancy[] {
+  return [
+    ...bookings.filter((wpis) => wpis.holdsTerm).map(bookingOccupancy),
+    ...closures.map(closureOccupancy),
+  ]
+}
+
+/**
+ * Rezerwacja Panelu w kształcie Zajętości — siostrzana wobec
+ * `closureOccupancy` i stojąca tutaj, bo `PanelBooking` mieszka tutaj.
+ * Instruktora niesie ze sobą: Rezerwacja zajmuje miejsce w Puli, Blokada nigdy.
+ */
+function bookingOccupancy(wpis: PanelBooking): Occupancy {
+  return {
+    laneId: wpis.laneId,
+    startsAt: wpis.booking.startsAt,
+    endsAt: wpis.booking.endsAt,
+    withInstructor: wpis.booking.withInstructor,
+  }
 }
 
 /**
@@ -100,10 +212,21 @@ export type BookingFilter = {
   laneId?: string | null
 }
 
+/** Rezerwacje w porządku, w jakim czyta je człowiek: od najwcześniejszej. */
+function poCzasie(bookings: readonly PanelBooking[]): PanelBooking[] {
+  return [...bookings].sort(
+    (a, b) => a.booking.startsAt.getTime() - b.booking.startsAt.getTime(),
+  )
+}
+
 /**
  * Lista Rezerwacji zawężona filtrami, od najwcześniejszej. Inaczej niż
  * kalendarz, przepuszcza każdy stan: obsługa szuka tu konkretnego zgłoszenia,
  * a anulowane bywa właśnie tym, o które ktoś dzwoni.
+ *
+ * Blokad tu nie ma i nie ma ich czym szukać: kolumny tej listy to Osoba
+ * rezerwująca, Uczestnicy i Kwota, a Blokada nie ma ani jednej z tych rzeczy.
+ * Widać ją w kalendarzu, tam gdzie zajmuje Oś.
  */
 export function filterBookings(
   bookings: readonly PanelBooking[],

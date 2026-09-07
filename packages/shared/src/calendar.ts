@@ -90,6 +90,30 @@ export function zonedMinuteToInstant(
   return new Date(asIfUtc - offsetMs(firstGuess, timeZone))
 }
 
+const LOCAL_MOMENT_PATTERN = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/
+
+/**
+ * Chwila wpisana w pole `datetime-local` (`RRRR-MM-DDTGG:MM`), czytana zegarem
+ * **Strzelnicy**, a nie przeglądarki. Pole podaje ścianę zegara bez strefy,
+ * więc strefę trzeba dołożyć — a obsługa wpisuje w nim godzinę obiektu, choćby
+ * Panel był otwarty dwie strefy dalej.
+ *
+ * `null` znaczy pole puste albo wypełnione czymś, co chwilą nie jest. Braku nie
+ * zamieniamy tu w wyjątek: pole niewypełnione jest zwykłym stanem formularza,
+ * a orzeka o nim ta sama funkcja, która orzeka o resztę jego treści.
+ */
+export function localMomentToInstant(value: string, timeZone: string): Date | null {
+  const match = LOCAL_MOMENT_PATTERN.exec(value.trim())
+  if (!match) return null
+
+  const [, day, hour, minute] = match
+  const hours = Number(hour)
+  const minutes = Number(minute)
+  if (!day || hours > 23 || minutes > 59) return null
+
+  return zonedMinuteToInstant(day, hours * 60 + minutes, timeZone)
+}
+
 /** Dzień tygodnia dnia kalendarzowego. Nie zależy od strefy — data już ją niesie. */
 export function weekdayOf(day: CalendarDay): Weekday {
   const { year, month, date } = parseDay(day)

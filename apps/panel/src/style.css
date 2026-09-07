@@ -10,6 +10,9 @@
   --ramka: #d5d9e0;
   --wolny: #1f7a3f;
   --blad: #a3232b;
+  /* Blokada nie jest ani wolnym terminem, ani błędem — jest Osią wyjętą z
+     obiegu, więc bierze kolor obok tamtych dwóch, nie któryś z nich. */
+  --wylaczony: #6b4ea8;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: var(--tekst);
   background: var(--tlo);
@@ -185,6 +188,36 @@ body {
   border-radius: 0.35rem;
   background: var(--tlo-drugie);
   cursor: pointer;
+}
+
+/* Blokada odróżnialna od Rezerwacji dwiema rzeczami naraz: obwódką w innym
+   kolorze i brakiem kursora — nie prowadzi na żaden ekran, bo cała jej treść
+   stoi w kolumnie. Sam kolor nie wystarcza: kto go nie rozróżnia, ten czyta
+   znacznik „Blokada" w miejscu, w którym przy Rezerwacji stoi nazwisko. */
+.wpis--blokada {
+  border-left-color: var(--wylaczony);
+  background: var(--tlo);
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--ramka);
+  border-left: 3px solid var(--wylaczony);
+  border-radius: 0.35rem;
+}
+
+.wpis--blokada .wpis__klient {
+  color: var(--wylaczony);
+  font-weight: 600;
+}
+
+/* Formularz Blokady odcięty linią od kalendarza — jest jedyną rzeczą na tym
+   ekranie, która coś zmienia, tak samo jak odwołanie w szczegółach. */
+.blokada {
+  border-top: 1px solid var(--ramka);
+  margin: 1.5rem 0 0;
+  padding-top: 1rem;
 }
 
 .wpis__czas {

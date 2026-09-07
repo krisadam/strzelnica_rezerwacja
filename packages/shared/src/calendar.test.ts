@@ -6,6 +6,7 @@ import {
   formatMoment,
   formatTimeRange,
   InvalidCalendarDayError,
+  localMomentToInstant,
   weekdayOf,
   zonedMinuteToInstant,
 } from './index.ts'
@@ -57,6 +58,40 @@ describe('minuta dnia Strzelnicy jako moment w UTC', () => {
     expect(zonedMinuteToInstant('2026-03-29', 600, WARSZAWA).toISOString()).toBe(
       '2026-03-29T08:00:00.000Z',
     )
+  })
+})
+
+/**
+ * Chwila wpisana w Panelu — pole `datetime-local` podaje ścianę zegara bez
+ * strefy, a obsługa wpisuje w nim godzinę **obiektu**. Strefa przeglądarki nie
+ * ma tu nic do rzeczy: Panel bywa otwarty dwie strefy dalej niż Strzelnica.
+ */
+describe('chwila z pola formularza', () => {
+  it('czyta wpisaną godzinę zegarem Strzelnicy', () => {
+    expect(localMomentToInstant('2026-06-15T10:00', WARSZAWA)?.toISOString()).toBe(
+      '2026-06-15T08:00:00.000Z',
+    )
+    // Ta sama godzina w czasie zimowym to inna chwila w UTC.
+    expect(localMomentToInstant('2026-01-12T10:00', WARSZAWA)?.toISOString()).toBe(
+      '2026-01-12T09:00:00.000Z',
+    )
+  })
+
+  it('znosi sekundy, które dokłada niektóra przeglądarka', () => {
+    expect(localMomentToInstant('2026-06-15T10:00:00', WARSZAWA)?.toISOString()).toBe(
+      '2026-06-15T08:00:00.000Z',
+    )
+  })
+
+  // Pole niewypełnione jest zwykłym stanem formularza, a nie awarią — więc
+  // wraca brakiem, a o tym, czy wolno go przyjąć, orzeka `closureProblems`.
+  it('oddaje brak na polu pustym i na treści, która chwilą nie jest', () => {
+    for (const wpisane of ['', '   ', '2026-06-15', '15.06.2026 10:00', '2026-06-15T25:00']) {
+      expect({ wpisane, chwila: localMomentToInstant(wpisane, WARSZAWA) }).toEqual({
+        wpisane,
+        chwila: null,
+      })
+    }
   })
 })
 

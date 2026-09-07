@@ -16,8 +16,9 @@
  * ma, RLS wpuszcza go do oferty wszystkich Strzelnic, więc tam zawężenie
  * należy do wołającego.
  */
-import type { Lane, PanelBooking, PanelWindow } from '@strzelnica/shared'
+import type { Lane, LaneClosure, PanelBooking, PanelWindow } from '@strzelnica/shared'
 import {
+  laneClosureFromRow,
   laneFromRow,
   panelBookingsFromRows,
   panelWindow,
@@ -42,6 +43,8 @@ export type Dane = {
   facility: Strzelnica
   lanes: Lane[]
   bookings: PanelBooking[]
+  /** Blokady tego samego okna: dla kalendarza zajmują Oś tak jak Rezerwacje. */
+  closures: LaneClosure[]
   /** Zakres dni, z którego te Rezerwacje pochodzą — i poza który ekran nie pyta. */
   okno: PanelWindow
 }
@@ -109,7 +112,7 @@ export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane>
   // wypadłyby z okna, choć są jego końcem.
   const doPolnocy = zonedMinuteToInstant(okno.to, 1440, facility.timeZone).toISOString()
 
-  const [lanes, bookings, rentals, ammunition, weaponTypes, ammunitionKinds] =
+  const [lanes, bookings, closures, rentals, ammunition, weaponTypes, ammunitionKinds] =
     await Promise.all([
       client.from('lanes').select('*').order('name'),
       client
@@ -117,6 +120,16 @@ export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane>
         .select('*')
         .gte('starts_at', od)
         .lt('starts_at', doPolnocy)
+        .order('starts_at'),
+      // Blokady zawężone **zachodzeniem**, a nie samym początkiem jak
+      // Rezerwacje: Blokada bierze dowolny zakres czasu, więc ta zaczęta przed
+      // oknem wciąż wyłącza Oś w jego środku. Warunek na sam `starts_at`
+      // pokazywałby wolną Oś, na którą nikogo nie wolno wpuścić.
+      client
+        .from('lane_closures')
+        .select('*')
+        .lt('starts_at', doPolnocy)
+        .gt('ends_at', od)
         .order('starts_at'),
       client
         .from('weapon_rentals')
@@ -138,6 +151,7 @@ export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane>
     facility,
     okno,
     lanes: osie.map(laneFromRow),
+    closures: rowsOrThrow(closures).map(laneClosureFromRow),
     bookings: panelBookingsFromRows({
       bookings: rowsOrThrow(bookings),
       facility: { name: facility.name, timezone: facility.timeZone },

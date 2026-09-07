@@ -9,6 +9,7 @@ import {
   facilityFromRow,
   IncompleteOccupancyError,
   InvalidWeekdayError,
+  laneClosureFromRow,
   laneFromRow,
   occupancyFromRow,
   openingHoursFromRow,
@@ -163,6 +164,28 @@ describe('zajętość Osi z wiersza widoku', () => {
       )
     },
   )
+})
+
+describe('Blokada z wiersza tabeli', () => {
+  const WIERSZ: Tables<'lane_closures'> = {
+    id: '00000000-0000-0000-0000-000000000301',
+    facility_id: '00000000-0000-0000-0000-000000000001',
+    lane_id: '00000000-0000-0000-0000-0000000000a2',
+    starts_at: '2026-06-17T10:00:00+00:00',
+    ends_at: '2026-06-17T14:00:00+00:00',
+    reason: 'Serwis przenośnika tarcz',
+    created_at: '2026-06-01T09:00:00+00:00',
+  }
+
+  it('przenosi Oś, zakres czasu i powód', () => {
+    expect(laneClosureFromRow(WIERSZ)).toEqual({
+      id: '00000000-0000-0000-0000-000000000301',
+      laneId: '00000000-0000-0000-0000-0000000000a2',
+      startsAt: new Date('2026-06-17T10:00:00Z'),
+      endsAt: new Date('2026-06-17T14:00:00Z'),
+      reason: 'Serwis przenośnika tarcz',
+    })
+  })
 })
 
 describe('Typ broni z wiersza katalogu', () => {

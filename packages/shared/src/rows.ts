@@ -15,6 +15,7 @@ import type {
 } from './availability.ts'
 import { dayIn } from './calendar.ts'
 import type { CalendarDay, Weekday } from './calendar.ts'
+import type { LaneClosure } from './closure.ts'
 import type { Tables } from './database.types.ts'
 import type { FacilityContact } from './management.ts'
 import type { BookingSummary, OrderedItem } from './mail.ts'
@@ -188,6 +189,21 @@ export function occupancyFromRow(row: Tables<'lane_occupancy'>): Occupancy {
     startsAt: new Date(row.starts_at),
     endsAt: new Date(row.ends_at),
     withInstructor: row.with_instructor,
+  }
+}
+
+/**
+ * Blokada z tabeli `lane_closures`. Bez sprawdzania braków, inaczej niż przy
+ * wierszach widoków zajętości: to tabela, więc jej kolumny są w wygenerowanych
+ * typach niepuste i pilnuje tego schemat, a nie ten odczyt.
+ */
+export function laneClosureFromRow(row: Tables<'lane_closures'>): LaneClosure {
+  return {
+    id: row.id,
+    laneId: row.lane_id,
+    startsAt: new Date(row.starts_at),
+    endsAt: new Date(row.ends_at),
+    reason: row.reason,
   }
 }
 

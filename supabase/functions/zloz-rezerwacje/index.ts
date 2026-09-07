@@ -50,6 +50,14 @@ const EXCLUSION_VIOLATION = '23P01'
 /** Naruszenie Puli sztuk Typu broni; własny SQLSTATE `place_booking`. */
 const WEAPON_POOL_VIOLATION = 'WP001'
 
+/**
+ * Rezerwacja na czas objęty Blokadą; własny SQLSTATE wyzwalaczy wyłączności.
+ * Ograniczenie wykluczające obejmuje jedną tabelę, więc kolizja z Blokadą
+ * przychodzi innym kodem niż kolizja z Rezerwacją — dla Osoby rezerwującej
+ * znaczy jednak dokładnie to samo.
+ */
+const CLOSURE_CONFLICT = 'LC001'
+
 async function handle(request: BookingRequest, origin: string | null): Promise<Response> {
   const client = connect()
 
@@ -240,7 +248,11 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
   // Dwa zgłoszenia na ten sam Blok w tej samej chwili widzą Blok wolny oba —
   // rozstrzyga dopiero ograniczenie wyłączności Osi. Przegrany dostaje ten sam
   // powód, co ktoś, kto zwlekał: termin jest zajęty.
-  if (zapis.error?.code === EXCLUSION_VIOLATION) {
+  //
+  // Ta sama odpowiedź dla Osi wyłączonej Blokadą w tej samej chwili: kalendarz
+  // pokazał termin wolny, bo Blokady jeszcze nie było, a klientowi nie robi
+  // różnicy, czy termin wziął ktoś inny, czy zdjęła go obsługa.
+  if (zapis.error?.code === EXCLUSION_VIOLATION || zapis.error?.code === CLOSURE_CONFLICT) {
     return outcome<BookingOutcome>({ ok: false, problem: 'termin-niedostepny' }, origin)
   }
   // Wyścig o ostatnią sztukę broni kończy się inaczej niż wyścig o Oś: termin
