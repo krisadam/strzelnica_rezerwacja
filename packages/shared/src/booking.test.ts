@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Block, BookingDraft, BookingRequest, Lane } from './index.ts'
+import type { Block, BookingDraft, BookingRequest, Lane, Unavailability } from './index.ts'
 import {
   bookingProblems,
   concernsTheTerm,
@@ -19,15 +19,21 @@ const KATALOG_AMUNICJI = [
   { id: '22lr', name: '.22 Long Rifle', unitPrice: 40 },
 ]
 
-function blok(nadpisania: Partial<Block> = {}): Block {
+/**
+ * Blok z grafiku dnia. Powód niedostępności podaje się wprost, a `available`
+ * i `refusals` składa już ten pomocnik: Blok wolny z powodem albo niedostępny
+ * bez powodu jest kształtem, którego dostępność nie wystawia, więc test nie ma
+ * go po co zmyślać.
+ */
+function blok(powod?: Unavailability): Block {
   return {
     scheduleId: 'blok-1-600',
     laneId: OS.id,
     startMinute: 600,
     startsAt: new Date('2026-06-15T08:00:00Z'),
     endsAt: new Date('2026-06-15T10:00:00Z'),
-    available: true,
-    ...nadpisania,
+    available: !powod,
+    refusals: powod ? [powod] : [],
   }
 }
 
@@ -82,7 +88,7 @@ describe('Instruktor', () => {
     expect(
       zastrzezenia(
         zgloszenie({ hasPermit: false }),
-        blok({ available: false, unavailableBecause: 'brak-instruktora' }),
+        blok('brak-instruktora'),
       ),
     ).toEqual(['brak-instruktora'])
   })
@@ -91,7 +97,7 @@ describe('Instruktor', () => {
     expect(
       zastrzezenia(
         zgloszenie({ hasPermit: false }),
-        blok({ available: false, unavailableBecause: 'termin-zajety' }),
+        blok('termin-zajety'),
       ),
     ).toEqual(['termin-niedostepny'])
   })
@@ -124,7 +130,7 @@ describe('Wypożyczenie broni', () => {
     expect(
       zastrzezenia(
         zgloszenie({ rentals: [{ weaponTypeId: 'glock', quantity: 4 }] }),
-        blok({ available: false, unavailableBecause: 'brak-sztuk-broni' }),
+        blok('brak-sztuk-broni'),
       ),
     ).toEqual(['brak-sztuk-broni'])
   })
@@ -287,7 +293,7 @@ describe('zastrzeżenia mówiące o samym terminie', () => {
 
 describe('wybrany termin', () => {
   it('odrzuca Blok, którego dostępność zdjęła', () => {
-    expect(zastrzezenia(zgloszenie(), blok({ available: false }))).toEqual([
+    expect(zastrzezenia(zgloszenie(), blok('poza-godzinami-otwarcia'))).toEqual([
       'termin-niedostepny',
     ])
   })

@@ -168,7 +168,7 @@ describe('Blokada w dostępności Bloków', () => {
     const bloki = scheduleForDay(pytanie([closureOccupancy(blokada())])).blocks
 
     expect(bloki[0]?.available).toBe(false)
-    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+    expect(bloki[0]?.refusals[0]).toBe('termin-zajety')
   })
 
   // Blokada nie musi trafiać w siatkę Bloków: obsługa zamyka Oś na czas
@@ -186,7 +186,7 @@ describe('Blokada w dostępności Bloków', () => {
       ]),
     ).blocks
 
-    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+    expect(bloki[0]?.refusals[0]).toBe('termin-zajety')
   })
 
   it('zdejmuje Blok, który Blokada obejmuje z zapasem po obu stronach', () => {
@@ -201,7 +201,7 @@ describe('Blokada w dostępności Bloków', () => {
       ]),
     ).blocks
 
-    expect(bloki[0]?.unavailableBecause).toBe('termin-zajety')
+    expect(bloki[0]?.refusals[0]).toBe('termin-zajety')
   })
 
   it('nie zdejmuje Bloku stykającego się z Blokadą', () => {

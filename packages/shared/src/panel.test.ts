@@ -3,6 +3,7 @@ import type {
   DayAgendaInput,
   LaneClosure,
   LaneEntry,
+  LimitOverride,
   PanelBooking,
   PanelBookingRows,
 } from './index.ts'
@@ -13,6 +14,7 @@ import {
   PANEL_DAYS_BACK,
   panelBookingsFromRows,
   panelOccupancy,
+  panelWeaponOccupancy,
   panelWindow,
   UnknownLaneError,
 } from './index.ts'
@@ -38,6 +40,8 @@ function rezerwacja(dane: {
   status?: PanelBooking['status']
   holdsTerm?: boolean
   revocationReason?: string | null
+  source?: PanelBooking['source']
+  limitOverrides?: readonly LimitOverride[]
 }): PanelBooking {
   const day = dane.day ?? '2026-06-15'
   const startsAt = new Date(`${day}T${String(dane.godzina ?? 10).padStart(2, '0')}:00:00Z`)
@@ -48,6 +52,8 @@ function rezerwacja(dane: {
     status: dane.status ?? 'potwierdzona',
     holdsTerm: dane.holdsTerm ?? true,
     revocationReason: dane.revocationReason ?? null,
+    source: dane.source ?? 'widget',
+    limitOverrides: dane.limitOverrides ?? [],
     booking: {
       facilityName: 'Strzelnica Demo',
       laneName: 'Oś',
@@ -391,6 +397,8 @@ const WIERSZ: PanelBookingRows['bookings'][number] = {
   contact_phone: '600100200',
   amount_gr: 37000,
   revocation_reason: null,
+  source: 'widget',
+  limit_overrides: [],
 }
 
 const WIERSZE: PanelBookingRows = {
@@ -513,6 +521,109 @@ describe('Rezerwacje Panelu z wierszy bazy', () => {
         bookings: [{ ...WIERSZ, lane_id: '00000000-0000-0000-0000-00000000ffff' }],
       }),
     ).toThrow(UnknownLaneError)
+  })
+
+  it('niosą Źródło Rezerwacji i przekroczone przy niej limity', () => {
+    const [wpis] = panelBookingsFromRows({
+      ...WIERSZE,
+      bookings: [
+        {
+          ...WIERSZ,
+          source: 'panel',
+          limit_overrides: ['poza-godzinami-otwarcia', 'ponad-pojemnosc-osi'],
+        },
+      ],
+    })
+
+    expect(wpis?.source).toBe('panel')
+    expect(wpis?.limitOverrides).toEqual(['poza-godzinami-otwarcia', 'ponad-pojemnosc-osi'])
+  })
+
+  // Pusta lista znaczy Rezerwację mieszczącą się w regułach Strzelnicy, a nie
+  // wiersz niepełny — i pusto ma każda Rezerwacja z Widgetu.
+  it('przepuszczają Rezerwację bez przekroczonych limitów', () => {
+    const [wpis] = panelBookingsFromRows(WIERSZE)
+
+    expect(wpis?.source).toBe('widget')
+    expect(wpis?.limitOverrides).toEqual([])
+  })
+
+  it.each(['source', 'limit_overrides'] as const)(
+    'zatrzymują wiersz bez kolumny %s',
+    (kolumna) => {
+      expect(() =>
+        panelBookingsFromRows({
+          ...WIERSZE,
+          bookings: [{ ...WIERSZ, [kolumna]: null }],
+        }),
+      ).toThrow(IncompletePanelBookingError)
+    },
+  )
+})
+
+/**
+ * Sztuki Typów broni trzymane przez Rezerwacje Panelu. Widoku zajętości Panel
+ * nie czyta wcale i nie ma do niego prawa (ADR 0009), więc składa ją z tego, co
+ * ma pod ręką — a formularz ręcznego wpisu pyta o dostępność tą samą funkcją,
+ * co kalendarz klienta.
+ */
+describe('sztuki broni trzymane przez Rezerwacje Panelu', () => {
+  const GLOCK = '00000000-0000-0000-0000-0000000000c1'
+
+  it('bierze termin z Rezerwacji, do której pozycja należy', () => {
+    const wpis = rezerwacja({ id: 'r1', godzina: 10 })
+
+    expect(
+      panelWeaponOccupancy({
+        bookings: [wpis],
+        rentals: [{ bookingId: 'r1', weaponTypeId: GLOCK, quantity: 2 }],
+      }),
+    ).toEqual([
+      {
+        weaponTypeId: GLOCK,
+        quantity: 2,
+        startsAt: wpis.booking.startsAt,
+        endsAt: wpis.booking.endsAt,
+      },
+    ])
+  })
+
+  // Anulowana oddaje broń tą samą zmianą stanu, którą oddaje Oś — osobnego
+  // kroku nie ma tu ani jednego.
+  it('pomija pozycje Rezerwacji, która terminu już nie trzyma', () => {
+    expect(
+      panelWeaponOccupancy({
+        bookings: [rezerwacja({ id: 'r1', holdsTerm: false })],
+        rentals: [{ bookingId: 'r1', weaponTypeId: GLOCK, quantity: 2 }],
+      }),
+    ).toEqual([])
+  })
+
+  // Okno odczytu Panelu zawęża Rezerwacje i pozycje osobnymi zapytaniami, więc
+  // pozycja bez swojej Rezerwacji jest tu możliwa — i nie ma czym trzymać
+  // sztuk, skoro nie wiadomo, w jakim terminie.
+  it('pomija pozycję, której Rezerwacji nie ma pod ręką', () => {
+    expect(
+      panelWeaponOccupancy({
+        bookings: [],
+        rentals: [{ bookingId: 'nieznana', weaponTypeId: GLOCK, quantity: 2 }],
+      }),
+    ).toEqual([])
+  })
+
+  it('nie sumuje pozycji ze sobą — zajętość liczy się po terminach', () => {
+    const rano = rezerwacja({ id: 'r1', godzina: 10 })
+    const popoludniu = rezerwacja({ id: 'r2', godzina: 14 })
+
+    expect(
+      panelWeaponOccupancy({
+        bookings: [rano, popoludniu],
+        rentals: [
+          { bookingId: 'r1', weaponTypeId: GLOCK, quantity: 1 },
+          { bookingId: 'r2', weaponTypeId: GLOCK, quantity: 1 },
+        ],
+      }),
+    ).toHaveLength(2)
   })
 })
 

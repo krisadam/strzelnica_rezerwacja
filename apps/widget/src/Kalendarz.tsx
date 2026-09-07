@@ -29,8 +29,12 @@ function Blok({
       ) : (
         <>
           <span className="blok__czas">{czas}</span>
+          {/* Powód pierwszy i tylko on: Osoba rezerwująca naprawia jeden,
+              a reszta przeliczy się od nowa. Całą listę czyta Panel, bo tam
+              limity Strzelnicy wolno przekroczyć — i wtedy trzeba wiedzieć
+              o każdym z nich. */}
           <span className="blok__stan">
-            {teksty.niedostepny} — {teksty.powod[block.unavailableBecause ?? 'przeszlosc']}
+            {teksty.niedostepny} — {teksty.powod[block.refusals[0] ?? 'przeszlosc']}
           </span>
         </>
       )}

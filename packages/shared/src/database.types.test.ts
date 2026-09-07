@@ -126,6 +126,7 @@ describe('typy ze schematu bazy', () => {
       block_rate_gr: 12000,
       participation_rate_gr: 3000,
       instructor_rate_gr: 8000,
+      source: 'widget',
     }
 
     expect(rezerwacja.status).toBe('potwierdzona')
@@ -137,6 +138,14 @@ describe('typy ze schematu bazy', () => {
     // nie umie wytłumaczyć — i Kwotą, którą przeliczyłaby przyszła podwyżka.
     expect(rezerwacja.amount_gr).toBe(37000)
     expect(rezerwacja.block_rate_gr).toBe(12000)
+    // Źródło podawane wprost i bez wartości domyślnej: Rezerwacja zapisana
+    // bez niego podawałaby się za zgłoszenie klienta — a to jest dokładnie to
+    // jedno, o czym ta kolumna ma nie milczeć (ticket #17).
+    expect(rezerwacja.source).toBe('widget')
+    // Przekroczone limity uzupełnia baza pustą tablicą: pusto ma każda
+    // Rezerwacja mieszcząca się w regułach, a `check` na kolumnie pilnuje,
+    // żeby Rezerwacja z Widgetu nie miała ich nigdy.
+    expect(rezerwacja.limit_overrides).toBeUndefined()
     // Moment akceptacji regulaminu uzupełnia baza, tak jak datę utworzenia.
     expect(rezerwacja.consented_at).toBeUndefined()
     // Rezerwacja powstaje nieodwołana; chwilę odwołania wpisuje anulowanie.

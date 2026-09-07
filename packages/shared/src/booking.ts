@@ -43,16 +43,26 @@ export type BookingDraft = Intent & {
 }
 
 /**
- * Żądanie zapisu. Termin wskazany dniem i minutą rozkładu, nie momentem
- * w czasie: przeliczenie na `timestamptz` należy do serwera, żeby klient nie
+ * Termin, o który idzie żądanie: Oś, dzień i minuta rozkładu — nie moment
+ * w czasie. Przeliczenie na `timestamptz` należy do serwera, żeby wołający nie
  * mógł wskazać terminu, którego rozkład Osi nie zna.
+ *
+ * Osobno od `BookingDraft`, bo obie drogi zapisu Rezerwacji — zgłoszenie
+ * z Widgetu i ręczny wpis w Panelu — wskazują termin tak samo, a różnią się
+ * czym innym: tam dochodzi Strzelnica wskazana slugiem, tu potwierdzone
+ * przekroczenia limitów.
  */
-export type BookingRequest = BookingDraft & {
-  facilitySlug: string
+export type BookingTerm = {
   laneId: string
   day: CalendarDay
   startMinute: number
 }
+
+/** Żądanie zapisu z Widgetu: zgłoszenie, termin i Strzelnica, o którą idzie. */
+export type BookingRequest = BookingDraft &
+  BookingTerm & {
+    facilitySlug: string
+  }
 
 /** Zastrzeżenie do zgłoszenia. Jedno pole — jedna wartość. */
 export type BookingProblem =
@@ -108,11 +118,12 @@ export type BookingOutcome =
   | { ok: true; id: string; amount: number }
   | { ok: false; problem: BookingProblem }
 
-export type BookingCheck = {
+/**
+ * Zgłoszenie sprowadzone do tego, co da się osądzić bez terminu i bez Osi:
+ * pozycje zamówienia, kontakt i zgoda. Wejście `draftProblems`.
+ */
+export type DraftCheck = {
   draft: BookingDraft
-  lane: Lane
-  /** Wybrany Blok z grafiku dnia; `undefined`, gdy rozkład Osi go nie zna. */
-  block: Block | undefined
   /**
    * Katalog Rodzajów amunicji Strzelnicy. Potrzebny tutaj, choć katalog Typów
    * broni nie jest: Typ spoza katalogu odsiewa dostępność Bloku, bo nie ma ani
@@ -121,6 +132,12 @@ export type BookingCheck = {
    * dopiero na kluczu obcym — jako błąd serwera, a nie odpowiedź o zgłoszeniu.
    */
   ammunitionKinds: readonly AmmunitionKind[]
+}
+
+export type BookingCheck = DraftCheck & {
+  lane: Lane
+  /** Wybrany Blok z grafiku dnia; `undefined`, gdy rozkład Osi go nie zna. */
+  block: Block | undefined
 }
 
 /** Same spacje nie są treścią — ani w formularzu, ani w bazie. */
@@ -176,6 +193,76 @@ function demandsAsItems(ammunition: readonly AmmunitionDemand[]): OrderedItem[] 
 }
 
 /**
+ * Co można mieć do liczby Uczestników. Dwie wartości z `BookingProblem`, ale
+ * wypisane wprost, bo obietnica tej funkcji jest węższa od całego zbioru —
+ * a to na niej stoi rozdzielenie odmów od przekroczeń w Panelu.
+ */
+export type ParticipantsProblem = Extract<
+  BookingProblem,
+  'liczba-uczestnikow-poza-zakresem' | 'ponad-pojemnosc-osi'
+>
+
+/**
+ * Zastrzeżenia do liczby Uczestników — jedno pole, dwie odmowy. Stoi osobno,
+ * bo dwie strony reagują na jego odpowiedź inaczej: dla Osoby rezerwującej
+ * skład ponad pojemność Osi jest odmową, a dla Użytkownika panelu limitem do
+ * przekroczenia po jawnym potwierdzeniu (ticket #17). Reguła zostaje przy tym
+ * jedna — druga jej kopia rozjechałaby się na granicy pojemności.
+ */
+export function participantsProblem(
+  draft: BookingDraft,
+  lane: Lane,
+): ParticipantsProblem | undefined {
+  if (!Number.isInteger(draft.participants) || draft.participants < 1) {
+    return 'liczba-uczestnikow-poza-zakresem'
+  }
+  if (draft.participants > lane.capacity) return 'ponad-pojemnosc-osi'
+  return undefined
+}
+
+/**
+ * Co można mieć do samego wypełnienia zgłoszenia. Węższe od `BookingProblem`
+ * z tego samego powodu, co `ParticipantsProblem`: obie drogi zapisu biorą te
+ * zastrzeżenia stąd bez zmian, więc obietnica ma być dokładna.
+ */
+export type DraftProblem = Extract<
+  BookingProblem,
+  | 'niepoprawne-wypozyczenie'
+  | 'niepoprawne-zapotrzebowanie'
+  | 'brak-imienia'
+  | 'niepoprawny-email'
+  | 'brak-telefonu'
+  | 'brak-zgody'
+>
+
+/**
+ * Zastrzeżenia do samego wypełnienia zgłoszenia: pozycje zamówienia, kontakt
+ * i zgoda. Bez terminu i bez pojemności Osi — te dwie rzeczy Panel osądza
+ * inaczej niż Widget, a wszystko poniżej osądza tak samo, więc jest tu jedną
+ * kopią. Pole kontaktu dopisane tutaj trafia do obu dróg naraz.
+ */
+export function draftProblems({ draft, ammunitionKinds }: DraftCheck): DraftProblem[] {
+  const problems: DraftProblem[] = []
+
+  // Dwa zastrzeżenia zamiast jednego wspólnego: naprawia się je w dwóch
+  // różnych miejscach formularza, a jedno kazałoby szukać pomyłki w obu naraz.
+  if (malformedItems(asItems(draft.rentals))) problems.push('niepoprawne-wypozyczenie')
+  const nieznanyRodzaj = draft.ammunition.some(
+    (pozycja) => !ammunitionKinds.some((rodzaj) => rodzaj.id === pozycja.ammunitionKindId),
+  )
+  if (malformedItems(demandsAsItems(draft.ammunition)) || nieznanyRodzaj) {
+    problems.push('niepoprawne-zapotrzebowanie')
+  }
+
+  if (empty(draft.contact.name)) problems.push('brak-imienia')
+  if (!EMAIL_PATTERN.test(draft.contact.email.trim())) problems.push('niepoprawny-email')
+  if (empty(draft.contact.phone)) problems.push('brak-telefonu')
+  if (!draft.consent) problems.push('brak-zgody')
+
+  return problems
+}
+
+/**
  * Wszystkie zastrzeżenia naraz, w kolejności czytania formularza. Nie pierwsze
  * z brzegu: Osoba rezerwująca ma zobaczyć całą listę poprawek za jednym razem,
  * a nie odkrywać je pojedynczo przy każdym kliknięciu.
@@ -192,32 +279,17 @@ export function bookingProblems({
   // rezerwująca naprawia zmianą zamierzeń, a nie zmianą terminu.
   // Blok bez powodu niedostępności to Blok, którego rozkład Osi nie zna —
   // termin nigdy niewystawiony, a więc nie „zajęty" ani żaden inny z powodów.
+  // Powód pierwszy z listy, bo Osobie rezerwującej mówi się o jednym: naprawi
+  // go i przeliczy dostępność od nowa, razem z resztą.
+  const powod = block?.refusals[0]
   if (!block?.available) {
-    problems.push(
-      block?.unavailableBecause ? TERM_PROBLEMS[block.unavailableBecause] : 'termin-niedostepny',
-    )
+    problems.push(powod ? TERM_PROBLEMS[powod] : 'termin-niedostepny')
   }
 
-  if (!Number.isInteger(draft.participants) || draft.participants < 1) {
-    problems.push('liczba-uczestnikow-poza-zakresem')
-  } else if (draft.participants > lane.capacity) {
-    problems.push('ponad-pojemnosc-osi')
-  }
+  const uczestnicy = participantsProblem(draft, lane)
+  if (uczestnicy) problems.push(uczestnicy)
 
-  // Dwa zastrzeżenia zamiast jednego wspólnego: naprawia się je w dwóch
-  // różnych miejscach formularza, a jedno kazałoby szukać pomyłki w obu naraz.
-  if (malformedItems(asItems(draft.rentals))) problems.push('niepoprawne-wypozyczenie')
-  const nieznanyRodzaj = draft.ammunition.some(
-    (pozycja) => !ammunitionKinds.some((rodzaj) => rodzaj.id === pozycja.ammunitionKindId),
-  )
-  if (malformedItems(demandsAsItems(draft.ammunition)) || nieznanyRodzaj) {
-    problems.push('niepoprawne-zapotrzebowanie')
-  }
-
-  if (empty(draft.contact.name)) problems.push('brak-imienia')
-  if (!EMAIL_PATTERN.test(draft.contact.email.trim())) problems.push('niepoprawny-email')
-  if (empty(draft.contact.phone)) problems.push('brak-telefonu')
-  if (!draft.consent) problems.push('brak-zgody')
+  problems.push(...draftProblems({ draft, ammunitionKinds }))
 
   return problems
 }
@@ -325,14 +397,19 @@ function readAmmunition(value: unknown): AmmunitionDemand[] {
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 /**
- * Żądanie odczytane z sieci albo wyjątek. Sprawdzamy tu wyłącznie kształt —
- * czy da się z tego zbudować `BookingRequest`. O tym, czy wolno je przyjąć,
- * orzeka `bookingProblems` na danych Strzelnicy, których ten odczyt nie zna.
+ * Treść żądania jako obiekt albo wyjątek — pierwsze pytanie każdego odczytu.
+ * Wołają go oba żądania zapisu Rezerwacji, więc stoi tu w jednej kopii,
+ * a odczyty niżej dostają już rozpakowaną treść.
  */
-export function readBookingRequest(value: unknown): BookingRequest {
-  const source = record(value, 'treść żądania')
-  const contact = record(source.contact, 'pole contact')
+export function readRequestBody(value: unknown): Record<string, unknown> {
+  return record(value, 'treść żądania')
+}
 
+/**
+ * Termin z żądania albo wyjątek. Wspólny dla obu dróg zapisu: Widget i Panel
+ * wskazują go tak samo — Osią, dniem i minutą rozkładu.
+ */
+export function readBookingTerm(source: Record<string, unknown>): BookingTerm {
   // Minuta wskazuje Blok w rozkładzie Osi. Sprawdzamy, że jest minutą doby —
   // nie, że leży na siatce Slotów: o tym, które minuty istnieją, rozstrzyga
   // rozkład, a minuta, której w nim nie ma, wraca jako termin niedostępny.
@@ -341,6 +418,22 @@ export function readBookingRequest(value: unknown): BookingRequest {
     throw new MalformedBookingRequestError('pole startMinute nie jest minutą doby')
   }
 
+  const day = identifier(source, 'day')
+  if (!DAY_PATTERN.test(day)) {
+    throw new MalformedBookingRequestError('pole day nie ma postaci RRRR-MM-DD')
+  }
+
+  return { laneId: identifier(source, 'laneId'), day, startMinute }
+}
+
+/**
+ * Zgłoszenie z żądania albo wyjątek — to, co wypełnia się o samej Rezerwacji.
+ * Wspólne dla obu dróg zapisu: Użytkownik panelu wpisuje przez telefon
+ * dokładnie te dane, które klient wpisuje sobie sam.
+ */
+export function readBookingDraft(source: Record<string, unknown>): BookingDraft {
+  const contact = record(source.contact, 'pole contact')
+
   // Liczbę Uczestników poza zakresem osądza `bookingProblems`, tak jak puste
   // pole kontaktu. Tutaj zatrzymuje się tylko to, co liczbą w ogóle nie jest.
   const participants = source.participants
@@ -348,33 +441,32 @@ export function readBookingRequest(value: unknown): BookingRequest {
     throw new MalformedBookingRequestError('pole participants nie jest liczbą')
   }
 
-  const rentals = readRentals(source.rentals)
-  const ammunition = readAmmunition(source.ammunition)
-
-  const consent = flag(source, 'consent')
-  const hasPermit = flag(source, 'hasPermit')
-  const wantsInstructor = flag(source, 'wantsInstructor')
-
-  const day = identifier(source, 'day')
-  if (!DAY_PATTERN.test(day)) {
-    throw new MalformedBookingRequestError('pole day nie ma postaci RRRR-MM-DD')
-  }
-
   return {
-    facilitySlug: identifier(source, 'facilitySlug'),
-    laneId: identifier(source, 'laneId'),
-    day,
-    startMinute,
     participants,
     contact: {
       name: formText(contact, 'name'),
       email: formText(contact, 'email'),
       phone: formText(contact, 'phone'),
     },
-    consent,
-    hasPermit,
-    wantsInstructor,
-    rentals,
-    ammunition,
+    consent: flag(source, 'consent'),
+    hasPermit: flag(source, 'hasPermit'),
+    wantsInstructor: flag(source, 'wantsInstructor'),
+    rentals: readRentals(source.rentals),
+    ammunition: readAmmunition(source.ammunition),
+  }
+}
+
+/**
+ * Żądanie odczytane z sieci albo wyjątek. Sprawdzamy tu wyłącznie kształt —
+ * czy da się z tego zbudować `BookingRequest`. O tym, czy wolno je przyjąć,
+ * orzeka `bookingProblems` na danych Strzelnicy, których ten odczyt nie zna.
+ */
+export function readBookingRequest(value: unknown): BookingRequest {
+  const source = readRequestBody(value)
+
+  return {
+    ...readBookingDraft(source),
+    ...readBookingTerm(source),
+    facilitySlug: identifier(source, 'facilitySlug'),
   }
 }

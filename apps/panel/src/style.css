@@ -214,10 +214,61 @@ body {
 
 /* Formularz Blokady odcięty linią od kalendarza — jest jedyną rzeczą na tym
    ekranie, która coś zmienia, tak samo jak odwołanie w szczegółach. */
-.blokada {
+.blokada,
+.reczny-wpis {
   border-top: 1px solid var(--ramka);
   margin: 1.5rem 0 0;
   padding-top: 1rem;
+}
+
+/* Pole zaznaczane czyta się w poprzek, a nie w dół: kwadracik i zdanie obok
+   niego są jedną rzeczą, więc etykieta nad polem rozdzielałaby je bez powodu. */
+.pole--zaznaczane {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Katalogi w formularzu wpisu: nazwa i liczba sztuk w jednym wierszu, żeby
+   kilkanaście pozycji dało się przejrzeć bez przewijania. */
+.pozycje {
+  border: 1px solid var(--ramka);
+  border-radius: 0.35rem;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.pozycje .pole {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.35rem;
+}
+
+.pozycje .pole > span:first-child {
+  flex: 1;
+}
+
+.pozycje .pole input {
+  width: 5rem;
+}
+
+.pozycje .pole small {
+  color: var(--przygaszony);
+  font-size: 0.8rem;
+}
+
+/* Kwota stoi wyżej niż przycisk, bo obsługa podaje ją klientowi w rozmowie —
+   zanim cokolwiek kliknie. */
+.wpis-kwota {
+  margin: 0.75rem 0;
+}
+
+/* Przekraczane limity jako lista, nie zdanie: obsługa potwierdza każdy z nich
+   osobno, więc każdy ma stać osobno. */
+.przekroczenia {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
 }
 
 .wpis__czas {

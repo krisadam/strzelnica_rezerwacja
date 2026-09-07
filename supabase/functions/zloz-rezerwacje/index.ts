@@ -243,6 +243,12 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
     // Chwilę wygaśnięcia liczy baza, z tej liczby i ze swojego zegara. Zegar
     // środowiska brzegowego bywa innym zegarem, a termin ma być jeden.
     p_hold_minutes: HOLD_MINUTES,
+    // Zgłoszenie klienta i nic poza tym. Limitów Widget nie ma czym przekroczyć
+    // — o dostępności i o zapisie orzeka u niego ta sama czysta funkcja — więc
+    // lista przekroczeń jest tu pusta i pilnuje tego `check` na kolumnie
+    // (ticket #17).
+    p_source: 'widget',
+    p_limit_overrides: [],
   })
 
   // Dwa zgłoszenia na ten sam Blok w tej samej chwili widzą Blok wolny oba —

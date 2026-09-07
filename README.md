@@ -150,7 +150,7 @@ wyciągnięcia — nie do dopisania testu wyżej.
 wyścig o ten sam Blok, przejście całej ścieżki, izolacja Strzelnic, osadzenie
 w ramce, potwierdzenie adresu, anulowanie przez link, logowanie do Panelu,
 odwołanie Rezerwacji przez Strzelnicę, Blokada Osi zdejmująca terminy
-z Widgetu.
+z Widgetu, ręczna Rezerwacja telefoniczna z przekroczonym limitem.
 Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
@@ -165,8 +165,9 @@ terminy najbliższe, bo obie ich strony muszą trafić na ten sam Blok.
 
 ## Rezerwacje
 
-Rezerwację zapisuje wyłącznie Edge Function `zloz-rezerwacje`, potwierdza
-`potwierdz-rezerwacje`, anuluje `anuluj-rezerwacje`, a odwołuje
+Rezerwację z Widgetu zapisuje wyłącznie Edge Function `zloz-rezerwacje`,
+[przyjętą przez telefon](#ręczna-rezerwacja-telefoniczna) — `wpisz-rezerwacje`,
+potwierdza `potwierdz-rezerwacje`, anuluje `anuluj-rezerwacje`, a odwołuje
 `odwolaj-rezerwacje` (ADR 0003). Tą samą drogą
 idzie jej **odczyt** spod linku klienta (`pokaz-rezerwacje`), choć niczego nie
 zmienia: `bookings` niesie dane osobowe, a Osoba rezerwująca nie ma konta,
@@ -395,6 +396,64 @@ Zdjęcia Blokady ten ticket nie ma. Wprowadzona pomyłkowo znika dopiero razem
 z ekranem, który będzie umiał ją skasować — osobna tabela czyni to zwykłym
 `delete` na własnym wierszu.
 
+## Ręczna Rezerwacja telefoniczna
+
+Zgłoszenie przyjęte przez telefon, wpisywane w Panelu w trakcie rozmowy — z tym
+samym kompletem danych, co w Widgecie, razem ze sprzętem i Kwotą. Powstaje od
+razu **potwierdzona**: adresu nie wpisał klient, tylko obsługa ze słuchu, więc
+nie ma czego potwierdzać ani na co czekać, i nie ma przy niej ani tokenu, ani
+Czasu na potwierdzenie.
+
+Każda Rezerwacja niesie odtąd swoje **Źródło** (`bookings.source`): Widget albo
+Panel. Kolumna nie ma wartości domyślnej i jest to jej treść — Rezerwacja
+zapisana bez podanego Źródła podawałaby się za zgłoszenie klienta, a właśnie o to
+jedno ta kolumna ma nie milczeć.
+
+Użytkownik panelu wie o sytuacji więcej niż system, więc wolno mu przekroczyć
+trzy limity Strzelnicy: **pojemność Osi**, **godziny otwarcia** i **Pulę
+instruktorów**. Wolno wyłącznie po jawnym potwierdzeniu — formularz wymienia
+przekraczane limity z nazwy i pyta, zanim cokolwiek wyśle — a każde odstępstwo
+zostaje przy Rezerwacji na trwałe (`bookings.limit_overrides`) i stoi w jej
+szczegółach zaraz pod Źródłem. Bez tego wiersza Rezerwacja na sześć osób na Osi
+czteroosobowej wygląda na pomyłkę systemu, a nie na decyzję, którą ktoś podjął
+świadomie.
+
+Listę odnotowanych naruszeń liczy **serwer**, a nie przeglądarka: żądanie niesie
+wyłącznie potwierdzenie, a do bazy trafia osąd Edge Function policzony z tych
+samych danych, z których policzyła się dostępność. Ten sam podział, co przy
+Kwocie — lista przysłana z przeglądarki byłaby naruszeniem, które sam naruszający
+sobie wystawia. Ubocznie rozstrzyga to wyścig: gdy między pytaniem o pewność
+a zapisem klient zabierze Instruktora z Puli, serwer widzi limit, o którym nikogo
+nie zapytano, i odmawia.
+
+Czego przekroczyć **nie** wolno: wyłączności Osi. Termin zajęty przez cudzą
+Rezerwację albo Blokadę jest odmową, a nie odstępstwem — dwie grupy na jednej Osi
+to nie złamanie reguły Strzelnicy, tylko dwie grupy na jednej Osi. Pilnuje tego
+ograniczenie wykluczające w schemacie i wyzwalacze Blokad, więc ręczny wpis
+odbija się od bazy, a nie od sprawdzenia w kodzie. Nie do przekroczenia są też
+Pula sztuk Typu broni, termin, który minął, minimalne wyprzedzenie i dzień
+zamknięty — każde z innego powodu, wypisanego w ADR 0012.
+
+Formularz pokazuje przy tym **wszystkie** Bloki dnia, nie tylko wolne, i przy
+każdym powód, przez który wolny nie jest: termin niedostępny dla klienta bywa
+dostępny dla obsługi. Powodów bywa więcej niż jeden i wszystkie są tu potrzebne —
+`Block.refusals` jest odtąd listą, a Widget pokazuje jej pierwszy wyraz. Powód
+pierwszy z brzegu znaczyłby wpis przyjęty na termin, który już minął, bo minięcie
+stanęłoby za godzinami otwarcia, przekroczonymi tą samą decyzją.
+
+Listu nie ma tu żadnego — ani do klienta, ani do Strzelnicy. Klient jest na linii
+i słyszy termin oraz Kwotę od obsługi, a powiadomienie o nowej Rezerwacji
+poszłoby do Strzelnicy, która właśnie tę Rezerwację wpisuje.
+
+Zapis idzie Edge Function `wpisz-rezerwacje` i idzie nią rolą serwisową, tak samo
+jak odwołanie i Blokada (ADR 0003). Strzelnicy nie ma przy tym w żądaniu i nie ma
+jej czym podstawić: funkcja pyta o nią bazę po numerze potwierdzonego konta
+(`panel_facility_of`, ADR 0010), a wszystko dalej — Osie, cennik, zajętość —
+liczy się z tej jednej odpowiedzi. Sam zapis wykonuje `place_booking`, ta sama
+funkcja bazodanowa, co dla zgłoszeń z Widgetu: ręczny wpis ma przejść przez tę
+samą blokadę doradczą, to samo zamiatanie wygasłych i to samo sprawdzenie Puli
+sztuk broni.
+
 ## Panel
 
 Wejście do Panelu daje konto Supabase Auth powiązane z jedną Strzelnicą przez
@@ -421,12 +480,22 @@ długości, i to w stronę, w którą kłamać nie wolno. Na liście Blokad nie 
 jej kolumny to Osoba rezerwująca, Uczestnicy i Kwota, a Blokada nie ma ani
 jednej z tych rzeczy.
 
-Zmienia Panel dwie rzeczy: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
-przez Strzelnicę](#odwołanie-rezerwacji-przez-strzelnicę)) i wprowadza Blokadę
-Osi (zobacz [Blokady Osi](#blokady-osi)). Jedno i drugie idzie Edge Function,
-bo obie tabele mają zamknięte obie publiczne role — a ekran odczytuje po tym
-dane od nowa, zamiast przepisywać sobie stan z odpowiedzi „udało się": między
-wczytaniem Panelu a kliknięciem klient bywa szybszy.
+Zmienia Panel trzy rzeczy: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
+przez Strzelnicę](#odwołanie-rezerwacji-przez-strzelnicę)), wprowadza Blokadę
+Osi (zobacz [Blokady Osi](#blokady-osi)) i wpisuje Rezerwację przyjętą przez
+telefon (zobacz [Ręczna Rezerwacja
+telefoniczna](#ręczna-rezerwacja-telefoniczna)). Wszystko trzy idzie Edge
+Function, bo obie tabele mają zamknięte obie publiczne role — a ekran odczytuje
+po tym dane od nowa, zamiast przepisywać sobie stan z odpowiedzi „udało się":
+między wczytaniem Panelu a kliknięciem klient bywa szybszy.
+
+Formularz ręcznego wpisu potrzebuje przy tym więcej niż same Rezerwacje: liczy
+dostępność terminu i Kwotę tymi samymi czystymi funkcjami, co Widget, więc Panel
+czyta też rozkład Bloków, godziny otwarcia, wyjątki kalendarzowe i oba katalogi
+w całości — z pulami sztuk i cenami. Zajętość składa mu się z tego, co ma pod
+ręką (`panelOccupancy`, `panelWeaponOccupancy`), a nie z widoków zajętości
+Widgetu: te wystawiają zajętość **wszystkich** Strzelnic i konto Panelu nie ma do
+nich prawa (ADR 0009).
 
 Formularz Blokady oknem odczytu **nie** jest przy tym ograniczony, inaczej niż
 pola filtrów: tam okno jest granicą pytania, a tu byłoby granicą zapisu —
