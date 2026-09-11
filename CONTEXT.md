@@ -128,6 +128,34 @@ Rozkład mówi, co jest do wzięcia **od tej chwili**. Rezerwacja już złożona
 zależy od niego wcale: niesie własny termin, więc Blok zdjęty z rozkładu znika
 ze sprzedaży, a nie z grafiku dnia.
 
+## Godziny otwarcia
+
+Kiedy Strzelnica jest czynna, wypisane osobno na każdy dzień tygodnia. Są
+**rytmem**, jak Rozkład Bloków, ale własnością całej Strzelnicy, a nie Osi:
+zamknięty poniedziałek zdejmuje terminy wszystkim Osiom naraz. Dzień, którego
+nie wymieniają, jest dniem zamkniętym — Strzelnica nie ma wtedy ani jednego
+Bloku do wzięcia.
+
+Bloku nie tworzą ani nie kasują: mierzą go. Blok wypisany poza godzinami stoi na
+grafiku dalej i jest widoczny, tyle że niedostępny — inaczej niż w dniu
+zamkniętym, gdzie Bloków nie ma wcale.
+
+## Wyjątek kalendarzowy
+
+Konkretna data, która nie idzie rytmem Godzin otwarcia: święto, zawody, dzień
+skrócony. **Zastępuje** godziny tygodniowe w całości, a nie poprawia ich — data
+objęta wyjątkiem jest albo zamknięta, albo otwarta dokładnie w jego godzinach,
+także wtedy, gdy w rytmie tygodnia jest zamknięta.
+
+Niesie **powód**, i czyta go wyłącznie Strzelnica — jak przy Blokadzie: data
+zdjęta ze sprzedaży bez powodu każe następnej zmianie obsługi dzwonić i pytać,
+czy to pomyłka. Do Osoby rezerwującej powód nie wychodzi; ona widzi dzień bez
+terminów.
+
+Rezerwacji nie rusza. Wyjątek mówi, czego Strzelnica nie sprzedaje, a nie komu
+odbiera termin — Rezerwacja stojąca w dniu, który właśnie zamknięto, trwa, dopóki
+ktoś jej nie odwoła, z powodem i na piśmie.
+
 ## Horyzont rezerwacji
 
 Jak daleko w przód Strzelnica przyjmuje Rezerwacje: liczba dni jej kalendarza

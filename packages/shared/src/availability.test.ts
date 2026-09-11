@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type {
   BlockSchedule,
+  CalendarException,
   DayAvailabilityInput,
   Occupancy,
   OpeningHours,
@@ -63,7 +64,7 @@ function pytanie(nadpisania: Partial<DayAvailabilityInput> = {}): DayAvailabilit
     laneId: OS_PISTOLETOWA,
     schedules: [blok(600), blok(750)],
     openingHours: OTWARTE_10_22,
-    closedDates: [],
+    exceptions: [],
     occupancies: [],
     instructorPool: 1,
     weaponTypes: [],
@@ -145,18 +146,58 @@ describe('Blok poza godzinami otwarcia', () => {
 })
 
 describe('wyjątek kalendarzowy', () => {
+  function zamkniete(day: string): CalendarException {
+    return { day, reason: 'Zawody klubowe', hours: null }
+  }
+
   it('zamyka dzień, zamiast tylko zdejmować z niego Bloki', () => {
-    expect(scheduleForDay(pytanie({ closedDates: [PONIEDZIALEK] }))).toEqual({
+    expect(scheduleForDay(pytanie({ exceptions: [zamkniete(PONIEDZIALEK)] }))).toEqual({
       open: false,
       blocks: [],
     })
   })
 
   it('nie rusza sąsiednich dni', () => {
-    const grafik = scheduleForDay(pytanie({ closedDates: ['2026-06-14', '2026-06-16'] }))
+    const grafik = scheduleForDay(
+      pytanie({ exceptions: [zamkniete('2026-06-14'), zamkniete('2026-06-16')] }),
+    )
 
     expect(grafik.open).toBe(true)
     expect(grafik.blocks).toHaveLength(2)
+  })
+
+  it('mierzy Bloki własnymi godzinami, gdy dnia nie zamyka', () => {
+    // Dzień skrócony do południa: Bloki zostają na grafiku, ale ten po
+    // zamknięciu nie jest do wzięcia. To nie to samo, co dzień zamknięty —
+    // tam nie ma ani jednego Bloku do pokazania.
+    const grafik = scheduleForDay(
+      pytanie({
+        exceptions: [
+          { day: PONIEDZIALEK, reason: 'Wigilia', hours: { opensMinute: 600, closesMinute: 780 } },
+        ],
+      }),
+    )
+
+    expect(grafik.open).toBe(true)
+    expect(grafik.blocks[0]?.available).toBe(true)
+    expect(grafik.blocks[1]?.refusals).toEqual(['poza-godzinami-otwarcia'])
+  })
+
+  it('otwiera dzień, którego tydzień nie wymienia wcale', () => {
+    // Wtorek jest zamknięty w rytmie tygodnia, a jednak Strzelnica otwiera go
+    // jednorazowo: wyjątek mówi o dacie wszystko, a nie poprawia tygodnia.
+    const grafik = scheduleForDay(
+      pytanie({
+        day: '2026-06-16',
+        schedules: [blok(600, { weekday: 2 })],
+        exceptions: [
+          { day: '2026-06-16', reason: 'Zawody', hours: { opensMinute: 540, closesMinute: 1200 } },
+        ],
+      }),
+    )
+
+    expect(grafik.open).toBe(true)
+    expect(grafik.blocks[0]?.available).toBe(true)
   })
 })
 

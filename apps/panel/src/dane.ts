@@ -19,7 +19,7 @@
 import type {
   AmmunitionKind,
   BlockSchedule,
-  CalendarDay,
+  CalendarException,
   Facility,
   Lane,
   LaneClosure,
@@ -32,7 +32,7 @@ import type {
 import {
   ammunitionKindFromRow,
   blockScheduleFromRow,
-  closedDateFromRow,
+  calendarExceptionFromRow,
   facilityFromRow,
   laneClosureFromRow,
   laneFromRow,
@@ -96,8 +96,11 @@ export type Dane = {
   /** Rozkład Bloków wszystkich Osi: z niego bierze się termin ręcznego wpisu. */
   schedules: BlockSchedule[]
   openingHours: OpeningHours[]
-  /** Dni zamknięte wyjątkiem kalendarzowym — wtedy nie ma czego wpisywać. */
-  closedDates: CalendarDay[]
+  /**
+   * Wyjątki kalendarzowe — daty poza rytmem tygodnia. Dzień zamknięty nie ma
+   * czego wpisywać, a skrócony ma tego mniej niż zwykle.
+   */
+  exceptions: CalendarException[]
   /** Katalog Typów broni wraz z pulami sztuk i cenami. */
   weaponTypes: WeaponType[]
   ammunitionKinds: AmmunitionKind[]
@@ -127,7 +130,7 @@ type Oferta = {
   facility: Facility
   schedules: BlockSchedule[]
   openingHours: OpeningHours[]
-  closedDates: CalendarDay[]
+  exceptions: CalendarException[]
 }
 
 async function ofertaUzytkownika(client: PanelClient): Promise<Oferta> {
@@ -154,7 +157,7 @@ async function ofertaUzytkownika(client: PanelClient): Promise<Oferta> {
     facility: facilityFromRow(row),
     schedules: row.block_schedules.map(blockScheduleFromRow),
     openingHours: row.opening_hours.map(openingHoursFromRow),
-    closedDates: row.calendar_exceptions.map(closedDateFromRow),
+    exceptions: row.calendar_exceptions.map(calendarExceptionFromRow),
   }
 }
 
@@ -176,7 +179,7 @@ async function ofertaUzytkownika(client: PanelClient): Promise<Oferta> {
  * własny porządek i wchodzą do opisu Rezerwacji.
  */
 export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane> {
-  const { facility, schedules, openingHours, closedDates } = await ofertaUzytkownika(client)
+  const { facility, schedules, openingHours, exceptions } = await ofertaUzytkownika(client)
   const okno = panelWindow({
     timeZone: facility.timeZone,
     horizonDays: facility.timeRules.horizonDays,
@@ -251,7 +254,7 @@ export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane>
     bookings: rezerwacje,
     schedules,
     openingHours,
-    closedDates,
+    exceptions,
     weaponTypes: katalogBroni.map(weaponTypeFromRow),
     ammunitionKinds: katalogAmunicji.map(ammunitionKindFromRow),
     // Termin sztukom nadaje Rezerwacja, do której pozycja należy — własne

@@ -52,6 +52,8 @@ const OBCA = {
 const STRZELNICA_DEMO = '00000000-0000-0000-0000-000000000001'
 /** Konto obsługi demo — to, którym przepisano by się na obcą Strzelnicę. */
 const KONTO_DEMO = '00000000-0000-0000-0000-000000000101'
+/** Konto obsługi drugiej Strzelnicy — to, którym podszyłby się przejmujący. */
+const KONTO_DRUGIEJ = '00000000-0000-0000-0000-000000000102'
 
 /** Rezerwacje drugiej Strzelnicy — te, których obsługa demo widzieć nie ma. */
 const KLIENT_OBCY = 'Obcy Klient'
@@ -259,6 +261,24 @@ const ZAPISY_W_OBCEJ = [
     zapytanie: `lane_closures?id=eq.${OBCA.blokada}`,
     init: { method: 'DELETE' },
   },
+  {
+    co: 'dopisanie godzin otwarcia obcej Strzelnicy',
+    zapytanie: 'opening_hours',
+    init: {
+      method: 'POST',
+      body: JSON.stringify({
+        facility_id: OBCA.strzelnica,
+        weekday: 7,
+        opens_minute: 0,
+        closes_minute: 60,
+      }),
+    },
+  },
+  {
+    co: 'usunięcie obcego wyjątku kalendarzowego',
+    zapytanie: `calendar_exceptions?facility_id=eq.${OBCA.strzelnica}`,
+    init: { method: 'DELETE' },
+  },
 ]
 
 /** Druga Strzelnica w kształcie, w jakim zostawił ją seed. */
@@ -303,6 +323,63 @@ test('Użytkownik panelu nie zapisze niczego w obcej Strzelnicy', async () => {
   }
 
   await drugaStrzelnicaJestNietknieta()
+})
+
+/**
+ * Godziny otwarcia i Wyjątki kalendarzowe obcej Strzelnicy. Granica stoi tu
+ * inaczej niż przy Osi i Rezerwacji, bo żądanie **nie ma czym** wskazać obcej
+ * Strzelnicy: godziny są jej własnością, a o tym, czyje są, rozstrzyga numer
+ * konta podstawiony przez Edge Function (ADR 0010). Cała droga przejęcia wiedzie
+ * więc przez funkcję bazodanową wołaną wprost, z podstawionym **cudzym** kontem
+ * — i tej drogi nie ma: prawo wykonania mają wyłącznie Edge Functions
+ * (ADR 0003).
+ *
+ * Zapis pytamy o ten najgroźniejszy z możliwych: tydzień pusty zamyka obcą
+ * Strzelnicę na siedem dni w tygodniu, a zdjęcie wyjątku otwiera ją w święto —
+ * jedno i drugie bez jej wiedzy.
+ */
+test('Użytkownik panelu nie zmieni godzin ani wyjątków obcej Strzelnicy', async () => {
+  const drogi = [
+    {
+      co: 'tydzień godzin',
+      funkcja: 'rpc/set_opening_hours',
+      zadanie: { p_week: [], p_user_id: KONTO_DRUGIEJ },
+    },
+    {
+      co: 'zapis wyjątku',
+      funkcja: 'rpc/save_calendar_exception',
+      zadanie: {
+        p_on_date: '2030-01-01',
+        p_reason: 'Wtręt',
+        p_opens_minute: null,
+        p_closes_minute: null,
+        p_user_id: KONTO_DRUGIEJ,
+      },
+    },
+    {
+      co: 'zdjęcie wyjątku',
+      funkcja: 'rpc/delete_calendar_exception',
+      zadanie: { p_on_date: '2030-01-01', p_user_id: KONTO_DRUGIEJ },
+    },
+  ]
+
+  for (const { co, funkcja, zadanie } of drogi) {
+    const odpowiedz = await bazaJakoUzytkownikPanelu(OBSLUGA_DEMO, HASLO_PANELU, funkcja, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(zadanie),
+    })
+    expect({ co, odmowa: odpowiedz.status >= 400 }).toEqual({ co, odmowa: true })
+  }
+
+  // Obca Strzelnica ma swój tydzień i swój wyjątek — a tydzień pusty byłby
+  // Strzelnicą zamkniętą na okrągło, i to bez jej wiedzy.
+  expect(
+    await baza<unknown[]>(`opening_hours?facility_id=eq.${OBCA.strzelnica}&select=id`),
+  ).not.toHaveLength(0)
+  expect(
+    await baza<unknown[]>(`calendar_exceptions?facility_id=eq.${OBCA.strzelnica}&select=id`),
+  ).not.toHaveLength(0)
 })
 
 /**
@@ -458,16 +535,30 @@ test('klucz anonimowy nie odczyta danych osobowych żadnej Strzelnicy', async ()
     // klucz anonimowy wchodzi — ale nie do nich. Prawa idą tu kolumnami.
     'facilities?select=contact_email,contact_phone',
     'facilities?select=notification_email',
+    // Powód Wyjątku kalendarzowego: czyta go wyłącznie obsługa, tak samo jak
+    // powód Blokady. Klucz anonimowy wchodzi do tej tabeli po datę i godziny —
+    // dzień zamknięty musi dojść do kalendarza klienta — ale nie po zdanie,
+    // którym Strzelnica tłumaczy się sama sobie.
+    'calendar_exceptions?select=reason',
   ]
 
   for (const zrodlo of zrodla) {
     expect({ zrodlo, wiersze: await wierszeAnonimowo(zrodlo) }).toEqual({ zrodlo, wiersze: [] })
   }
 
+  // A po datę i godziny wchodzi — inaczej Widget sprzedawałby termin w święto.
+  // Odmowa wszystkiego byłaby tu równie zła jak odmowa niczego.
+  expect(
+    await wierszeAnonimowo('calendar_exceptions?select=on_date,opens_minute,closes_minute'),
+  ).not.toEqual([])
+
   // I nie jest to pustka z braku danych: rolą serwisową te same kolumny stoją
   // pełne. Ta asercja pilnuje poprzedniej pętli, nie bazy.
   const osobowe = await baza<{ contact_name: string }[]>('bookings?select=contact_name')
   expect(osobowe.length).toBeGreaterThan(0)
+
+  const powody = await baza<{ reason: string | null }[]>('calendar_exceptions?select=reason')
+  expect(powody.filter((wiersz) => wiersz.reason !== null).length).toBeGreaterThan(0)
 })
 
 /**

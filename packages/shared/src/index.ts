@@ -9,7 +9,9 @@ export {
   formatMoment,
   formatTimeRange,
   InvalidCalendarDayError,
+  isCalendarDay,
   localMomentToInstant,
+  MINUTES_IN_DAY,
   weekdayOf,
   zonedMinuteToInstant,
 } from './calendar.ts'
@@ -33,7 +35,6 @@ export type {
   InstructorPresenceInput,
   Intent,
   Occupancy,
-  OpeningHours,
   RemainingWeaponsInput,
   TimeRules,
   Unavailability,
@@ -107,7 +108,6 @@ export {
   formatScheduleMinute,
   laneWeek,
   MalformedScheduleRequestError,
-  MINUTES_IN_DAY,
   readScheduleRequest,
   sameWeek,
   scheduleProblems,
@@ -121,6 +121,29 @@ export type {
   ScheduleProblem,
   ScheduleRequest,
 } from './schedule.ts'
+export {
+  exceptionProblems,
+  hoursConflicts,
+  hoursForDay,
+  MalformedHoursRequestError,
+  MAX_CLOSES_MINUTE,
+  readExceptionRequest,
+  readHoursRequest,
+  sameOpeningHours,
+  weekHoursProblems,
+} from './hours.ts'
+export type {
+  BookedTerm,
+  CalendarException,
+  DayHours,
+  DayHoursInput,
+  ExceptionRequest,
+  HoursConflictInput,
+  HoursOutcome,
+  HoursProblem,
+  HoursRequest,
+  OpeningHours,
+} from './hours.ts'
 export {
   MalformedRevocationRequestError,
   readRevocationRequest,
@@ -235,7 +258,7 @@ export {
   asWeekday,
   blockScheduleFromRow,
   bookingSummaryFromRows,
-  closedDateFromRow,
+  calendarExceptionFromRow,
   facilityContactFromRow,
   facilityFromRow,
   IncompleteOccupancyError,
@@ -254,6 +277,7 @@ export {
 } from './rows.ts'
 export type {
   BookingSummaryRows,
+  CalendarExceptionRow,
   Facility,
   FacilityContactRow,
   FacilityRow,

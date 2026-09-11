@@ -500,3 +500,74 @@ body {
   flex-wrap: wrap;
   gap: 0.75rem;
 }
+
+/* Tydzień godzin tą samą siatką, co tydzień rozkładu: to ten sam tydzień
+   oglądany drugi raz, więc ma wyglądać tak samo. */
+.godziny__tydzien {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.godziny__dzien {
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.godziny__dzien h3 {
+  margin-top: 0;
+}
+
+.godziny__wyjatki {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.godziny__wyjatek {
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0.5rem 1rem 0.75rem;
+}
+
+.godziny__wyjatki li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Ostrzeżenie przy wyjątku, którego zdjęcie coś wypchnie — w tym samym
+   kolorze, co lista kolizji, bo mówi dokładnie o tym samym. */
+.godziny__ostrzezenie {
+  color: var(--blad);
+}
+
+/* Kolizje w ramce i w kolorze ostrzeżenia: to jedyne miejsce tego ekranu,
+   w którym stoi coś do rozstrzygnięcia przez człowieka, a nie do ustawienia. */
+.kolizje {
+  border: 1px solid var(--blad);
+  border-radius: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0.5rem 1rem 0.75rem;
+}
+
+.kolizje h3 {
+  margin-top: 0.5rem;
+}
+
+.kolizje__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}

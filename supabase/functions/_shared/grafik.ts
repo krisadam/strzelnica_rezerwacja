@@ -31,7 +31,7 @@ import type {
 import {
   ammunitionKindFromRow,
   blockScheduleFromRow,
-  closedDateFromRow,
+  calendarExceptionFromRow,
   occupancyFromRow,
   occupancyWindow,
   openingHoursFromRow,
@@ -122,7 +122,7 @@ export async function grafikOsi(
       intent,
       schedules: rowsOrThrow(schedules).map(blockScheduleFromRow),
       openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),
-      closedDates: rowsOrThrow(exceptions).map(closedDateFromRow),
+      exceptions: rowsOrThrow(exceptions).map(calendarExceptionFromRow),
       occupancies: rowsOrThrow(zajetosc).map(occupancyFromRow),
       weaponTypes,
       weaponOccupancies: rowsOrThrow(wypozyczone).map(weaponOccupancyFromRow),

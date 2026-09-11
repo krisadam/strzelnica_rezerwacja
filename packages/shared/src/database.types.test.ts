@@ -89,16 +89,21 @@ describe('typy ze schematu bazy', () => {
     expect(pozycja.duration_minutes % 30).toBe(0)
   })
 
-  it('wyjątek kalendarzowy niesie datę, a powód jest opcjonalny', () => {
+  it('wyjątek kalendarzowy niesie datę, a powód i godziny są opcjonalne', () => {
     const wyjatek: Tables<'calendar_exceptions'> = {
       id: '00000000-0000-0000-0000-0000000000b1',
       facility_id: '00000000-0000-0000-0000-000000000001',
-      closed_on: '2026-06-20',
+      on_date: '2026-06-20',
       reason: null,
+      opens_minute: null,
+      closes_minute: null,
       created_at: '2026-01-01T00:00:00Z',
     }
 
     expect(wyjatek.reason).toBeNull()
+    // Godziny puste znaczą dzień zamknięty w całości — wypełnione dają dacie
+    // własne, w miejsce tygodniowych.
+    expect(wyjatek.opens_minute).toBeNull()
   })
 
   it('godziny otwarcia dopuszczają domknięcie po północy', () => {

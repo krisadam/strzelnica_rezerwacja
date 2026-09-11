@@ -8,14 +8,14 @@ import type { AmmunitionKind } from './ammunition.ts'
 import type {
   BlockSchedule,
   Occupancy,
-  OpeningHours,
   TimeRules,
   WeaponOccupancy,
   WeaponType,
 } from './availability.ts'
 import { dayIn } from './calendar.ts'
-import type { CalendarDay, Weekday } from './calendar.ts'
+import type { Weekday } from './calendar.ts'
 import type { LaneClosure } from './closure.ts'
+import type { CalendarException, OpeningHours } from './hours.ts'
 import type { Tables } from './database.types.ts'
 import type { FacilityContact } from './management.ts'
 import type { BookingSummary, OrderedItem } from './mail.ts'
@@ -71,8 +71,38 @@ export function openingHoursFromRow(row: Tables<'opening_hours'>): OpeningHours 
   }
 }
 
-export function closedDateFromRow(row: Tables<'calendar_exceptions'>): CalendarDay {
-  return row.closed_on
+/**
+ * Wiersz wyjątku w kształcie, w jakim wolno go **przeczytać**. Powód jest tu
+ * dopuszczalnie nieobecny i nie jest to wygoda: klucz anonimowy nie ma do tej
+ * kolumny prawa, bo powód czyta wyłącznie Strzelnica, więc wiersz odczytany
+ * przez Widget naprawdę go nie niesie. Typ mówi to wprost, zamiast pozwolić
+ * zapytaniu Widgetu poprosić o kolumnę, którą baza i tak odmówi.
+ */
+export type CalendarExceptionRow = Pick<
+  Tables<'calendar_exceptions'>,
+  'on_date' | 'opens_minute' | 'closes_minute'
+> & { reason?: string | null }
+
+/**
+ * Wyjątek kalendarzowy z wiersza. Godziny puste znaczą dzień zamknięty
+ * w całości — jedna kolumna pusta wystarczy, bo schemat nie dopuszcza pary
+ * wypełnionej w połowie.
+ *
+ * Powód pusty w bazie staje się tu pustym napisem, a nie `null`: dla ekranu
+ * wyjątek bez opisu i wyjątek z pustym opisem są tym samym, a dwa sposoby
+ * powiedzenia „nic" znaczą dwa sprawdzenia w każdym miejscu, które je czyta.
+ * Tym samym napisem wchodzi wiersz odczytany bez tej kolumny — Widget wie
+ * o wyjątku tyle, że dnia nie ma w sprzedaży.
+ */
+export function calendarExceptionFromRow(row: CalendarExceptionRow): CalendarException {
+  return {
+    day: row.on_date,
+    reason: row.reason ?? '',
+    hours:
+      row.opens_minute === null || row.closes_minute === null
+        ? null
+        : { opensMinute: row.opens_minute, closesMinute: row.closes_minute },
+  }
 }
 
 /**

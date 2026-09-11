@@ -153,7 +153,7 @@ describe('Blokada w dostępności Bloków', () => {
         },
       ],
       openingHours: [{ weekday: 1, opensMinute: 600, closesMinute: 1320 }],
-      closedDates: [],
+      exceptions: [],
       occupancies,
       instructorPool: 1,
       weaponTypes: [],
