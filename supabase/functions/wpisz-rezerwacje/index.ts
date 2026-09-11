@@ -91,11 +91,16 @@ async function handle(
   }
   const facility = facilityFromRow(facilityRow)
 
+  // Wyłącznie Oś czynna, tak samo jak przy zgłoszeniu z Widgetu. Oś wyłączona
+  // nie jest limitem Strzelnicy do przekroczenia (ADR 0012), tylko Osią zdjętą
+  // z oferty — obsługa, która chce na nią wpisać Rezerwację, włącza ją
+  // wcześniej jednym polem w konfiguracji.
   const laneResult = await client
     .from('lanes')
     .select('*')
     .eq('facility_id', facility.id)
     .eq('id', request.laneId)
+    .eq('active', true)
     .maybeSingle()
 
   if (laneResult.error) throw new Error(laneResult.error.message)

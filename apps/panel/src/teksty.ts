@@ -7,16 +7,20 @@
  * klienta o jego Rezerwacji, tu do obsługi o cudzych. „Termin jest Twój" i „Jan
  * Przykładowy, 2 os." to nie są dwa warianty jednego zdania.
  */
+import { MAX_LANE_CAPACITY } from '@strzelnica/shared'
 import type {
   BookingSource,
   ClosureProblem,
   Database,
   InstructorPresence,
+  LaneProblem,
   LimitOverride,
   ManualBookingProblem,
   OrderedItem,
   RevocationProblem,
+  ScheduleProblem,
   Unavailability,
+  Weekday,
 } from '@strzelnica/shared'
 
 type BookingStatus = Database['public']['Enums']['booking_status']
@@ -211,6 +215,129 @@ export const teksty = {
         'Tej Rezerwacji nie ma czego odwoływać — sprawdź jej stan w odświeżonym opisie.',
     } satisfies Record<RevocationProblem, string>,
     blad: 'Nie udało się odwołać Rezerwacji. Spróbuj jeszcze raz za chwilę.',
+  },
+
+  /**
+   * Osie. Zdania mówią o obiekcie, a nie o dniu: to jest jedyny ekran Panelu,
+   * którego treść nie zmienia się od tego, co przyniesie poranek.
+   */
+  osie: {
+    naglowek: 'Osie',
+    wstep:
+      'Czym Strzelnica dysponuje i ile osób wolno na tym postawić. Oś ' +
+      'wyłączona znika z Widgetu razem ze wszystkimi swoimi terminami, ale ' +
+      'zostaje tutaj i w kalendarzu — razem z Rezerwacjami, które już na niej ' +
+      'stoją. Skasować Osi nie da się wcale i jest to decyzja: skasowana ' +
+      'zabrałaby ze sobą cudze Rezerwacje, a te znikają wyłącznie odwołaniem.',
+    nazwa: 'Nazwa',
+    /** Pojemność jest limitem Rezerwacji, a nie zasobem sprzedawanym osobno. */
+    pojemnosc: 'Pojemność (Uczestników)',
+    czynna: 'Oś w ofercie',
+    /** Znacznik przy nazwie wyłączonej Osi — widać go bez wchodzenia w pola. */
+    wylaczona: 'wyłączona ze sprzedaży',
+    zapisz: 'Zapisz',
+    zapisywanie: 'Zapisuję…',
+    zapisano: 'Oś zapisana.',
+    nowa: 'Nowa Oś',
+    /**
+     * Zdanie o tym, czego nowa Oś jeszcze nie ma. Stawka za Blok należy do
+     * Cennika (ticket #22), a Oś bez Bloków nie sprzedaje niczego — więc do
+     * czasu tamtego ekranu trzeba o tym powiedzieć wprost, zamiast pozwolić
+     * komuś wystawić terminy po zero złotych.
+     */
+    wstepNowej:
+      'Nowa Oś wchodzi bez rozkładu, więc nie ma jeszcze ani jednego terminu ' +
+      'do wzięcia. Stawkę za Blok ustawia cennik — do tego czasu jest zerowa, ' +
+      'więc rozkład wypisuj jej dopiero po ustaleniu ceny.',
+    dodaj: 'Dodaj Oś',
+    dodawanie: 'Dodaję…',
+    dodano: 'Oś dodana. Wypisz jej Bloki w rozkładzie niżej.',
+    /**
+     * Odmowy, każda z podpowiedzią co dalej. Pierwsze dwie wypisuje sam
+     * formularz; „nazwa zajęta" przychodzi i stąd, i z bazy — dopiero ona wie,
+     * co koleżanka z drugiej zmiany dodała minutę temu.
+     *
+     * „Nieznana Oś" znaczy Oś, której baza tej Strzelnicy nie przypisuje,
+     * a formularz poprawia Oś wziętą z tej właśnie Strzelnicy: żeby to zdanie
+     * stanęło na ekranie, Oś musiałaby zniknąć między odczytem a kliknięciem.
+     */
+    problem: {
+      'brak-nazwy': 'Podaj nazwę Osi — po niej obsługa pozna ją w każdym polu wyboru.',
+      'nazwa-zajeta': 'Taką nazwę nosi już inna Oś tej Strzelnicy. Wpisz inną.',
+      'zla-pojemnosc': (
+        'Pojemność jest liczbą Uczestników — całkowitą, dodatnią i nie ' +
+        `większą niż ${MAX_LANE_CAPACITY}.`
+      ),
+      'nieznana-os': 'Tej Osi już nie ma. Odśwież ekran i sprawdź, co się z nią stało.',
+    } satisfies Record<LaneProblem, string>,
+    blad: 'Nie udało się zapisać Osi. Spróbuj jeszcze raz za chwilę.',
+  },
+
+  /**
+   * Rozkład Bloków. Zdania mówią o tygodniu, a nie o dacie: rozkład jest
+   * rytmem, który powtarza się co siedem dni, a nie planem konkretnego dnia.
+   */
+  rozklad: {
+    naglowek: 'Rozkład Bloków',
+    wstep:
+      'Terminy, które Strzelnica wystawia na sprzedaż: osobno dla każdej Osi ' +
+      'i osobno na każdy dzień tygodnia. Bloku nie składa się z dowolnych ' +
+      'minut — zaczyna się na pełnej połowie godziny i tyle samo trwa. ' +
+      'Zapisany rozkład Widget pokazuje od razu; Rezerwacji już złożonych nie ' +
+      'rusza wcale, także wtedy, gdy przestają do niego pasować.',
+    os: 'Oś, której rozkład układasz',
+    /** Nazwy dni w porządku ISO — tym samym, którym liczy je `weekdayOf`. */
+    dzien: {
+      1: 'Poniedziałek',
+      2: 'Wtorek',
+      3: 'Środa',
+      4: 'Czwartek',
+      5: 'Piątek',
+      6: 'Sobota',
+      7: 'Niedziela',
+    } satisfies Record<Weekday, string>,
+    /** Dzień bez Bloków jest odpowiedzią, a nie brakiem treści. */
+    pustyDzien: 'Tego dnia Oś nie ma żadnego Bloku.',
+    poczatek: 'Początek',
+    dlugosc: 'Długość (minuty)',
+    dodajBlok: 'Dodaj Blok',
+    /** Zakres Bloku; koniec bywa jutrzejszy, więc mówi o tym wprost. */
+    zakres: (od: string, doKiedy: string, jutro: boolean) =>
+      `${od}–${doKiedy}${jutro ? ' (nazajutrz)' : ''}`,
+    usun: 'Usuń',
+    usunOpis: (zakres: string) => `Usuń Blok ${zakres}`,
+    kopiowanieDnia: 'Przepisanie dnia',
+    zrodlowyDzien: 'Dzień do przepisania',
+    doceloweDni: 'Dni, które mają wyglądać tak samo',
+    kopiujDzien: 'Przepisz dzień',
+    kopiowanieOsi: 'Przepisanie rozkładu innej Osi',
+    zrodlowaOs: 'Oś do przepisania',
+    kopiujOs: 'Przepisz rozkład',
+    /**
+     * Kopiowanie zastępuje, a nie dokłada — i trzeba to powiedzieć przed
+     * kliknięciem, bo po nim dnia docelowego nie ma już czym odzyskać inaczej
+     * niż porzuceniem całej poprawki.
+     */
+    kopiowanieWstep:
+      'Przepisanie zastępuje rozkład dnia albo Osi docelowej w całości. ' +
+      'Zmiana staje się prawdziwa dopiero po zapisaniu.',
+    niezapisane: 'Rozkład ma niezapisane zmiany — Widget zobaczy je dopiero po zapisaniu.',
+    zapisz: 'Zapisz rozkład',
+    zapisywanie: 'Zapisuję…',
+    zapisano: 'Rozkład zapisany — Widget pokazuje go od tej chwili.',
+    /** Bez Osi nie ma czego układać; rozkład jest zawsze rozkładem którejś. */
+    brakOsi: 'Najpierw dodaj Oś — rozkład jest rozkładem którejś z nich.',
+    problem: {
+      'poza-siatka': 'Blok zaczyna się o pełnej godzinie albo w jej połowie — nie pomiędzy.',
+      'zla-dlugosc':
+        'Blok trwa wielokrotność trzydziestu minut i nie dłużej niż dobę. ' +
+        'Dłuższy termin wypisz jako kilka Bloków.',
+      'nachodzace-bloki':
+        'Dwa Bloki tej Osi zachodzą na siebie — także wtedy, gdy jeden ' +
+        'przechodzi przez północ na dzień następny.',
+      'nieznana-os': 'Tej Osi już nie ma. Odśwież ekran i sprawdź, co się z nią stało.',
+    } satisfies Record<ScheduleProblem, string>,
+    blad: 'Nie udało się zapisać rozkładu. Spróbuj jeszcze raz za chwilę.',
   },
 
   /**

@@ -3,7 +3,6 @@ import type {
   BookingDraft,
   BookingProblem,
   Intent,
-  Lane,
   SupabaseConfig,
 } from '@strzelnica/shared'
 import { dayIn, priceBooking, ratesFor } from '@strzelnica/shared'
@@ -54,7 +53,13 @@ export function Rezerwacja({
   const { facility, lanes } = grafik
 
   const [zajetosc, setZajetosc] = useState(PUSTA_ZAJETOSC)
-  const [lane, setLane] = useState<Lane | undefined>(lanes[0])
+  /**
+   * Wybrana Oś — pamiętana identyfikatorem, a nie obiektem. Grafik czyta się od
+   * nowa co minutę, więc zapamiętany obiekt byłby Osią sprzed godziny: z jej
+   * dawną pojemnością, dawną stawką i dawnym istnieniem. Oś wyłączona
+   * w międzyczasie w Panelu znika z listy, a kalendarz wraca wtedy na pierwszą.
+   */
+  const [wybranaOs, setWybranaOs] = useState<string | undefined>(lanes[0]?.id)
   const [day, setDay] = useState(() => dayIn(facility.timeZone, now))
   const [krok, setKrok] = useState<Krok>({ nazwa: 'kalendarz' })
   const [draft, setDraft] = useState(PUSTY_DRAFT)
@@ -62,6 +67,8 @@ export function Rezerwacja({
   const [zastrzezenie, setZastrzezenie] = useState<BookingProblem | null>(null)
   const [bladZapisu, setBladZapisu] = useState<string | null>(null)
   const [bladZajetosci, setBladZajetosci] = useState<string | null>(null)
+
+  const lane = lanes.find((wpis) => wpis.id === wybranaOs) ?? lanes[0]
 
   const pobierzZajetosc = useCallback(
     () => loadZajetosc(client, facility.id, new Date()),
@@ -101,7 +108,10 @@ export function Rezerwacja({
       return
     }
     onZmianaWidoku()
-  }, [krok.nazwa, day, lane, onZmianaWidoku])
+    // Oś rozpoznawana po identyfikatorze, a nie po obiekcie: ten przychodzi
+    // z każdym odczytem grafiku nowy, więc zgłaszałby zmianę widoku co minutę —
+    // czyli przewijałby stronę gospodarza pod czytającym.
+  }, [krok.nazwa, day, lane?.id, onZmianaWidoku])
 
   const doKalendarza = (powrot?: BookingProblem) => {
     setZastrzezenie(null)
@@ -264,7 +274,7 @@ export function Rezerwacja({
         lane={lane}
         day={day}
         intent={draft}
-        onLane={setLane}
+        onLane={(wybrana) => setWybranaOs(wybrana.id)}
         onDay={setDay}
         onIntent={zmienDeklaracje}
         onWybierz={wybierz}

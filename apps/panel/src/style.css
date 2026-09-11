@@ -413,3 +413,90 @@ body {
 .opis dd {
   margin: 0;
 }
+
+/* Konfiguracja Strzelnicy — Osie i rozkład. Odcięta linią od reszty ekranu tak
+   samo jak formularze zmieniające Rezerwacje: to, co obsługa ustawia raz,
+   stoi pod tym, po co zagląda tu codziennie. */
+.konfiguracja {
+  border-top: 1px solid var(--ramka);
+  margin: 1.5rem 0 0;
+  padding-top: 1rem;
+}
+
+/* Jedna Oś w ramce: nazwa, pola i przycisk są jedną sprawą, a sąsiednia Oś
+   zaczyna się tam, gdzie ta się kończy. */
+.os-konfiguracja {
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.os-konfiguracja h3 {
+  margin-top: 0;
+}
+
+/* Znacznik przy nazwie Osi wyłączonej — ten sam kolor, co obwódka Blokady,
+   bo mówi o tym samym: tego nie ma w sprzedaży. */
+.os-konfiguracja__znacznik {
+  color: var(--wylaczony);
+  font-weight: 400;
+}
+
+/* Tydzień siedmioma kolumnami tam, gdzie się mieszczą, i pod sobą tam, gdzie
+   nie — tak samo jak Osie w kalendarzu i z tego samego powodu: czytelność
+   jednego dnia ma pierwszeństwo przed widokiem całego tygodnia naraz. */
+.rozklad__tydzien {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.rozklad__dzien {
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.rozklad__dzien h3 {
+  margin-top: 0;
+}
+
+.rozklad__bloki {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rozklad__bloki li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.rozklad__zakres {
+  font-variant-numeric: tabular-nums;
+}
+
+.rozklad__kopiowanie {
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0.5rem 1rem 0.75rem;
+}
+
+/* Dni docelowe w poprzek: sześć kwadracików pod sobą rozciągałoby ekran bez
+   powodu, a pytanie jest przy każdym z nich to samo. */
+.rozklad__dni {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}

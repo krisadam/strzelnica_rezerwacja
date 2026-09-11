@@ -78,6 +78,16 @@ export async function zalogujDoPanelu(page: Page, email: string): Promise<void> 
   await expect(page.getByRole('button', { name: 'Wyloguj' })).toBeVisible()
 }
 
+/**
+ * Powrót do Panelu po wyprawie do Widgetu. Sesja żyje w przeglądarce, a Widget
+ * stoi pod innym adresem, więc konto zastaje się zalogowane — logowanie drugi
+ * raz szukałoby pola, którego nie ma na ekranie.
+ */
+export async function wrocDoPanelu(page: Page): Promise<void> {
+  await page.goto(PANEL_URL)
+  await expect(page.getByRole('button', { name: 'Wyloguj' })).toBeVisible()
+}
+
 /** Adres powiadomień Strzelnicy demonstracyjnej — jej pole konfiguracyjne z seeda. */
 export const ADRES_POWIADOMIEN = 'recepcja@strzelnica-demo.example.pl'
 

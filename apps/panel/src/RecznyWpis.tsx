@@ -3,6 +3,7 @@ import type {
   AmmunitionKind,
   BookingDraft,
   CalendarDay,
+  Lane,
   LimitOverride,
   ManualBookingOutcome,
   ManualBookingProblem,
@@ -150,6 +151,7 @@ function Amunicja({
 export function RecznyWpis({
   client,
   dane,
+  lanes,
   onOdswiez,
 }: {
   client: PanelClient
@@ -161,6 +163,14 @@ export function RecznyWpis({
    */
   dane: Dane
   /**
+   * Osie do wyboru — wyłącznie czynne, a nie wszystkie z `dane`: na Oś zdjętą
+   * ze sprzedaży nie wejdzie ani zgłoszenie z Widgetu, ani ręczny wpis, bo
+   * wyłączona Oś nie jest limitem Strzelnicy do przekroczenia (ADR 0012),
+   * tylko Osią, której się nie sprzedaje. Pokazana w polu wyboru kończyłaby się
+   * odmową „nieznana Oś" przy każdej próbie.
+   */
+  lanes: readonly Lane[]
+  /**
    * Funkcja odpowiedziała — ekran wyżej czyta dane od nowa. Wołane po **każdej**
    * odpowiedzi, nie tylko po tej udanej: odmowa z bazy znaczy, że to, co ten
    * formularz miał pod ręką, jest już nieprawdą — ktoś wziął termin albo zajął
@@ -171,7 +181,7 @@ export function RecznyWpis({
    */
   onOdswiez: () => void
 }) {
-  const { facility, lanes, weaponTypes, ammunitionKinds, teraz } = dane
+  const { facility, weaponTypes, ammunitionKinds, teraz } = dane
 
   // „Teraz" przyjeżdża z odczytem danych, a nie z zegara czytanego tutaj:
   // grafik ma się przeliczać razem z nimi, raz na minutę, a nie przy każdym

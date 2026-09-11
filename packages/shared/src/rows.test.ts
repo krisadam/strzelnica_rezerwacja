@@ -113,13 +113,14 @@ describe('wiersze bazy jako pojęcia domeny', () => {
     ).toEqual({ email: 'kontakt@example.pl', phone: null })
   })
 
-  it('Oś zachowuje nazwę, pojemność i stawkę za Blok', () => {
+  it('Oś zachowuje nazwę, pojemność, stawkę za Blok i to, czy jest w ofercie', () => {
     const row: Tables<'lanes'> = {
       id: 'os-1',
       facility_id: 'strzelnica-1',
       name: 'Oś pistoletowa nr 1',
       capacity: 4,
       block_rate_gr: 12000,
+      active: false,
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -128,6 +129,9 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       name: 'Oś pistoletowa nr 1',
       capacity: 4,
       blockRate: 12000,
+      // Oś wyłączona przechodzi przez odczyt jak każda inna: znika z Widgetu,
+      // ale Panel widzi ją dalej — razem z Rezerwacjami, które na niej stoją.
+      active: false,
     })
   })
 })

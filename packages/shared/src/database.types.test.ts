@@ -59,19 +59,22 @@ describe('typy ze schematu bazy', () => {
     expect(nowa.contact_phone).toBeUndefined()
   })
 
-  it('Oś niesie identyfikator Strzelnicy, pojemność i stawkę za Blok', () => {
+  it('Oś niesie identyfikator Strzelnicy, pojemność, stawkę za Blok i to, czy jest w ofercie', () => {
     const os: Tables<'lanes'> = {
       id: '00000000-0000-0000-0000-0000000000a1',
       facility_id: '00000000-0000-0000-0000-000000000001',
       name: 'Oś pistoletowa nr 1',
       capacity: 4,
       block_rate_gr: 12000,
+      active: true,
       created_at: '2026-01-01T00:00:00Z',
     }
 
     expect(os.capacity).toBe(4)
     // Stawka za Blok jest własnością Osi, nie Strzelnicy.
     expect(os.block_rate_gr).toBe(12000)
+    // Oferta albo jej brak: Oś wyłączona nie ma terminów do wzięcia.
+    expect(os.active).toBe(true)
   })
 
   it('pozycja rozkładu wiąże Oś z dniem tygodnia i minutą początku', () => {

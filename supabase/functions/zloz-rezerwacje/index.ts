@@ -68,11 +68,16 @@ async function handle(request: BookingRequest, origin: string | null): Promise<R
 
   const facility = facilityFromRow(facilityRow)
 
+  // Wyłącznie Oś czynna, i jest to warunek zapisany tutaj, choć Widget
+  // wyłączonej nie widzi wcale: klucz anonimowy jest publiczny, a rola
+  // serwisowa czyta tę tabelę z pominięciem polityk, więc bez tego warunku
+  // żądanie sklejone w konsoli sprzedałoby termin na Osi zdjętej z oferty.
   const laneResult = await client
     .from('lanes')
     .select('*')
     .eq('facility_id', facility.id)
     .eq('id', request.laneId)
+    .eq('active', true)
     .maybeSingle()
 
   if (laneResult.error) throw new Error(laneResult.error.message)
