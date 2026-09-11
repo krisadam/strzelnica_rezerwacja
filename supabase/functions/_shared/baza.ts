@@ -36,6 +36,13 @@ export const WEAPON_POOL_VIOLATION = 'WP001'
  */
 export const CLOSURE_CONFLICT = 'LC001'
 
+/**
+ * Naruszenie jedyności — nazwy Osi w obrębie Strzelnicy; własny kod Postgresa.
+ * Odmowa, a nie awaria: dwie Osie o jednej nazwie znaczą telefon do koleżanki
+ * przy każdym polu wyboru w Panelu, a obsługa ma o tym usłyszeć zdaniem.
+ */
+export const UNIQUE_VIOLATION = '23505'
+
 export function connect(): Client {
   const url = Deno.env.get('SUPABASE_URL')
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')

@@ -152,7 +152,8 @@ wyścig o ten sam Blok, przejście całej ścieżki, izolacja Strzelnic, osadzen
 w ramce, potwierdzenie adresu, anulowanie przez link, logowanie do Panelu,
 odwołanie Rezerwacji przez Strzelnicę, Blokada Osi zdejmująca terminy
 z Widgetu, ręczna Rezerwacja telefoniczna z przekroczonym limitem, przejście
-z pozycji Zestawienia dnia do Rezerwacji.
+z pozycji Zestawienia dnia do Rezerwacji, Oś dodana w Panelu wchodząca do oferty
+razem ze swoim rozkładem.
 Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
@@ -506,6 +507,74 @@ wlicza, co nie i w jakim porządku — i tam mają pokrycie. Testowi
 przeglądarkowemu zostaje jedna rzecz, której czysta funkcja nie widzi: czy
 pozycja naprawdę otwiera Rezerwację, z której się wzięła.
 
+## Osie i rozkład Bloków
+
+Pierwsza rzecz, którą Strzelnica ustawia sobie sama, zamiast dostawać ją
+z seeda: czym dysponuje, ile osób wolno na tym postawić i o których godzinach
+sprzedaje. Bloki wypisuje się ręcznie i nie generuje ich nic (ADR 0005), więc
+ekran rozkładu jest jedynym miejscem, w którym powstają.
+
+Osi się przy tym **nie kasuje** — wyłącza się ją (ADR 0013). Rezerwacja
+wskazuje Oś kluczem obcym z kaskadą, więc skasowanie Osi zabrałoby ze sobą cudze
+Rezerwacje, i to bez śladu: klient dowiedziałby się o tym na parkingu.
+Rezerwacja znika jedną drogą — [odwołaniem](#odwołanie-rezerwacji-przez-strzelnicę)
+z powodem na piśmie — a ekran konfiguracji nie jest drugą. Oś wyłączona znika
+z Widgetu w całości, razem ze wszystkimi swoimi terminami, a w Panelu zostaje ze
+znacznikiem przy nazwie: jej Rezerwacje stoją w kalendarzu dalej i dalej zajmują
+ją na wyłączność, bo ktoś na nie przyjedzie.
+
+O tym, że Osi wyłączonej nie ma w ofercie, mówi **polityka RLS** dla klucza
+anonimowego (`using (active)`), a nie warunek w zapytaniu Widgetu — zawężenie
+stojące w kodzie ekranu znika razem z pominięciem jednego `.eq(…)` przy
+następnej poprawce. Obie funkcje zapisujące Rezerwację pytają o Oś czynną
+osobno, bo czytają bazę rolą serwisową, czyli z pominięciem polityk. Wyłączona
+Oś nie jest przy tym limitem do przekroczenia ręcznym wpisem (ADR 0012): trzy
+limity z tamtej listy są regułami, o których obsługa wie więcej niż system,
+a wyłączona Oś jest Osią, której Strzelnica sama nie sprzedaje.
+
+Rozkład zapisuje się **tygodniami jednej Osi**, jednym żądaniem i w jednej
+transakcji (ADR 0013). Dopisanie Bloku, skasowanie Bloku, przepisanie dnia na
+sześć innych i przepisanie rozkładu jednej Osi na drugą są wtedy tym samym
+zapisem — a kopiowanie, o które ticket prosi wprost, nie ma własnej drogi, którą
+dałoby się osobno zepsuć. Zmiany żyją najpierw na ekranie i idą do bazy dopiero
+przyciskiem; niezapisane ekran nazywa wprost, bo inaczej ktoś wyszedłby z Panelu
+przekonany, że zapisał.
+
+Zachodzenie Bloków liczy się na osi **całego tygodnia**, zamkniętej w koło: Blok
+wolno przeciągnąć przez północ (sobotni 23:00–01:00 stoi w seedzie), więc po
+niedzieli wraca poniedziałek tej samej Osi. Sprawdzenie oglądające jeden dzień
+nie zobaczyłoby kolizji wystającej poza jego granicę. Reguły — siatka Slotów,
+długość, zachodzenie, kopiowanie — mieszkają w `packages/shared/src/schedule.ts`
+i są jedną kopią dla Panelu i dla Edge Function, tak samo jak przy Blokadzie.
+
+Rezerwacji zmiana rozkładu nie rusza i nie ma czym: Rezerwacja niesie własny
+termin i o rozkład nie pyta nikogo po tym, jak powstała. Blok zdjęty z rozkładu
+znika ze sprzedaży, a nie z kalendarza — Rezerwacja na 10:00 zostaje na 10:00
+także wtedy, gdy Strzelnica nie sprzedaje już tej godziny nikomu.
+
+Widget widzi zmianę od razu przy otwarciu, a otwarty — z najbliższym
+odświeżeniem, czyli w ciągu minuty: rozkład czyta się tą samą drogą i w tym
+samym rytmie, co zajętość Osi, bo oba odpowiadają na to samo pytanie, co jest
+do wzięcia **teraz**. Pamięci podręcznej do unieważnienia nie ma tu żadnej —
+ramka otwarta od godziny przestaje przez to oferować terminy, których
+Strzelnica właśnie przestała sprzedawać, zamiast dowiadywać się o tym odmową
+przy zapisie.
+
+Zapis idzie Edge Functions `zapisz-os` i `ustaw-rozklad`, rolą serwisową, tak
+samo jak odwołanie, Blokada i ręczny wpis (ADR 0003). Strzelnicy nie ma
+w żądaniu: funkcje pytają o nią bazę po numerze potwierdzonego konta
+(`panel_facility_of`, ADR 0010), więc identyfikator obcej Osi nie otwiera
+niczego. Jedna funkcja zapisuje Oś nową i poprawioną — zakładanie i poprawianie
+różnią się wyłącznie tym, czy Oś już jest, a wyłączenie jest poprawką jednego
+pola.
+
+Czego ten ekran **nie** ustawia: stawki za Blok. Należy do Cennika (ticket #22),
+więc Oś dodana tutaj wchodzi ze stawką zerową — formularz mówi to wprost, bo Oś
+z rozkładem i bez ceny sprzedawałaby terminy za darmo. Godziny otwarcia
+i wyjątki kalendarzowe mają swój ticket (#20) i do tego czasu pozostają przy
+seedzie; Blok wypisany poza nimi jest widoczny, ale niedostępny — tak samo jak
+przed tym ticketem.
+
 ## Panel
 
 Wejście do Panelu daje konto Supabase Auth powiązane z jedną Strzelnicą przez
@@ -533,14 +602,21 @@ długości, i to w stronę, w którą kłamać nie wolno. Na liście Blokad nie 
 jej kolumny to Osoba rezerwująca, Uczestnicy i Kwota, a Blokada nie ma ani
 jednej z tych rzeczy.
 
-Zmienia Panel trzy rzeczy: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
+Zmienia Panel pięć rzeczy: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
 przez Strzelnicę](#odwołanie-rezerwacji-przez-strzelnicę)), wprowadza Blokadę
-Osi (zobacz [Blokady Osi](#blokady-osi)) i wpisuje Rezerwację przyjętą przez
+Osi (zobacz [Blokady Osi](#blokady-osi)), wpisuje Rezerwację przyjętą przez
 telefon (zobacz [Ręczna Rezerwacja
-telefoniczna](#ręczna-rezerwacja-telefoniczna)). Wszystko trzy idzie Edge
-Function, bo obie tabele mają zamknięte obie publiczne role — a ekran odczytuje
-po tym dane od nowa, zamiast przepisywać sobie stan z odpowiedzi „udało się":
-między wczytaniem Panelu a kliknięciem klient bywa szybszy.
+telefoniczna](#ręczna-rezerwacja-telefoniczna)) oraz zapisuje Oś i jej rozkład
+Bloków (zobacz [Osie i rozkład Bloków](#osie-i-rozkład-bloków)). Wszystkie pięć
+idzie Edge Function, bo tabele mają zamknięte obie publiczne role — a ekran
+odczytuje po tym dane od nowa, zamiast przepisywać sobie stan z odpowiedzi
+„udało się": między wczytaniem Panelu a kliknięciem klient bywa szybszy.
+
+Konfiguracja stoi na dole ekranu, pod wszystkim, co mówi o dniu dzisiejszym:
+obsługa przychodzi tu po Rezerwacje, a Osie i ich rozkład układa raz i wraca do
+nich rzadko. Formularze układające **przyszłość** — ręczny wpis i Blokada —
+znają przy tym wyłącznie Osie czynne, a kalendarz i lista wszystkie: pierwsze
+mówią o tym, co dopiero stanie na Osi, drugie o tym, co już na niej stoi.
 
 Formularz ręcznego wpisu potrzebuje przy tym więcej niż same Rezerwacje: liczy
 dostępność terminu i Kwotę tymi samymi czystymi funkcjami, co Widget, więc Panel

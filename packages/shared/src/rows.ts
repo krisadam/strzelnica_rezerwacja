@@ -150,6 +150,12 @@ export type Lane = {
   capacity: number
   /** Stawka za Blok na tej Osi w groszach; obejmuje pierwszego Uczestnika. */
   blockRate: number
+  /**
+   * Czy Oś jest w ofercie. Wyłączona nie ma terminów do wzięcia — Widget jej
+   * nie widzi wcale — ale jej Rezerwacje stoją w Panelu dalej i dalej zajmują
+   * ją na wyłączność (ADR 0013).
+   */
+  active: boolean
 }
 
 export function laneFromRow(row: Tables<'lanes'>): Lane {
@@ -158,6 +164,7 @@ export function laneFromRow(row: Tables<'lanes'>): Lane {
     name: row.name,
     capacity: row.capacity,
     blockRate: row.block_rate_gr,
+    active: row.active,
   }
 }
 

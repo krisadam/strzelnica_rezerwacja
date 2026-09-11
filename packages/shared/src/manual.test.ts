@@ -16,7 +16,13 @@ import {
 } from './index.ts'
 
 /** Oś czteroosobowa — pojemność jest tu limitem, który da się przekroczyć. */
-const OS: Lane = { id: 'os-1', name: 'Oś pistoletowa nr 1', capacity: 4, blockRate: 12_000 }
+const OS: Lane = {
+  id: 'os-1',
+  name: 'Oś pistoletowa nr 1',
+  capacity: 4,
+  blockRate: 12_000,
+  active: true,
+}
 
 const KATALOG_AMUNICJI = [{ id: '9x19', name: '9 × 19 mm Parabellum', unitPrice: 150 }]
 

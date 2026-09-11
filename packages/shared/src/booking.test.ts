@@ -7,7 +7,13 @@ import {
   readBookingRequest,
 } from './index.ts'
 
-const OS: Lane = { id: 'os-1', name: 'Oś pistoletowa nr 1', capacity: 4, blockRate: 12_000 }
+const OS: Lane = {
+  id: 'os-1',
+  name: 'Oś pistoletowa nr 1',
+  capacity: 4,
+  blockRate: 12_000,
+  active: true,
+}
 
 /**
  * Katalog Rodzajów amunicji Strzelnicy; identyfikatory skrócone dla

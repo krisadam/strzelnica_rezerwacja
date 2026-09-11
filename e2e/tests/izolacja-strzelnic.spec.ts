@@ -607,6 +607,82 @@ test('Użytkownik panelu nie wpisze Rezerwacji na obcej Osi', async () => {
 })
 
 /**
+ * Konfiguracja obcej Osi — czwarta i piąta rzecz, którą konto Panelu w bazie
+ * zapisuje: sama Oś i jej rozkład Bloków. Granica stoi w tym samym miejscu, co
+ * przy Blokadzie i ręcznym wpisie: Strzelnicy w żądaniu nie ma, więc funkcja
+ * bierze ją sobie z bazy po numerze konta (ADR 0010) — a identyfikator obcej
+ * Osi stoi w żądaniu wprost i jest prawdziwy.
+ *
+ * Wprost do funkcji bazodanowych drogi nie ma, jak wszędzie indziej: prawo
+ * wykonania `save_lane` i `set_lane_schedule` mają wyłącznie Edge Functions
+ * (ADR 0003). Rozkład pytamy przy tym o zapis **pusty**, bo to jest żądanie
+ * najgroźniejsze z możliwych: kasuje tydzień, nie zostawiając po nim niczego.
+ */
+test('Użytkownik panelu nie zmieni obcej Osi ani jej rozkładu', async () => {
+  // Wołanie Edge Functions niżej przechodzi przez ich zimny start.
+  test.slow()
+
+  const wprostOs = await bazaJakoUzytkownikPanelu(OBSLUGA_DEMO, HASLO_PANELU, 'rpc/save_lane', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      p_lane_id: OBCA.os,
+      p_name: 'Przejęta',
+      p_capacity: 9,
+      p_active: false,
+      // Konto podstawione własne: gdyby prawo do tej funkcji istniało,
+      // przeglądarka podawałaby tu dowolne.
+      p_user_id: KONTO_DEMO,
+    }),
+  })
+  expect({ wprostOs: wprostOs.status >= 400 }).toEqual({ wprostOs: true })
+
+  const wprostRozklad = await bazaJakoUzytkownikPanelu(
+    OBSLUGA_DEMO,
+    HASLO_PANELU,
+    'rpc/set_lane_schedule',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_lane_id: OBCA.os, p_week: [], p_user_id: KONTO_DEMO }),
+    },
+  )
+  expect({ wprostRozklad: wprostRozklad.status >= 400 }).toEqual({ wprostRozklad: true })
+
+  // Drogi, które są: Edge Functions z tokenem konta demo. Obca Oś jest dla nich
+  // nieznana, choć jej identyfikator jest prawdziwy.
+  const funkcjaOsi = await funkcjaJakoUzytkownikPanelu(OBSLUGA_DEMO, HASLO_PANELU, 'zapisz-os', {
+    id: OBCA.os,
+    name: 'Przejęta',
+    capacity: 9,
+    active: false,
+  })
+  expect(funkcjaOsi.status).toBe(200)
+  expect(await funkcjaOsi.json()).toEqual({ ok: false, problem: 'nieznana-os' })
+
+  const funkcjaRozkladu = await funkcjaJakoUzytkownikPanelu(
+    OBSLUGA_DEMO,
+    HASLO_PANELU,
+    'ustaw-rozklad',
+    { laneId: OBCA.os, week: [] },
+  )
+  expect(funkcjaRozkladu.status).toBe(200)
+  expect(await funkcjaRozkladu.json()).toEqual({ ok: false, problem: 'nieznana-os' })
+
+  // Obca Oś ma swoją nazwę i swój rozkład — a rozkład pusty byłby Osią bez ani
+  // jednego terminu do wzięcia, i to bez wiedzy jej Strzelnicy.
+  const [os] = await baza<{ name: string; active: boolean }[]>(
+    `lanes?id=eq.${OBCA.os}&select=name,active`,
+  )
+  expect(os).toEqual({ name: OS_OBCA, active: true })
+  expect(
+    await baza<unknown[]>(`block_schedules?lane_id=eq.${OBCA.os}&select=id`),
+  ).not.toHaveLength(0)
+
+  await drugaStrzelnicaJestNietknieta()
+})
+
+/**
  * Blokady klucz anonimowy nie czyta wcale, choć widzi jej **skutek**. To jest
  * cała treść decyzji z migracji: powód wyłączenia jest sprawą wewnętrzną
  * Strzelnicy („Serwis po awarii" nie jest zdaniem do klienta), a zajętość

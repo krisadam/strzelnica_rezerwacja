@@ -380,6 +380,7 @@ export type Database = {
       }
       lanes: {
         Row: {
+          active: boolean
           block_rate_gr: number
           capacity: number
           created_at: string
@@ -388,6 +389,7 @@ export type Database = {
           name: string
         }
         Insert: {
+          active?: boolean
           block_rate_gr?: number
           capacity: number
           created_at?: string
@@ -396,6 +398,7 @@ export type Database = {
           name: string
         }
         Update: {
+          active?: boolean
           block_rate_gr?: number
           capacity?: number
           created_at?: string
@@ -806,6 +809,20 @@ export type Database = {
           final_status: Database["public"]["Enums"]["booking_status"]
           just_revoked: boolean
         }[]
+      }
+      save_lane: {
+        Args: {
+          p_active: boolean
+          p_capacity: number
+          p_lane_id: string
+          p_name: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      set_lane_schedule: {
+        Args: { p_lane_id: string; p_user_id: string; p_week: Json }
+        Returns: boolean
       }
     }
     Enums: {

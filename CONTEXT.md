@@ -19,6 +19,13 @@ Oś ma **pojemność** — maksymalną liczbę Uczestników, jaką Strzelnica do
 na niej jednocześnie. Pojemność jest limitem walidacyjnym Rezerwacji, nie
 zasobem sprzedawanym osobno.
 
+Oś bywa **wyłączona** — zdjęta z oferty przez Strzelnicę. Nie ma wtedy ani
+jednego terminu do wzięcia i Osoba rezerwująca nie widzi jej wcale, ale
+Rezerwacje, które już na niej stoją, trwają: wyłączenie mówi, czego Strzelnica
+nie sprzedaje, a nie komu odbiera termin. Odrębne od Blokady: tamta wyłącza Oś
+na wskazany czas i zostawia termin widoczny jako zajęty, tu Osi nie ma
+w ofercie w ogóle i bez końca.
+
 ## Slot
 
 Jednostka siatki czasu grafiku, trwająca 30 minut. Grafik każdej Osi jest
@@ -110,6 +117,16 @@ Bloki definiuje Strzelnica; każdy trwa wielokrotność Slotu (30 minut).
 Osoba rezerwująca nie wybiera długości ani początku dowolnie — wybiera jeden
 z opublikowanych Bloków. Przerwa techniczna między Rezerwacjami wynika
 z odstępu między Blokami w rozkładzie, a nie z osobnej reguły.
+
+## Rozkład Bloków
+
+Tydzień jednej Osi: Bloki, które Strzelnica na niej wystawia, wypisane osobno na
+każdy dzień tygodnia. Jest **rytmem**, a nie planem konkretnej daty — powtarza
+się co siedem dni, dopóki Strzelnica go nie zmieni.
+
+Rozkład mówi, co jest do wzięcia **od tej chwili**. Rezerwacja już złożona nie
+zależy od niego wcale: niesie własny termin, więc Blok zdjęty z rozkładu znika
+ze sprzedaży, a nie z grafiku dnia.
 
 ## Horyzont rezerwacji
 

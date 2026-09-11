@@ -7,7 +7,9 @@ import { BrakStrzelnicyError, wczytajDane } from './dane.js'
 import { Kalendarz } from './Kalendarz.js'
 import { Lista } from './Lista.js'
 import { Logowanie } from './Logowanie.js'
+import { Osie } from './Osie.js'
 import { RecznyWpis } from './RecznyWpis.js'
+import { Rozklad } from './Rozklad.js'
 import type { Sesja } from './sesja.js'
 import { obserwujSesje, wyloguj } from './sesja.js'
 import type { PanelClient } from './supabase.js'
@@ -140,6 +142,11 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
   // kliknięcia. Anulowana w międzyczasie — choćby przez klienta jego własnym
   // linkiem — znika z okna i ekran wraca do listy zamiast pokazywać nieprawdę.
   const wybrana = dane.bookings.find((wpis) => wpis.id === wybraneId) ?? null
+  // Formularze, które układają **przyszłość**, znają wyłącznie Osie czynne:
+  // Oś zdjęta ze sprzedaży nie przyjmuje Rezerwacji i nie ma czego na niej
+  // wyłączać Blokadą. Kalendarz i lista widzą wszystkie, bo mówią o tym, co na
+  // Osiach już stoi — a Rezerwacja nie znika razem z wyłączeniem Osi.
+  const czynneOsie = dane.lanes.filter((lane) => lane.active)
 
   return (
     <>
@@ -183,13 +190,13 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
           {/* Ręczny wpis pod obydwoma odczytami dnia, bo z nich bierze się jego
               pierwsze pytanie: co stoi na Osi w dniu, o który klient właśnie
               pyta przez telefon. */}
-          <RecznyWpis client={client} dane={dane} onOdswiez={odswiez} />
+          <RecznyWpis client={client} dane={dane} lanes={czynneOsie} onOdswiez={odswiez} />
           {/* Blokada stoi pod kalendarzem, a nie pod listą: wyłącza się Oś
               patrząc na jej dzień, a lista odpowiada na inne pytanie — gdzie
               jest to jedno zgłoszenie, w sprawie którego dzwoni klient. */}
           <Blokada
             client={client}
-            lanes={dane.lanes}
+            lanes={czynneOsie}
             bookings={dane.bookings}
             closures={dane.closures}
             timeZone={dane.facility.timeZone}
@@ -202,6 +209,16 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
             filtr={filtr}
             onFiltr={setFiltr}
             onWybierz={(wpis) => setWybraneId(wpis.id)}
+          />
+          {/* Konfiguracja na samym dole, pod wszystkim, co mówi o dniu
+              dzisiejszym: obsługa przychodzi tu po Rezerwacje, a Osie i ich
+              rozkład układa się raz i wraca do nich rzadko. */}
+          <Osie client={client} lanes={dane.lanes} onZapisano={odswiez} />
+          <Rozklad
+            client={client}
+            lanes={dane.lanes}
+            schedules={dane.schedules}
+            onZapisano={odswiez}
           />
         </>
       )}

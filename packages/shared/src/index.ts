@@ -96,6 +96,32 @@ export type {
   LaneClosure,
 } from './closure.ts'
 export {
+  laneProblems,
+  MalformedLaneRequestError,
+  MAX_LANE_CAPACITY,
+  readLaneRequest,
+} from './lane.ts'
+export type { LaneCheck, LaneDraft, LaneOutcome, LaneProblem } from './lane.ts'
+export {
+  copyDay,
+  formatScheduleMinute,
+  laneWeek,
+  MalformedScheduleRequestError,
+  MINUTES_IN_DAY,
+  readScheduleRequest,
+  sameWeek,
+  scheduleProblems,
+  SLOT_MINUTES,
+  WEEKDAYS,
+} from './schedule.ts'
+export type {
+  CopyDayInput,
+  ScheduleBlock,
+  ScheduleOutcome,
+  ScheduleProblem,
+  ScheduleRequest,
+} from './schedule.ts'
+export {
   MalformedRevocationRequestError,
   readRevocationRequest,
   revocable,

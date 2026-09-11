@@ -44,7 +44,12 @@ function komunikatBledu(powod: unknown): string {
   return teksty.bladWczytywania
 }
 
-/** Odświeżanie „teraz", żeby Blok mijający przy otwartej stronie zgasł sam. */
+/**
+ * Odświeżanie „teraz", żeby Blok mijający przy otwartej stronie zgasł sam —
+ * i zarazem odczytu grafiku, żeby rozkład zmieniony w Panelu zszedł na ekran
+ * klienta bez czekania na przeładowanie strony. Jedno z drugim chodzi w parze,
+ * bo oba odpowiadają na to samo pytanie: co jest do wzięcia **teraz**.
+ */
 const ODSWIEZANIE_MS = 60_000
 
 type Polaczenie = { client: StrzelnicaClient; config: SupabaseConfig }
@@ -73,26 +78,51 @@ function Rezerwowanie({ slug }: { slug: string }) {
   const [now, setNow] = useState(() => new Date())
   const [gospodarz, setGospodarz] = useState<Gospodarz | null>(null)
 
+  /**
+   * Połączenie z bazą albo powód, dla którego go nie ma. Liczone raz
+   * i zapamiętane: od niego zależy odczyt grafiku, więc nowy klient przy każdym
+   * odświeżeniu byłby nowym połączeniem co minutę.
+   */
+  const polaczenie = useMemo<Polaczenie | { powod: string }>(() => {
+    try {
+      const config = readSupabaseConfig(srodowisko())
+      return { client: createStrzelnicaClient(config), config }
+    } catch (powod: unknown) {
+      return { powod: komunikatBledu(powod) }
+    }
+  }, [])
+
+  // Grafik czytany od nowa razem z „teraz", a nie tylko przy wejściu: rozkład
+  // Bloków zmienia się w Panelu przez cały dzień, a ramka bywa otwarta
+  // godzinami. Bez tego kalendarz oferowałby terminy, których Strzelnica już
+  // nie sprzedaje — i dowiadywałby się o tym dopiero odmową przy zapisie.
+  // Ta sama droga, co przy zajętości i z tego samego powodu.
   useEffect(() => {
+    if (!('client' in polaczenie)) {
+      setStan({ faza: 'blad', powod: polaczenie.powod })
+      return
+    }
+
     let aktualne = true
 
-    Promise.resolve()
-      .then(async () => {
-        const config = readSupabaseConfig(srodowisko())
-        const client = createStrzelnicaClient(config)
-        return { polaczenie: { client, config }, grafik: await loadGrafik(client, slug) }
-      })
-      .then(({ polaczenie, grafik }) => {
+    loadGrafik(polaczenie.client, slug)
+      .then((grafik) => {
         if (aktualne) setStan({ faza: 'gotowe', polaczenie, grafik })
       })
+      // Nieudane **odświeżenie** nie zdejmuje z ekranu tego, co już na nim
+      // stoi: grafik sprzed minuty jest bliższy prawdy niż komunikat o błędzie.
+      // Pierwszy odczyt jest inny — po nim nie ma czego zostawić.
       .catch((powod: unknown) => {
-        if (aktualne) setStan({ faza: 'blad', powod: komunikatBledu(powod) })
+        if (!aktualne) return
+        setStan((dotad) =>
+          dotad.faza === 'gotowe' ? dotad : { faza: 'blad', powod: komunikatBledu(powod) },
+        )
       })
 
     return () => {
       aktualne = false
     }
-  }, [slug])
+  }, [polaczenie, slug, now])
 
   useEffect(() => {
     const tik = setInterval(() => setNow(new Date()), ODSWIEZANIE_MS)
