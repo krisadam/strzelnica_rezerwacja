@@ -153,7 +153,8 @@ w ramce, potwierdzenie adresu, anulowanie przez link, logowanie do Panelu,
 odwołanie Rezerwacji przez Strzelnicę, Blokada Osi zdejmująca terminy
 z Widgetu, ręczna Rezerwacja telefoniczna z przekroczonym limitem, przejście
 z pozycji Zestawienia dnia do Rezerwacji, Oś dodana w Panelu wchodząca do oferty
-razem ze swoim rozkładem.
+razem ze swoim rozkładem, wyjątek kalendarzowy zamykający dzień klientowi
+i tydzień godzin otwarcia układany w Panelu.
 Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
@@ -570,10 +571,60 @@ pola.
 
 Czego ten ekran **nie** ustawia: stawki za Blok. Należy do Cennika (ticket #22),
 więc Oś dodana tutaj wchodzi ze stawką zerową — formularz mówi to wprost, bo Oś
-z rozkładem i bez ceny sprzedawałaby terminy za darmo. Godziny otwarcia
-i wyjątki kalendarzowe mają swój ticket (#20) i do tego czasu pozostają przy
-seedzie; Blok wypisany poza nimi jest widoczny, ale niedostępny — tak samo jak
-przed tym ticketem.
+z rozkładem i bez ceny sprzedawałaby terminy za darmo. Godziny, w których Bloki
+tej Osi w ogóle się sprzedają, ustawia [ekran obok](#godziny-otwarcia-i-wyjątki-kalendarzowe).
+
+## Godziny otwarcia i wyjątki kalendarzowe
+
+Kiedy Strzelnica jest czynna — wspólnie dla wszystkich Osi, inaczej niż rozkład
+Bloków. Dwie rzeczy odpowiadają tu na jedno pytanie z dwóch stron: **tydzień**
+mówi o rytmie („w poniedziałki 10:00–22:00"), a **wyjątek** o jednej dacie
+(„w Wigilię do południa", „w Boże Narodzenie wcale") — i to wyjątek wygrywa.
+Dzień ma więc jedną odpowiedź, liczoną w jednym miejscu (`hoursForDay`), a nie
+dwa sprawdzenia do rozjechania się przy pierwszym święcie.
+
+Wyjątek **zastępuje** tydzień w całości, a nie poprawia go, i wolno mu też dzień
+**otworzyć** — sobota zamknięta w rytmie tygodnia bywa dniem zawodów. Godziny
+puste znaczą przy tym dzień zamknięty, tak samo w wyjątku, jak w tygodniu, gdzie
+dzień zamknięty jest po prostu dniem bez wiersza. Dzień zamknięty nie ma ani
+jednego Bloku — kalendarz Widgetu mówi o tym wprost, zamiast pokazywać pustkę
+do zinterpretowania. Dzień **skrócony** to co innego: Bloki na nim stoją, ale te,
+które nie mieszczą się w godzinach, są widoczne i niedostępne.
+
+Tydzień zapisuje się w całości, tak samo jak rozkład Bloków (ADR 0013): dzień
+dopisany, poprawiony i zamknięty są jednym żądaniem, a zamknięcie polega właśnie
+na **pominięciu** dnia na liście. Wyjątki idą pojedynczo i jest to różnica, a nie
+niekonsekwencja: przybywa ich przez cały rok, więc zapis w całości kasowałby
+święta wpisane poprzednią zmianą. Jedno żądanie obsługuje dopisanie, poprawkę
+i zdjęcie wyjątku — różnią się wyłącznie tym, co na dacie ma zostać.
+
+Rezerwacji ani jedna z tych zmian **nie rusza** i nie ma czym: Rezerwacja niesie
+własny termin i o godziny nie pyta nikogo po tym, jak powstała. Te, które po
+zmianie stoją poza godzinami — w dniu zamkniętym albo wystając poza skrócony —
+Panel **wypisuje z nazwiskiem, Osią i godziną**, zanim cokolwiek pójdzie do bazy,
+i prowadzi z każdej do jej szczegółów. Rozstrzyga je człowiek: odwołaniem
+z powodem albo pozostawieniem, bo klient i tak przyjedzie. Sprawdzenie sięga
+okna kalendarza Panelu — tydzień wstecz i po horyzont — i ekran mówi to wprost,
+bo milczenie o Rezerwacjach dalszych wyglądałoby jak „nie ma kolizji".
+
+Zapis idzie Edge Functions `ustaw-godziny` i `ustaw-wyjatek`, rolą serwisową,
+tak samo jak Blokada, ręczny wpis i rozkład (ADR 0003). Strzelnicy w żądaniu nie
+ma i nie ma jej czym podstawić: godziny są jej własnością, a o tym, czyje są,
+rozstrzyga baza po numerze potwierdzonego konta (`panel_facility_of`, ADR 0010).
+Cała droga przejęcia cudzych godzin wiodłaby więc przez funkcję bazodanową
+wołaną wprost — a prawa jej wykonania nie ma ani klucz anonimowy, ani konto
+Panelu.
+
+Kolumna `calendar_exceptions.closed_on` nazywa się odtąd `on_date`: wyjątek
+przestał znaczyć wyłącznie „zamknięte", a kolumna nazwana po skutku, którego już
+nie gwarantuje, kłamałaby przy pierwszym skróconym dniu.
+
+**Powód** wyjątku do Widgetu nie wychodzi — czyta go wyłącznie obsługa, tak samo
+jak powód Blokady. Blokada załatwia to odebraniem kluczowi anonimowemu prawa do
+całej tabeli; tu tak nie można, bo dzień zamknięty musi dojść do kalendarza
+klienta. Prawa schodzą więc **kolumnami**, jak przy `facilities`: klucz
+anonimowy dostaje datę i godziny, a Widget wypisuje te kolumny w zapytaniu
+zamiast prosić gwiazdką o wszystko. Konto Panelu czyta wiersz w całości.
 
 ## Panel
 
@@ -602,19 +653,22 @@ długości, i to w stronę, w którą kłamać nie wolno. Na liście Blokad nie 
 jej kolumny to Osoba rezerwująca, Uczestnicy i Kwota, a Blokada nie ma ani
 jednej z tych rzeczy.
 
-Zmienia Panel pięć rzeczy: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
+Zmienia Panel siedem rzeczy: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
 przez Strzelnicę](#odwołanie-rezerwacji-przez-strzelnicę)), wprowadza Blokadę
 Osi (zobacz [Blokady Osi](#blokady-osi)), wpisuje Rezerwację przyjętą przez
 telefon (zobacz [Ręczna Rezerwacja
-telefoniczna](#ręczna-rezerwacja-telefoniczna)) oraz zapisuje Oś i jej rozkład
-Bloków (zobacz [Osie i rozkład Bloków](#osie-i-rozkład-bloków)). Wszystkie pięć
+telefoniczna](#ręczna-rezerwacja-telefoniczna)), zapisuje Oś i jej rozkład
+Bloków (zobacz [Osie i rozkład Bloków](#osie-i-rozkład-bloków)) oraz ustawia
+godziny otwarcia i wyjątki kalendarzowe (zobacz [Godziny otwarcia i wyjątki
+kalendarzowe](#godziny-otwarcia-i-wyjątki-kalendarzowe)). Wszystkie siedem
 idzie Edge Function, bo tabele mają zamknięte obie publiczne role — a ekran
 odczytuje po tym dane od nowa, zamiast przepisywać sobie stan z odpowiedzi
 „udało się": między wczytaniem Panelu a kliknięciem klient bywa szybszy.
 
 Konfiguracja stoi na dole ekranu, pod wszystkim, co mówi o dniu dzisiejszym:
-obsługa przychodzi tu po Rezerwacje, a Osie i ich rozkład układa raz i wraca do
-nich rzadko. Formularze układające **przyszłość** — ręczny wpis i Blokada —
+obsługa przychodzi tu po Rezerwacje, a Osie, ich rozkład i godziny układa raz
+i wraca do nich rzadko. Godziny idą przy tym na sam koniec, bo są wspólne dla
+wszystkich Osi — tam kończy się wszystko, co dotyczy jednej. Formularze układające **przyszłość** — ręczny wpis i Blokada —
 znają przy tym wyłącznie Osie czynne, a kalendarz i lista wszystkie: pierwsze
 mówią o tym, co dopiero stanie na Osi, drugie o tym, co już na niej stoi.
 

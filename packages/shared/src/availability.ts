@@ -15,6 +15,8 @@
  */
 import type { CalendarDay, Weekday } from './calendar.ts'
 import { addDays, dayIn, weekdayOf, zonedMinuteToInstant } from './calendar.ts'
+import type { CalendarException, DayHours, OpeningHours } from './hours.ts'
+import { hoursForDay } from './hours.ts'
 
 /** Pozycja rozkładu: jeden Blok Osi w jednym dniu tygodnia. */
 export type BlockSchedule = {
@@ -25,14 +27,6 @@ export type BlockSchedule = {
   startMinute: number
   /** Długość Bloku; wielokrotność Slotu. */
   durationMinutes: number
-}
-
-/** Godziny otwarcia Strzelnicy w jednym dniu tygodnia. */
-export type OpeningHours = {
-  weekday: Weekday
-  opensMinute: number
-  /** Domknięcie po północy zapisuje się wartością powyżej 1440. */
-  closesMinute: number
 }
 
 /**
@@ -270,9 +264,13 @@ export type DayAvailabilityInput = BookingHorizonInput & {
   day: CalendarDay
   laneId: string
   schedules: readonly BlockSchedule[]
+  /** Tydzień Strzelnicy; dzień, którego nie wymienia, jest zamknięty. */
   openingHours: readonly OpeningHours[]
-  /** Daty objęte wyjątkiem kalendarzowym — Strzelnica jest wtedy zamknięta. */
-  closedDates: readonly CalendarDay[]
+  /**
+   * Wyjątki kalendarzowe — każdy zastępuje tydzień na swojej dacie, zamykając
+   * ją albo dając jej własne godziny (`hoursForDay`).
+   */
+  exceptions: readonly CalendarException[]
   /**
    * Rezerwacje i Blokady trzymające Osie. Cudze Osie są tu potrzebne, a nie
    * tylko dopuszczalne: Pula instruktorów liczy się po całej Strzelnicy, więc
@@ -294,7 +292,8 @@ export type DayAvailabilityInput = BookingHorizonInput & {
 
 /** Wszystko, czego trzeba, żeby orzec o jednym Bloku wybranego dnia. */
 type BlockContext = {
-  hours: OpeningHours
+  /** Godziny **tego** dnia: z wyjątku, gdy go ma, a inaczej z tygodnia. */
+  hours: DayHours
   /** Wyznaczony raz dla całego dnia — horyzont nie zależy od Bloku. */
   beyondHorizon: boolean
   minLeadMinutes: number
@@ -425,11 +424,14 @@ const ZAMKNIETE: DaySchedule = { open: false, blocks: [] }
  * niż cały dzień zamknięty, którego w ogóle nie ma na grafiku.
  */
 export function scheduleForDay(input: DayAvailabilityInput): DaySchedule {
-  if (input.closedDates.includes(input.day)) return ZAMKNIETE
+  // Jedno pytanie o godziny dnia, a nie dwa: wyjątek zamykający dzień i tydzień
+  // bez wiersza na ten dzień znaczą tutaj dokładnie to samo, a rozstrzygnięte
+  // osobno rozjechałyby się z Panelem przy pierwszym wyjątku, który dzień
+  // **otwiera** (`hoursForDay`).
+  const hours = hoursForDay(input)
+  if (!hours) return ZAMKNIETE
 
   const weekday = weekdayOf(input.day)
-  const hours = input.openingHours.find((entry) => entry.weekday === weekday)
-  if (!hours) return ZAMKNIETE
 
   const context: BlockContext = {
     hours,

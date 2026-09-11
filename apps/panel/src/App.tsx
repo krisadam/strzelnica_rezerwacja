@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Blokada } from './Blokada.js'
 import type { Dane } from './dane.js'
 import { BrakStrzelnicyError, wczytajDane } from './dane.js'
+import { Godziny } from './Godziny.js'
 import { Kalendarz } from './Kalendarz.js'
 import { Lista } from './Lista.js'
 import { Logowanie } from './Logowanie.js'
@@ -219,6 +220,19 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
             lanes={dane.lanes}
             schedules={dane.schedules}
             onZapisano={odswiez}
+          />
+          {/* Godziny pod rozkładem, bo mierzą to, co on wypisuje: Blok stojący
+              poza nimi jest widoczny i niedostępny. Wspólne dla wszystkich Osi,
+              więc na końcu — tu kończy się wszystko, co dotyczy jednej. */}
+          <Godziny
+            client={client}
+            openingHours={dane.openingHours}
+            exceptions={dane.exceptions}
+            bookings={dane.bookings}
+            timeZone={dane.facility.timeZone}
+            teraz={dane.teraz}
+            onZapisano={odswiez}
+            onWybierz={(wpis) => setWybraneId(wpis.id)}
           />
         </>
       )}

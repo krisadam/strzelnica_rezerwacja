@@ -249,24 +249,30 @@ export type Database = {
       }
       calendar_exceptions: {
         Row: {
-          closed_on: string
+          closes_minute: number | null
           created_at: string
           facility_id: string
           id: string
+          on_date: string
+          opens_minute: number | null
           reason: string | null
         }
         Insert: {
-          closed_on: string
+          closes_minute?: number | null
           created_at?: string
           facility_id: string
           id?: string
+          on_date: string
+          opens_minute?: number | null
           reason?: string | null
         }
         Update: {
-          closed_on?: string
+          closes_minute?: number | null
           created_at?: string
           facility_id?: string
           id?: string
+          on_date?: string
+          opens_minute?: number | null
           reason?: string | null
         }
         Relationships: [
@@ -761,6 +767,10 @@ export type Database = {
           just_confirmed: boolean
         }[]
       }
+      delete_calendar_exception: {
+        Args: { p_on_date: string; p_user_id: string }
+        Returns: boolean
+      }
       expire_stale_bookings: {
         Args: { p_facility_id: string }
         Returns: number
@@ -810,6 +820,16 @@ export type Database = {
           just_revoked: boolean
         }[]
       }
+      save_calendar_exception: {
+        Args: {
+          p_closes_minute: number
+          p_on_date: string
+          p_opens_minute: number
+          p_reason: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       save_lane: {
         Args: {
           p_active: boolean
@@ -822,6 +842,10 @@ export type Database = {
       }
       set_lane_schedule: {
         Args: { p_lane_id: string; p_user_id: string; p_week: Json }
+        Returns: boolean
+      }
+      set_opening_hours: {
+        Args: { p_user_id: string; p_week: Json }
         Returns: boolean
       }
     }

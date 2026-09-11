@@ -5,6 +5,7 @@ import {
   asWeekday,
   blockScheduleFromRow,
   bookingSummaryFromRows,
+  calendarExceptionFromRow,
   facilityContactFromRow,
   facilityFromRow,
   IncompleteOccupancyError,
@@ -66,6 +67,44 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       weekday: 1,
       opensMinute: 600,
       closesMinute: 1320,
+    })
+  })
+
+  it('wyjątek bez godzin jest dniem zamkniętym w całości', () => {
+    const row: Tables<'calendar_exceptions'> = {
+      id: 'wyjatek-1',
+      facility_id: 'strzelnica-1',
+      on_date: '2026-12-25',
+      reason: 'Boże Narodzenie',
+      opens_minute: null,
+      closes_minute: null,
+      created_at: '2026-01-01T00:00:00Z',
+    }
+
+    expect(calendarExceptionFromRow(row)).toEqual({
+      day: '2026-12-25',
+      reason: 'Boże Narodzenie',
+      hours: null,
+    })
+  })
+
+  it('wyjątek z godzinami jest dniem skróconym, a pusty powód — pustym napisem', () => {
+    // Powód `null` i powód pusty znaczą dla ekranu to samo, więc z bazy wychodzi
+    // jeden zapis: dwa kazałyby sprawdzać oba wszędzie, gdzie się je czyta.
+    const row: Tables<'calendar_exceptions'> = {
+      id: 'wyjatek-2',
+      facility_id: 'strzelnica-1',
+      on_date: '2026-12-24',
+      reason: null,
+      opens_minute: 600,
+      closes_minute: 720,
+      created_at: '2026-01-01T00:00:00Z',
+    }
+
+    expect(calendarExceptionFromRow(row)).toEqual({
+      day: '2026-12-24',
+      reason: '',
+      hours: { opensMinute: 600, closesMinute: 720 },
     })
   })
 

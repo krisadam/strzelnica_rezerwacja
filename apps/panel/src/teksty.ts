@@ -12,6 +12,7 @@ import type {
   BookingSource,
   ClosureProblem,
   Database,
+  HoursProblem,
   InstructorPresence,
   LaneProblem,
   LimitOverride,
@@ -24,6 +25,23 @@ import type {
 } from '@strzelnica/shared'
 
 type BookingStatus = Database['public']['Enums']['booking_status']
+
+/**
+ * Nazwy dni w porządku ISO — tym samym, którym liczy je `weekdayOf`. Jedna
+ * kopia na cały Panel, bo pytają o nią dwa ekrany: rozkład Bloków i godziny
+ * otwarcia. Druga rozjechałaby się przy pierwszej poprawce pisowni, a dzień
+ * nazwany inaczej w dwóch miejscach jednego ekranu każe zgadywać, czy to ten
+ * sam dzień.
+ */
+const DNI_TYGODNIA = {
+  1: 'Poniedziałek',
+  2: 'Wtorek',
+  3: 'Środa',
+  4: 'Czwartek',
+  5: 'Piątek',
+  6: 'Sobota',
+  7: 'Niedziela',
+} satisfies Record<Weekday, string>
 
 export const teksty = {
   tytul: 'Panel Strzelnicy',
@@ -286,16 +304,7 @@ export const teksty = {
       'Zapisany rozkład Widget pokazuje od razu; Rezerwacji już złożonych nie ' +
       'rusza wcale, także wtedy, gdy przestają do niego pasować.',
     os: 'Oś, której rozkład układasz',
-    /** Nazwy dni w porządku ISO — tym samym, którym liczy je `weekdayOf`. */
-    dzien: {
-      1: 'Poniedziałek',
-      2: 'Wtorek',
-      3: 'Środa',
-      4: 'Czwartek',
-      5: 'Piątek',
-      6: 'Sobota',
-      7: 'Niedziela',
-    } satisfies Record<Weekday, string>,
+    dzien: DNI_TYGODNIA,
     /** Dzień bez Bloków jest odpowiedzią, a nie brakiem treści. */
     pustyDzien: 'Tego dnia Oś nie ma żadnego Bloku.',
     poczatek: 'Początek',
@@ -338,6 +347,121 @@ export const teksty = {
       'nieznana-os': 'Tej Osi już nie ma. Odśwież ekran i sprawdź, co się z nią stało.',
     } satisfies Record<ScheduleProblem, string>,
     blad: 'Nie udało się zapisać rozkładu. Spróbuj jeszcze raz za chwilę.',
+  },
+
+  /**
+   * Godziny otwarcia i Wyjątki kalendarzowe. Zdania mówią o **Strzelnicy**,
+   * a nie o Osi: godziny są jej własnością, więc zamknięcie zdejmuje terminy
+   * wszystkim Osiom naraz — i trzeba to powiedzieć wprost, bo sąsiedni ekran
+   * mówi o jednej Osi na raz.
+   */
+  godziny: {
+    naglowek: 'Godziny otwarcia',
+    wstep:
+      'Kiedy Strzelnica jest czynna — wspólnie dla wszystkich Osi. Blok ' +
+      'wypisany poza godzinami zostaje w kalendarzu, ale nie jest do wzięcia, ' +
+      'a dzień zamknięty nie pokazuje klientowi ani jednego Bloku. Rezerwacji ' +
+      'już złożonych zmiana nie rusza: te, które wypadną poza godziny, ' +
+      'wypiszemy niżej do rozstrzygnięcia.',
+    dzien: DNI_TYGODNIA,
+    /** Pole zaznaczane przy dniu; niezaznaczony znaczy dzień zamknięty. */
+    otwarte: 'Otwarte',
+    otwarcie: 'Otwarcie',
+    zamkniecie: 'Zamknięcie',
+    /** Zamknięcie po północy należy już do dnia następnego i mówi to wprost. */
+    nazajutrz: (godzina: string) => `${godzina} (nazajutrz)`,
+    /** Godziny dnia jednym napisem — tak samo jak zakres Bloku w rozkładzie. */
+    zakres: (od: string, doKiedy: string) => `${od}–${doKiedy}`,
+    /** Dzień zamknięty jest odpowiedzią, a nie brakiem treści. */
+    zamkniety: 'Zamknięte przez cały dzień.',
+    niezapisane: 'Godziny mają niezapisane zmiany — Widget zobaczy je dopiero po zapisaniu.',
+    zapisz: 'Zapisz godziny',
+    zapisywanie: 'Zapisuję…',
+    zapisano: 'Godziny zapisane — Widget pokazuje je od tej chwili.',
+    blad: 'Nie udało się zapisać godzin. Spróbuj jeszcze raz za chwilę.',
+
+    /**
+     * Kolizje: Rezerwacje, które po tej zmianie stoją poza godzinami. Zdanie
+     * mówi, co się z nimi stanie — czyli nic — bo o to pyta się pierwsze:
+     * ekran, który tylko ostrzega, każe podejrzewać, że coś właśnie skasował.
+     */
+    kolizje: {
+      naglowek: 'Rezerwacje poza godzinami',
+      wstep:
+        'Te Rezerwacje stoją poza godzinami, które właśnie ustawiasz. Zostają ' +
+        'na Osi — zmiana godzin nikomu terminu nie odbiera. Rozstrzygnij każdą ' +
+        'sama: odwołaj z powodem albo zostaw, bo klient i tak przyjedzie.',
+      /**
+       * Kalendarz Panelu sięga tydzień wstecz i po horyzont Strzelnicy, więc
+       * dalej nie ma czego zestawiać z godzinami. Milczenie o tym wyglądałoby
+       * jak „nie ma kolizji".
+       */
+      okno: 'Sprawdzamy wyłącznie Rezerwacje z okna kalendarza wyżej.',
+      pozycja: (dzien: string, godziny: string, os: string, klient: string) =>
+        `${dzien}, ${godziny} · ${os} · ${klient}`,
+    },
+
+    /**
+     * Wyjątki. Osobna lista pod tygodniem, bo odpowiadają na inne pytanie:
+     * tydzień mówi o rytmie, wyjątek o jednej dacie — i to on wygrywa.
+     */
+    wyjatki: {
+      naglowek: 'Wyjątki kalendarzowe',
+      wstep:
+        'Daty, które nie idą rytmem tygodnia: święta, zawody, dzień skrócony. ' +
+        'Wyjątek zastępuje godziny tygodniowe w całości — także wtedy, gdy ' +
+        'otwiera dzień, który w tygodniu jest zamknięty. Data, która wyjątek ' +
+        'już ma, dostaje nowy w miejsce poprzedniego.',
+      /** Lista pusta jest odpowiedzią: kalendarz idzie rytmem tygodnia. */
+      pusto: 'Żadna data nie wychodzi poza rytm tygodnia.',
+      /** Legenda ramki formularza — mówi, czego dotyczy to, co w niej stoi. */
+      formularz: 'Wyjątek na wskazaną datę',
+      data: 'Data',
+      powod: 'Powód (dla obsługi)',
+      /** Niezaznaczone znaczy dzień skrócony — wtedy pola godzin mają treść. */
+      zamkniecieCalodniowe: 'Zamknięte przez cały dzień',
+      dodaj: 'Zapisz wyjątek',
+      dodawanie: 'Zapisuję…',
+      zapisano: 'Wyjątek zapisany — Widget widzi go od tej chwili.',
+      /**
+       * Wiersz listy: data, jej dzień tygodnia, co się tego dnia dzieje
+       * i powód. Powód bywa pusty — wyjątek bez opisu jest wyjątkiem, a nie
+       * wpisem niedokończonym — więc doklejamy go dopiero, gdy jest.
+       */
+      pozycja: (data: string, dzien: string, opis: string, powod: string) =>
+        `${data} · ${dzien} — ${opis}${powod ? ` · ${powod}` : ''}`,
+      /**
+       * Ostrzeżenie przy wyjątku, którego zdjęcie wypchnie Rezerwacje poza
+       * godziny — bo data wydłużona wyjątkiem wraca do krótszego tygodnia.
+       * Liczbą, a nie zdaniem z odmianą: „Rezerwacji: 3" jest poprawne dla
+       * każdej liczby, a lista i tak stoi wyżej.
+       */
+      zdjecieKoliduje: (ile: number) => `· po zdjęciu poza godzinami stanie Rezerwacji: ${ile}`,
+      zdejmij: 'Zdejmij',
+      zdejmijOpis: (data: string) => `Zdejmij wyjątek z dnia ${data}`,
+      zdjeto: 'Wyjątek zdjęty — data wraca do rytmu tygodnia.',
+      blad: 'Nie udało się zapisać wyjątku. Spróbuj jeszcze raz za chwilę.',
+      /** Opis wyjątku na liście: sama data nie mówi, co się na niej dzieje. */
+      opis: (godziny: string | null) => godziny ?? 'zamknięte przez cały dzień',
+    },
+
+    /**
+     * Odmowy. Wszystkie trzy pierwsze wypisuje sam formularz, zanim cokolwiek
+     * wyśle; serwer liczy je po raz drugi tą samą funkcją.
+     *
+     * „Nieznana Strzelnica" znaczy konto bez powiązania — Panel powiedziałby to
+     * samo już przy wczytywaniu, więc żeby to zdanie stanęło na ekranie, wpis
+     * musiałby zniknąć między odczytem a kliknięciem.
+     */
+    problem: {
+      'zle-godziny':
+        'Zamknięcie musi wypadać po otwarciu i nie później niż dobę po nim. ' +
+        'Dzień bez ani jednej minuty otwarcia zaznacz jako zamknięty.',
+      'powtorzony-dzien': 'Ten sam dzień tygodnia ma dwie pary godzin. Zostaw jedną.',
+      'zla-data': 'Podaj datę wyjątku w postaci RRRR-MM-DD.',
+      'nieznana-strzelnica':
+        'To konto nie jest powiązane z żadną Strzelnicą. Zgłoś to operatorowi platformy.',
+    } satisfies Record<HoursProblem, string>,
   },
 
   /**

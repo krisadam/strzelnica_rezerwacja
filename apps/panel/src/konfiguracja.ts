@@ -1,19 +1,30 @@
 /**
- * Konfiguracja Strzelnicy — Osie i rozkład ich Bloków. Trzecia i czwarta
- * rzecz, którą Panel w bazie **zmienia**, i tak samo jak odwołanie Rezerwacji
- * oraz Blokada idą Edge Functions: prawa zapisu nie ma tu żadna publiczna rola
- * (ADR 0009), a o tym, czy Oś należy do Strzelnicy tego konta, rozstrzyga baza
- * (ADR 0010).
+ * Konfiguracja Strzelnicy — Osie, rozkład ich Bloków, godziny otwarcia
+ * i Wyjątki kalendarzowe. Wszystko, co Panel w bazie **zmienia** poza obsługą
+ * Rezerwacji, i wszystko tak samo jak odwołanie i Blokada idzie Edge
+ * Functions: prawa zapisu nie ma tu żadna publiczna rola (ADR 0009), a o tym,
+ * czyja jest Strzelnica, rozstrzyga baza po numerze konta (ADR 0010).
  *
- * Obie w jednym pliku, bo są jedną sprawą oglądaną z dwóch stron: Oś bez
- * rozkładu nie ma terminów, a rozkład bez Osi nie ma czego opisywać.
+ * W jednym pliku, bo są jedną sprawą oglądaną z czterech stron: Oś bez rozkładu
+ * nie ma terminów, rozkład bez Osi nie ma czego opisywać, a jedno i drugie poza
+ * godzinami otwarcia jest widoczne i niedostępne.
  */
-import type { LaneDraft, LaneOutcome, ScheduleOutcome, ScheduleRequest } from '@strzelnica/shared'
+import type {
+  ExceptionRequest,
+  HoursOutcome,
+  HoursRequest,
+  LaneDraft,
+  LaneOutcome,
+  ScheduleOutcome,
+  ScheduleRequest,
+} from '@strzelnica/shared'
 import { wolajFunkcje } from './funkcja.js'
 import type { PanelClient } from './supabase.js'
 
 const ZAPISZ_OS = 'zapisz-os'
 const USTAW_ROZKLAD = 'ustaw-rozklad'
+const USTAW_GODZINY = 'ustaw-godziny'
+const USTAW_WYJATEK = 'ustaw-wyjatek'
 
 /**
  * Zapis Osi — nowej, gdy `id` jest puste, i poprawionej, gdy wskazuje. Formularz
@@ -38,4 +49,25 @@ export function ustawRozklad(
     laneId: request.laneId,
     week: [...request.week],
   })
+}
+
+/**
+ * Zapis całego tygodnia godzin otwarcia. Dzień zamknięty jest tu dniem
+ * **pominiętym** na liście, a nie osobnym polem: brak wiersza znaczy zamknięte,
+ * tak samo w bazie, jak w `hoursForDay`.
+ */
+export function ustawGodziny(client: PanelClient, request: HoursRequest): Promise<HoursOutcome> {
+  return wolajFunkcje<HoursOutcome>(client, USTAW_GODZINY, { week: [...request.week] })
+}
+
+/**
+ * Zapis Wyjątku kalendarzowego — dopisanie, poprawka albo zdjęcie. Żądanie
+ * jedzie tu wprost, bez przepisywania po polu: `ExceptionRequest` jest zarazem
+ * treścią formularza, a po drugiej stronie odczyta go `readExceptionRequest`.
+ */
+export function ustawWyjatek(
+  client: PanelClient,
+  request: ExceptionRequest,
+): Promise<HoursOutcome> {
+  return wolajFunkcje<HoursOutcome>(client, USTAW_WYJATEK, { ...request })
 }

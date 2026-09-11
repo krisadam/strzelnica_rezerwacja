@@ -239,7 +239,7 @@ export function RecznyWpis({
     intent: draft,
     schedules: dane.schedules,
     openingHours: dane.openingHours,
-    closedDates: dane.closedDates,
+    exceptions: dane.exceptions,
     occupancies: panelOccupancy({ bookings: dane.bookings, closures: dane.closures }),
     weaponTypes,
     weaponOccupancies: dane.weaponOccupancies,
