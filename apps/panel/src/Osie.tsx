@@ -1,12 +1,13 @@
 import type { Lane, LaneDraft, LaneProblem } from '@strzelnica/shared'
-import { laneProblems, MAX_LANE_CAPACITY } from '@strzelnica/shared'
+import { laneProblems, MAX_LANE_CAPACITY, parseAmount, writeAmount } from '@strzelnica/shared'
 import { useCallback, useId, useState } from 'react'
 import { zapiszOs } from './konfiguracja.js'
+import { czytajLiczbe, PoleKwoty, PoleLiczby } from './Pola.js'
 import type { PanelClient } from './supabase.js'
 import { teksty } from './teksty.js'
 
 /**
- * Jedna Oś do opisania: nazwa, pojemność i to, czy jest w ofercie. Ten sam
+ * Jedna Oś do opisania: nazwa, pojemność, stawka za Blok i to, czy jest w ofercie. Ten sam
  * formularz dodaje Oś i poprawia istniejącą, bo wypełnia się w obu przypadkach
  * dokładnie te same pola — różnicą jest wyłącznie to, czy Oś już jest.
  *
@@ -36,18 +37,30 @@ function FormularzOsi({
 }) {
   const polaId = useId()
   const [nazwa, setNazwa] = useState(lane?.name ?? '')
-  const [pojemnosc, setPojemnosc] = useState(lane?.capacity ?? 1)
+  const [pojemnosc, setPojemnosc] = useState(String(lane?.capacity ?? 1))
+  // Stawka trzymana tak, jak stoi w polu — w złotych. Na grosze przelicza ją
+  // `parseAmount`, ta sama para funkcji, co przy cenach katalogu: pole pyta
+  // o złote, bo w złotych czyta się cennik, a baza trzyma grosze.
+  const [stawka, setStawka] = useState(writeAmount(lane?.blockRate ?? 0))
   const [czynna, setCzynna] = useState(lane?.active ?? true)
   const [wysylanie, setWysylanie] = useState(false)
   const [zastrzezenia, setZastrzezenia] = useState<readonly LaneProblem[]>([])
   const [udane, setUdane] = useState(false)
   const [blad, setBlad] = useState(false)
 
+  // Stawka z pola albo `null`, gdy to, co w nim stoi, ceną nie jest. Osąd
+  // należy do `parseAmount`, a nie do tego ekranu: pole cenowe jest jedno,
+  // a złote na grosze przelicza się w jednym miejscu.
+  const stawkaGr = parseAmount(stawka)
+
   const zapisz = useCallback(() => {
     const draft: LaneDraft = {
       id: lane?.id ?? null,
       name: nazwa,
-      capacity: pojemnosc,
+      capacity: czytajLiczbe(pojemnosc),
+      // Stawka nie do odczytania jedzie do zastrzeżeń jako nie-liczba, zamiast
+      // zamieniać się po cichu w zero: zero jest stawką, a nie brakiem stawki.
+      blockRate: stawkaGr ?? Number.NaN,
       active: czynna,
     }
     // Zastrzeżenia liczone tą samą czystą funkcją, którą serwer sprawdza je po
@@ -75,7 +88,8 @@ function FormularzOsi({
         // ekranie pustą ramkę zamiast tego, co właśnie zapisano.
         if (!lane) {
           setNazwa('')
-          setPojemnosc(1)
+          setPojemnosc('1')
+          setStawka(writeAmount(0))
           setCzynna(true)
         }
         onZapisano()
@@ -85,7 +99,7 @@ function FormularzOsi({
         setBlad(true)
       })
       .finally(() => setWysylanie(false))
-  }, [client, czynna, lane, lanes, nazwa, onZapisano, pojemnosc])
+  }, [client, czynna, lane, lanes, nazwa, onZapisano, pojemnosc, stawkaGr])
 
   return (
     <div className="os-konfiguracja">
@@ -107,17 +121,21 @@ function FormularzOsi({
           />
         </label>
 
-        <label className="pole">
-          <span>{teksty.osie.pojemnosc}</span>
-          <input
-            type="number"
-            min={1}
-            max={MAX_LANE_CAPACITY}
-            step={1}
-            value={pojemnosc}
-            onChange={(zdarzenie) => setPojemnosc(Number(zdarzenie.target.value))}
-          />
-        </label>
+        <PoleLiczby
+          etykieta={teksty.osie.pojemnosc}
+          opis={teksty.osie.pojemnoscOpis}
+          max={MAX_LANE_CAPACITY}
+          wartosc={pojemnosc}
+          onZmien={setPojemnosc}
+        />
+
+        <PoleKwoty
+          etykieta={teksty.osie.stawka}
+          opis={teksty.osie.stawkaOpis}
+          podglad={teksty.osie.stawkaPodglad}
+          wartosc={stawka}
+          onZmien={setStawka}
+        />
       </div>
 
       {/* Pole zaznaczane czyta się w poprzek: kwadracik i zdanie obok niego są

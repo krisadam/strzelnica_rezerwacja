@@ -7,12 +7,21 @@
  * klienta o jego Rezerwacji, tu do obsługi o cudzych. „Termin jest Twój" i „Jan
  * Przykładowy, 2 os." to nie są dwa warianty jednego zdania.
  */
-import { formatAmount, MAX_LANE_CAPACITY, MAX_UNIT_PRICE_GR, MAX_WEAPON_POOL } from '@strzelnica/shared'
+import {
+  formatAmount,
+  MAX_INSTRUCTOR_POOL,
+  MAX_LANE_CAPACITY,
+  MAX_RATE_GR,
+  MAX_TIME_RULE,
+  MAX_UNIT_PRICE_GR,
+  MAX_WEAPON_POOL,
+} from '@strzelnica/shared'
 import type {
   BookingSource,
   CatalogProblem,
   ClosureProblem,
   Database,
+  FacilityConfigProblem,
   HoursProblem,
   InstructorPresence,
   LaneProblem,
@@ -251,6 +260,17 @@ export const teksty = {
     nazwa: 'Nazwa',
     /** Pojemność jest limitem Rezerwacji, a nie zasobem sprzedawanym osobno. */
     pojemnosc: 'Pojemność (Uczestników)',
+    pojemnoscOpis: 'Ilu Uczestników wolno postawić na tej Osi jednocześnie.',
+    /**
+     * Stawka za Blok stoi przy Osi, a nie w cenniku Strzelnicy: jest jej
+     * własnością, bo to na niej kiedyś stanie cennik zależny od pory dnia.
+     * Pole pyta o złote, bo w złotych czyta się cennik; baza trzyma grosze.
+     */
+    stawka: 'Stawka za Blok (zł)',
+    stawkaOpis: 'Za cały Blok; zero znaczy Oś w cenie wstępu.',
+    /** Stawka po polsku, tak jak zobaczy ją klient — sprawdzenie, nie ozdoba. */
+    stawkaPodglad: (kwota: string) =>
+      `Klient zobaczy: ${kwota} za Blok, razem z pierwszym Uczestnikiem.`,
     czynna: 'Oś w ofercie',
     /** Znacznik przy nazwie wyłączonej Osi — widać go bez wchodzenia w pola. */
     wylaczona: 'wyłączona ze sprzedaży',
@@ -258,16 +278,11 @@ export const teksty = {
     zapisywanie: 'Zapisuję…',
     zapisano: 'Oś zapisana.',
     nowa: 'Nowa Oś',
-    /**
-     * Zdanie o tym, czego nowa Oś jeszcze nie ma. Stawka za Blok należy do
-     * Cennika (ticket #22), a Oś bez Bloków nie sprzedaje niczego — więc do
-     * czasu tamtego ekranu trzeba o tym powiedzieć wprost, zamiast pozwolić
-     * komuś wystawić terminy po zero złotych.
-     */
+    /** Zdanie o tym, czego nowa Oś jeszcze nie ma — a bez czego nic nie sprzeda. */
     wstepNowej:
       'Nowa Oś wchodzi bez rozkładu, więc nie ma jeszcze ani jednego terminu ' +
-      'do wzięcia. Stawkę za Blok ustawia cennik — do tego czasu jest zerowa, ' +
-      'więc rozkład wypisuj jej dopiero po ustaleniu ceny.',
+      'do wzięcia. Stawkę za Blok wpisz od razu tutaj: rozkład wypisany przy ' +
+      'stawce zerowej sprzedaje terminy za darmo.',
     dodaj: 'Dodaj Oś',
     dodawanie: 'Dodaję…',
     dodano: 'Oś dodana. Wypisz jej Bloki w rozkładzie niżej.',
@@ -286,6 +301,11 @@ export const teksty = {
       'zla-pojemnosc': (
         'Pojemność jest liczbą Uczestników — całkowitą, dodatnią i nie ' +
         `większą niż ${MAX_LANE_CAPACITY}.`
+      ),
+      'zla-stawka': (
+        'Stawka za Blok jest kwotą w złotych — zerową albo dodatnią, z co ' +
+        `najwyżej dwiema cyframi po przecinku i nie większą niż ` +
+        `${formatAmount(MAX_RATE_GR)}. Zero znaczy Oś w cenie wstępu.`
       ),
       'nieznana-os': 'Tej Osi już nie ma. Odśwież ekran i sprawdź, co się z nią stało.',
     } satisfies Record<LaneProblem, string>,
@@ -475,6 +495,141 @@ export const teksty = {
   },
 
   /**
+   * Cennik wspólny dla całej Strzelnicy, Pula instruktorów i reguły czasowe.
+   * Zdania mówią o tym, co obsługa ustala **raz**, a co potem rozstrzyga
+   * o każdym pojedynczym terminie i o każdej Kwocie — więc każde z nich mówi
+   * też, co znaczy zero: żadna z tych sześciu liczb nie jest pomyłką przy
+   * zerze, a każde zero znaczy co innego.
+   */
+  cennik: {
+    naglowek: 'Cennik i reguły',
+    wstep:
+      'Ile u Ciebie kosztuje strzelanie, ilu masz Instruktorów i jak daleko ' +
+      'w przód przyjmujesz zgłoszenia. Zmiana wchodzi natychmiast i widzi ją ' +
+      'każdy klient, który akurat ma otwarty formularz — ale Rezerwacji ' +
+      'złożonych wcześniej nie rusza: każda niesie własną Kwotę wraz ze ' +
+      'stawkami, po których się policzyła, i własny termin.',
+    /** Stawka po polsku, tak jak zobaczy ją klient — sprawdzenie, nie ozdoba. */
+    stawkaPodglad: (kwota: string) => `Klient zobaczy: ${kwota}.`,
+    zapisz: 'Zapisz cennik i reguły',
+    zapisywanie: 'Zapisuję…',
+    zapisano: 'Cennik i reguły zapisane.',
+    blad: 'Nie udało się zapisać cennika i reguł. Spróbuj jeszcze raz za chwilę.',
+
+    stawki: {
+      naglowek: 'Stawki Strzelnicy',
+      /**
+       * Trzeba tu powiedzieć wprost, czego na tym ekranie **nie ma**: stawka
+       * za Blok jest własnością Osi, więc szukanie jej tutaj kończyłoby się
+       * telefonem do kogoś, kto pamięta.
+       */
+      wstep:
+        'Dwie stawki wspólne dla wszystkich Osi. Stawkę za Blok ustawia się ' +
+        'osobno na każdej Osi, w sekcji „Osie" wyżej — bo bywa na nich różna. ' +
+        'Ceny sprzętu niosą katalogi.',
+      uczestnictwo: 'Stawka za uczestnictwo (zł)',
+      /** Pierwszy Uczestnik jest wliczony w stawkę za Blok — inaczej liczyłby się dwa razy. */
+      uczestnictwoOpis: 'Za każdego Uczestnika poza pierwszym; zero znaczy w cenie Bloku.',
+      instruktor: 'Stawka za Instruktora (zł)',
+      instruktorOpis:
+        'Za samą obecność Instruktora — tak samo, gdy wymagany, jak gdy zamówiony.',
+    },
+
+    pula: {
+      naglowek: 'Pula instruktorów',
+      wstep:
+        'Ilu Instruktorów jesteś w stanie zapewnić w tym samym czasie. ' +
+        'Liczy się po całej Strzelnicy, bo Instruktor nadzoruje ludzi, a nie ' +
+        'stanowisko: Rezerwacje z różnych Osi konkurują o tę samą Pulę. ' +
+        'Wyczerpana zdejmuje termin klientowi bez Pozwolenia i temu, który ' +
+        'Instruktora zamawia — pozostałym nie odbiera nic.',
+      etykieta: 'Pula (Instruktorów)',
+      /**
+       * Zero jest tu konfiguracją, a nie pomyłką, i trzeba to powiedzieć
+       * wprost: obsługa musi wiedzieć, co dokładnie wyłącza, zanim wpisze zero.
+       */
+      opis: 'Zero znaczy Strzelnicę bez nadzoru — zarezerwuje tylko ktoś z Pozwoleniem.',
+    },
+
+    /**
+     * Przekroczenia Puli: Rezerwacje, którym po jej zmniejszeniu Instruktorów
+     * już nie starcza. Zdanie mówi, co się z nimi stanie — czyli nic — bo o to
+     * pyta się pierwsze: ekran, który tylko ostrzega, każe podejrzewać, że coś
+     * właśnie skasował. Ta sama decyzja, co przy puli sztuk broni.
+     */
+    przekroczenia: {
+      naglowek: 'Rezerwacje ponad Pulę instruktorów',
+      wstep:
+        'Tym Rezerwacjom nadzoru w tej Puli już nie starcza. Zostają ze swoim ' +
+        'Instruktorem — zmniejszenie Puli nikomu go nie odbiera. Rozstrzygnij ' +
+        'każdą sama: zmień komuś grafik, zadzwoń do klienta albo odwołaj ' +
+        'z powodem.',
+      /** Ilu Instruktorów w tym czasie obiecano i z jakiej Puli — liczbami, bez odmiany. */
+      nadzor: (zajetych: number, pula: number) =>
+        `· Instruktorów w tym czasie: ${zajetych} z ${pula}`,
+    },
+
+    reguly: {
+      naglowek: 'Reguły czasowe',
+      wstep:
+        'Jak daleko w przód przyjmujesz zgłoszenia, jak blisko terminu jeszcze ' +
+        'je przyjmujesz i do kiedy klient anuluje sam. Zmiana dotyczy tego, co ' +
+        'klient dopiero zarezerwuje — terminów już wziętych nie skraca ani nie ' +
+        'przesuwa.',
+      horyzont: 'Horyzont rezerwacji (dni)',
+      /** Liczony od dzisiejszego dnia Strzelnicy, nie od jutra — zero czyta się inaczej. */
+      horyzontOpis: 'Licząc od dzisiaj; zero znaczy przyjmowanie wyłącznie na dzisiaj.',
+      wyprzedzenie: 'Minimalne wyprzedzenie (minut)',
+      wyprzedzenieOpis:
+        'Ile minut przed początkiem Bloku zamykasz zapisy; zero znaczy do ostatniej chwili.',
+      okno: 'Okno anulowania (godzin)',
+      oknoOpis:
+        'Na ile godzin przed terminem klient anuluje sam; zero znaczy aż do samego terminu.',
+    },
+
+    /**
+     * Odmowy, każda z podpowiedzią co dalej. Wszystkie wypisuje sam formularz —
+     * inaczej niż przy Osi i katalogu, gdzie o zajętej nazwie rozstrzyga dopiero
+     * baza: tu nie ma nazwy, o którą dwie zmiany mogłyby się pobić, bo wiersz
+     * Strzelnicy jest jeden.
+     *
+     * „Nieznana Strzelnica" znaczy konto bez powiązania — zdarza się między
+     * założeniem konta a wpisem w `panel_users`, a ten ekran otwiera się
+     * wyłącznie po odczycie, który już to powiązanie znalazł.
+     */
+    problem: {
+      'zla-stawka-uczestnictwa': (
+        'Stawka za uczestnictwo jest kwotą w złotych — zerową albo dodatnią, ' +
+        'z co najwyżej dwiema cyframi po przecinku i nie większą niż ' +
+        `${formatAmount(MAX_RATE_GR)}.`
+      ),
+      'zla-stawka-instruktora': (
+        'Stawka za Instruktora jest kwotą w złotych — zerową albo dodatnią, ' +
+        'z co najwyżej dwiema cyframi po przecinku i nie większą niż ' +
+        `${formatAmount(MAX_RATE_GR)}.`
+      ),
+      'zla-pula-instruktorow': (
+        'Pula instruktorów jest liczbą ludzi — całkowitą, od zera do ' +
+        `${MAX_INSTRUCTOR_POOL}. Zero znaczy Strzelnicę bez nadzoru.`
+      ),
+      'zly-horyzont': (
+        'Horyzont rezerwacji jest liczbą dni — całkowitą, od zera do ' +
+        `${MAX_TIME_RULE}. Zero znaczy przyjmowanie wyłącznie na dzisiaj.`
+      ),
+      'zle-wyprzedzenie': (
+        'Minimalne wyprzedzenie jest liczbą minut — całkowitą, od zera do ' +
+        `${MAX_TIME_RULE}. Zero znaczy zapisy do ostatniej chwili.`
+      ),
+      'zle-okno-anulowania': (
+        'Okno anulowania jest liczbą godzin — całkowitą, od zera do ' +
+        `${MAX_TIME_RULE}. Zero znaczy anulowanie aż do samego terminu.`
+      ),
+      'nieznana-strzelnica':
+        'To konto nie jest powiązane z żadną Strzelnicą. Zgłoś to operatorowi platformy.',
+    } satisfies Record<FacilityConfigProblem, string>,
+  },
+
+  /**
    * Katalogi sprzętu: Typy broni i Rodzaje amunicji. Zdania mówią o ofercie
    * i o magazynie, a nie o grafiku — to jedyny ekran konfiguracji, który nie
    * mówi o czasie wcale.
@@ -491,6 +646,7 @@ export const teksty = {
     nazwa: 'Nazwa',
     /** Pole pyta o złote, bo w złotych czyta się cennik; baza trzyma grosze. */
     cena: 'Cena za sztukę (zł)',
+    cenaOpis: 'Za jedną sztukę; zero znaczy sprzęt w cenie wstępu.',
     /** Cena po polsku, tak jak zobaczy ją klient — sprawdzenie, nie ozdoba. */
     cenaPodglad: (kwota: string) => `Klient zobaczy: ${kwota} za sztukę.`,
     /** Znacznik przy nazwie pozycji wycofanej — widać go bez wchodzenia w pola. */
@@ -506,6 +662,7 @@ export const teksty = {
         'w nakładających się na siebie terminach. Pula zerowa znaczy Typ, ' +
         'którego chwilowo nie ma czym obsłużyć — a nie Typ wycofany.',
       pula: 'Pula (sztuk)',
+      pulaOpis: 'Zero znaczy Typ, którego chwilowo nie ma czym obsłużyć — nie wycofany.',
       wOfercie: 'Typ w ofercie',
       nowy: 'Nowy Typ broni',
       dodaj: 'Dodaj Typ',

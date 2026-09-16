@@ -10,7 +10,6 @@ import type {
 } from '@strzelnica/shared'
 import {
   ammunitionKindProblems,
-  formatAmount,
   MAX_WEAPON_POOL,
   parseAmount,
   poolOverruns,
@@ -21,6 +20,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useId, useState } from 'react'
 import { Kolizje } from './Kolizje.js'
 import { zapiszRodzajAmunicji, zapiszTypBroni } from './konfiguracja.js'
+import { czytajLiczbe, PoleKwoty, PoleLiczby } from './Pola.js'
 import type { PanelClient } from './supabase.js'
 import { teksty } from './teksty.js'
 
@@ -139,8 +139,6 @@ function PolaPozycji({
   onCena: (cena: string) => void
   onWOfercie: (wOfercie: boolean) => void
 }) {
-  const cenaGr = parseAmount(cena)
-
   return (
     <>
       <div className="filtry">
@@ -151,22 +149,14 @@ function PolaPozycji({
 
         {pulaTypu}
 
-        <label className="pole">
-          <span>{teksty.katalogi.cena}</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={cena}
-            onChange={(zdarzenie) => onCena(zdarzenie.target.value)}
-          />
-        </label>
+        <PoleKwoty
+          etykieta={teksty.katalogi.cena}
+          opis={teksty.katalogi.cenaOpis}
+          podglad={teksty.katalogi.cenaPodglad}
+          wartosc={cena}
+          onZmien={onCena}
+        />
       </div>
-
-      {/* Cena po polsku, obok pola: pole pyta o same złote, a klient zobaczy
-          w formularzu Kwotę z walutą — i to ona ma się zgadzać. */}
-      {cenaGr !== null && (
-        <p className="komunikat">{teksty.katalogi.cenaPodglad(formatAmount(cenaGr))}</p>
-      )}
 
       {/* Pole zaznaczane czyta się w poprzek: kwadracik i zdanie obok niego są
           jedną rzeczą. Etykieta wskazuje pole przez `for`, bo obejmująca je
@@ -222,7 +212,7 @@ function FormularzTypu({
 }) {
   const polaId = useId()
   const [nazwa, setNazwa] = useState(type?.name ?? '')
-  const [pula, setPula] = useState(type?.pool ?? 1)
+  const [pula, setPula] = useState(String(type?.pool ?? 1))
   const [cena, setCena] = useState(writeAmount(type?.unitPrice ?? 0))
   const [wOfercie, setWOfercie] = useState(type?.active ?? true)
   const { wysylanie, zastrzezenia, udane, blad, wyslij } = useZapis(onZapisano)
@@ -231,10 +221,15 @@ function FormularzTypu({
   // do `parseAmount`, a nie do tego ekranu: pole cenowe jest jedno, a złote na
   // grosze przelicza się w jednym miejscu.
   const cenaGr = parseAmount(cena)
+  // Pula nie do odczytania — w szczególności pole wyczyszczone — jedzie do
+  // zastrzeżeń jako nie-liczba, zamiast zamieniać się po cichu w zero: zero
+  // znaczy Typ, którego chwilowo nie ma czym obsłużyć, a to decyzja, nie skutek
+  // skasowanej cyfry.
+  const pulaLiczba = czytajLiczbe(pula)
   const draft: WeaponTypeDraft = {
     id: type?.id ?? null,
     name: nazwa,
-    pool: pula,
+    pool: pulaLiczba,
     // Cena nie do odczytania jedzie do zastrzeżeń jako nie-liczba, zamiast
     // zamieniać się po cichu w zero: zero jest ceną, a nie brakiem ceny.
     unitPrice: cenaGr ?? Number.NaN,
@@ -251,7 +246,7 @@ function FormularzTypu({
         // ekranie pustą ramkę zamiast tego, co właśnie zapisano.
         if (type) return
         setNazwa('')
-        setPula(1)
+        setPula('1')
         setCena(writeAmount(0))
         setWOfercie(true)
       },
@@ -262,7 +257,7 @@ function FormularzTypu({
   // wpisywania — nie jest przy tym żadną pulą, więc lista mówi wtedy o tej
   // zapisanej; liczba z pola i liczba w dopisku są **jedną** liczbą, bo dwie
   // rozjechałyby się dokładnie w tej chwili.
-  const pulaOsadu = Number.isInteger(pula) && pula >= 0 ? pula : (type?.pool ?? 0)
+  const pulaOsadu = pulaLiczba >= 0 ? pulaLiczba : (type?.pool ?? 0)
   // Pozycja nowa nie ma ani jednej Rezerwacji, więc nie ma czego przekroczyć.
   const przekroczenia = type
     ? poolOverruns({ weaponTypeId: type.id, pool: pulaOsadu, rentals })
@@ -286,17 +281,13 @@ function FormularzTypu({
         wOfercie={wOfercie}
         etykietaOferty={teksty.katalogi.bron.wOfercie}
         pulaTypu={
-          <label className="pole">
-            <span>{teksty.katalogi.bron.pula}</span>
-            <input
-              type="number"
-              min={0}
-              max={MAX_WEAPON_POOL}
-              step={1}
-              value={pula}
-              onChange={(zdarzenie) => setPula(Number(zdarzenie.target.value))}
-            />
-          </label>
+          <PoleLiczby
+            etykieta={teksty.katalogi.bron.pula}
+            opis={teksty.katalogi.bron.pulaOpis}
+            max={MAX_WEAPON_POOL}
+            wartosc={pula}
+            onZmien={setPula}
+          />
         }
         onNazwa={setNazwa}
         onCena={setCena}

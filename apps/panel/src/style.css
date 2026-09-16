@@ -221,6 +221,14 @@ body {
   padding-top: 1rem;
 }
 
+/* Zdanie o tym, co znaczy liczba w polu obok — a w szczególności, co znaczy
+   jej zero. Stoi pod polem i jest wyraźnie drobniejsze od etykiety: to
+   objaśnienie, a nie druga etykieta do przeczytania na równi z pierwszą. */
+.pole__opis {
+  font-size: 0.85rem;
+  color: var(--przygaszony);
+}
+
 /* Pole zaznaczane czyta się w poprzek, a nie w dół: kwadracik i zdanie obok
    niego są jedną rzeczą, więc etykieta nad polem rozdzielałaby je bez powodu. */
 .pole--zaznaczane {

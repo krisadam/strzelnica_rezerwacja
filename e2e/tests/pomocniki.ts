@@ -4,6 +4,14 @@ import { PANEL_URL } from '../playwright.config.js'
 import { baza } from './srodowisko.js'
 
 export const STRZELNICA = 'strzelnica-demo'
+/**
+ * Druga Strzelnica z seeda, oglądana od strony klienta. Jej Widgetu nikt nie
+ * osadza (nie ma dozwolonych domen), ale otwarty wprost działa tak samo jak
+ * każdy inny — a testy konfiguracji **całej** Strzelnicy muszą iść właśnie
+ * tędy: cennik i reguły są jej własnością, więc zmiana w demonstracyjnej
+ * przestawiłaby Kwoty i horyzont wszystkim testom, które akurat jadą obok.
+ */
+export const DRUGA_STRZELNICA = 'strzelnica-druga'
 export const OS_PISTOLETOWA = 'Oś pistoletowa nr 1'
 export const OS_KARABINOWA = 'Oś karabinowa nr 2'
 
@@ -106,8 +114,8 @@ const DNI_SZUKANIA = 8
  */
 export const ZIMNY_START_MS = 20_000
 
-export async function otworzWidget(page: Page): Promise<void> {
-  await page.goto(`/?strzelnica=${STRZELNICA}`)
+export async function otworzWidget(page: Page, strzelnica = STRZELNICA): Promise<void> {
+  await page.goto(`/?strzelnica=${strzelnica}`)
   await expect(page.getByRole('heading', { name: 'Rezerwacja osi' })).toBeVisible()
   await expect(page.getByRole('group', { name: 'Wybierz Oś' })).toBeVisible()
 }

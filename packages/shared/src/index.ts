@@ -17,6 +17,7 @@ export {
 } from './calendar.ts'
 export type { CalendarDay, Weekday } from './calendar.ts'
 export {
+  attendedInstructors,
   bookingHorizon,
   instructorAttends,
   issuedWeapons,
@@ -112,6 +113,24 @@ export {
   readLaneRequest,
 } from './lane.ts'
 export type { LaneCheck, LaneDraft, LaneOutcome, LaneProblem } from './lane.ts'
+export {
+  facilityConfigProblems,
+  instructorOverruns,
+  MalformedFacilityConfigRequestError,
+  MAX_INSTRUCTOR_POOL,
+  MAX_RATE_GR,
+  MAX_TIME_RULE,
+  outsideColumnRange,
+  readFacilityConfigRequest,
+} from './facility.ts'
+export type {
+  BookedAttendance,
+  FacilityConfigDraft,
+  FacilityConfigOutcome,
+  FacilityConfigProblem,
+  InstructorOverrun,
+  InstructorOverrunInput,
+} from './facility.ts'
 export {
   ammunitionKindProblems,
   MalformedCatalogRequestError,

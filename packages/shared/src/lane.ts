@@ -13,6 +13,7 @@
  * Czyste funkcje, jak przy Blokadzie: ta sama kopia orzeka w Panelu, zanim
  * pokaże się przycisk, i w Edge Function, zanim cokolwiek trafi do bazy.
  */
+import { MAX_RATE_GR, outsideColumnRange } from './facility.ts'
 import type { Lane } from './rows.ts'
 
 /**
@@ -37,15 +38,19 @@ export const MAX_LANE_CAPACITY = 32_767
  * identyfikator podstawiony z palca nie otwiera więc niczego, choć w żądaniu
  * stoi wprost.
  *
- * Stawki za Blok tu nie ma i jest to granica ticketu, a nie przeoczenie:
- * należy do Cennika (ticket #22). Oś dodana tym formularzem wchodzi więc ze
- * stawką zerową, dopóki tamten ekran nie powstanie.
+ * Stawka za Blok stoi tutaj, a nie w konfiguracji Strzelnicy, i nie jest to
+ * wygoda formularza: jest **własnością Osi** (spec), bo to na niej kiedyś
+ * stanie cennik zależny od pory dnia — bez zmiany kształtu pozostałych danych.
+ * Oś i jej cena wypełniają się przy tym jednym formularzem, więc Osi dodanej
+ * bez ceny nie da się już zostawić przez samo przeoczenie ekranu.
  */
 export type LaneDraft = {
   id: string | null
   name: string
   /** Pojemność: maksymalna liczba Uczestników na Osi jednocześnie. */
   capacity: number
+  /** Stawka za Blok w groszach; obejmuje pierwszego Uczestnika. */
+  blockRate: number
   /** Czy Oś jest w ofercie. Wyłączona znika z Widgetu, ale zostaje w Panelu. */
   active: boolean
 }
@@ -58,6 +63,8 @@ export type LaneProblem =
   | 'nazwa-zajeta'
   /** Pojemność nie jest dodatnią liczbą Uczestników. */
   | 'zla-pojemnosc'
+  /** Stawka za Blok nie jest liczbą groszy. */
+  | 'zla-stawka'
   /** Oś, której ta Strzelnica nie ma. Odpowiedź bazy, nie formularza. */
   | 'nieznana-os'
 
@@ -87,13 +94,18 @@ export function laneProblems({ draft, lanes }: LaneCheck): LaneProblem[] {
     problems.push('nazwa-zajeta')
   }
 
-  if (
-    !Number.isInteger(draft.capacity) ||
-    draft.capacity < 1 ||
-    draft.capacity > MAX_LANE_CAPACITY
-  ) {
+  // Pojemność jest jedynym polem konfiguracji, któremu zero nie wystarcza: Oś,
+  // na której nie wolno postawić nikogo, nie jest Osią — jest Osią wyłączoną,
+  // a to mówi się osobnym polem. Stąd dodatkowy warunek obok wspólnego.
+  if (outsideColumnRange(draft.capacity, MAX_LANE_CAPACITY) || draft.capacity < 1) {
     problems.push('zla-pojemnosc')
   }
+
+  // Zero jest stawką, a nie brakiem stawki: Strzelnica, która za samo wejście
+  // na Oś nie liczy nic, ma to wyrazić liczbą. Granica górna bierze się
+  // z kolumny `integer`, tak samo jak przy stawkach Strzelnicy — i jest tą samą
+  // stałą, bo obie stawki stoją w kolumnach tej samej szerokości.
+  if (outsideColumnRange(draft.blockRate, MAX_RATE_GR)) problems.push('zla-stawka')
 
   return problems
 }
@@ -142,6 +154,14 @@ export function readLaneRequest(value: unknown): LaneDraft {
     throw new MalformedLaneRequestError('pole capacity nie jest liczbą całkowitą')
   }
 
+  // Pole żądania nazywa się `blockRateGr` i mówi jednostkę wprost, tak samo jak
+  // kolumna `block_rate_gr` w schemacie i jak cena w żądaniu katalogu: na brzegu
+  // czyta się surową treść i to właśnie tu jednostka bywa zgubiona.
+  const blockRate = source.blockRateGr
+  if (typeof blockRate !== 'number' || !Number.isInteger(blockRate)) {
+    throw new MalformedLaneRequestError('pole blockRateGr nie jest liczbą całkowitą')
+  }
+
   const active = source.active
   if (typeof active !== 'boolean') {
     throw new MalformedLaneRequestError('pole active nie jest wartością logiczną')
@@ -151,6 +171,7 @@ export function readLaneRequest(value: unknown): LaneDraft {
     id: typeof id === 'string' && id.trim() !== '' ? id.trim() : null,
     name: name.trim(),
     capacity,
+    blockRate,
     active,
   }
 }

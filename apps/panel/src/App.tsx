@@ -2,6 +2,7 @@ import type { BookingFilter, CalendarDay, Environment } from '@strzelnica/shared
 import { dayIn, MissingSupabaseConfigError, readSupabaseConfig } from '@strzelnica/shared'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Blokada } from './Blokada.js'
+import { Cennik } from './Cennik.js'
 import type { Dane } from './dane.js'
 import { BrakStrzelnicyError, wczytajDane } from './dane.js'
 import { Godziny } from './Godziny.js'
@@ -235,7 +236,7 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
             onZapisano={odswiez}
             onWybierz={(wpis) => setWybraneId(wpis.id)}
           />
-          {/* Godziny na samym końcu, bo mierzą to, co rozkład wypisuje: Blok
+          {/* Godziny za katalogami, bo mierzą to, co rozkład wypisuje: Blok
               stojący poza nimi jest widoczny i niedostępny. Wspólne dla
               wszystkich Osi — tu kończy się wszystko, co dotyczy jednej. */}
           <Godziny
@@ -244,6 +245,18 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
             exceptions={dane.exceptions}
             bookings={dane.bookings}
             timeZone={dane.facility.timeZone}
+            teraz={dane.teraz}
+            onZapisano={odswiez}
+            onWybierz={(wpis) => setWybraneId(wpis.id)}
+          />
+          {/* Cennik i reguły na samym końcu, bo mówią o całej Strzelnicy,
+              a nie o żadnej Osi z osobna — tak samo jak godziny wyżej.
+              Za godzinami, bo te zdejmują terminy z kalendarza, a cennik nie
+              zdejmuje żadnego: mówi tylko, ile kosztują i jak daleko sięgają. */}
+          <Cennik
+            client={client}
+            facility={dane.facility}
+            bookings={dane.bookings}
             teraz={dane.teraz}
             onZapisano={odswiez}
             onWybierz={(wpis) => setWybraneId(wpis.id)}

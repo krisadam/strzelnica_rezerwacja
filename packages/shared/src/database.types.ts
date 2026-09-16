@@ -849,6 +849,7 @@ export type Database = {
       save_lane: {
         Args: {
           p_active: boolean
+          p_block_rate_gr: number
           p_capacity: number
           p_lane_id: string
           p_name: string
@@ -866,6 +867,18 @@ export type Database = {
           p_weapon_type_id: string
         }
         Returns: string
+      }
+      set_facility_configuration: {
+        Args: {
+          p_booking_horizon_days: number
+          p_cancellation_window_hours: number
+          p_instructor_pool: number
+          p_instructor_rate_gr: number
+          p_min_lead_minutes: number
+          p_participation_rate_gr: number
+          p_user_id: string
+        }
+        Returns: boolean
       }
       set_lane_schedule: {
         Args: { p_lane_id: string; p_user_id: string; p_week: Json }

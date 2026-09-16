@@ -289,6 +289,28 @@ export function issuedWeapons(
     .reduce((suma, zajete) => suma + zajete.quantity, 0)
 }
 
+/**
+ * Ilu Instruktorów trzymają Rezerwacje nachodzące na podany termin. Siostrzana
+ * wobec `issuedWeapons` i licząca tak samo zachowawczo: Rezerwacje 8–10 i 10–12
+ * nie dzielą Instruktora, ale 9–11 liczy się do obu.
+ *
+ * Wołający podaje **wyłącznie** Zajętość trzymającą Instruktora — Blokada nie
+ * trzyma go nigdy, a Rezerwacja bez niego nie zajmuje miejsca w Puli. Zawężenie
+ * należy do wołającego z tego samego powodu, co przy `active` katalogu: to on
+ * wie, którą Zajętość ogląda.
+ *
+ * Surowa suma, bez odejmowania od Puli: jednemu potrzeba „czy zostało choć
+ * jedno miejsce" (dostępność Bloku), drugiemu „o ile za dużo"
+ * (`instructorOverruns` w konfiguracji Strzelnicy) — i obaj mają liczyć to samo.
+ */
+export function attendedInstructors(
+  occupancies: readonly { startsAt: Date; endsAt: Date }[],
+  startsAt: Date,
+  endsAt: Date,
+): number {
+  return occupancies.filter((zajete) => overlaps(zajete, startsAt, endsAt)).length
+}
+
 /** Rozszerza wejście horyzontu, więc `bookingHorizon` przyjmuje je wprost. */
 export type DayAvailabilityInput = BookingHorizonInput & {
   day: CalendarDay
@@ -409,9 +431,7 @@ function refusalsFor(
   // Stoi po zajętej Osi, bo Osoby rezerwującej nie ma po co zachęcać do zmiany
   // deklaracji, skoro Blok i tak jest czyjś.
   if (context.needsInstructor) {
-    const zajete = context.instructorOccupancies.filter((occupancy) =>
-      overlaps(occupancy, startsAt, endsAt),
-    ).length
+    const zajete = attendedInstructors(context.instructorOccupancies, startsAt, endsAt)
     if (zajete >= context.instructorPool) refusals.push('brak-instruktora')
   }
   // Powód ostatni z zależnych od pytającego, bo najłatwiejszy do obejścia:

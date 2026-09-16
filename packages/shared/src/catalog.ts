@@ -24,6 +24,7 @@
 import type { AmmunitionKind } from './ammunition.ts'
 import type { WeaponOccupancy, WeaponType } from './availability.ts'
 import { issuedWeapons } from './availability.ts'
+import { outsideColumnRange } from './facility.ts'
 
 /**
  * Największa pula, jaką Typ broni może mieć — tyle, ile mieści kolumna `pool
@@ -122,9 +123,14 @@ function namedItemProblems(
   return problems
 }
 
-/** Czy cena da się zapisać w kolumnie groszy. Zero jest ceną, a nie brakiem ceny. */
+/**
+ * Czy cena da się zapisać w kolumnie groszy. Zero jest ceną, a nie brakiem ceny.
+ * Pyta o to wspólny predykat konfiguracji — ten sam, którym mierzy się stawki
+ * Strzelnicy i stawkę za Blok; tutaj zostaje nazwa, bo w katalogu to pytanie
+ * czyta się jako „czy to jest cena".
+ */
 function badPrice(unitPrice: number): boolean {
-  return !Number.isInteger(unitPrice) || unitPrice < 0 || unitPrice > MAX_UNIT_PRICE_GR
+  return outsideColumnRange(unitPrice, MAX_UNIT_PRICE_GR)
 }
 
 export type WeaponTypeCheck = {
@@ -152,9 +158,7 @@ export type WeaponTypeCheck = {
 export function weaponTypeProblems({ draft, weaponTypes }: WeaponTypeCheck): CatalogProblem[] {
   const problems = namedItemProblems(draft, weaponTypes)
 
-  if (!Number.isInteger(draft.pool) || draft.pool < 0 || draft.pool > MAX_WEAPON_POOL) {
-    problems.push('zla-pula')
-  }
+  if (outsideColumnRange(draft.pool, MAX_WEAPON_POOL)) problems.push('zla-pula')
   if (badPrice(draft.unitPrice)) problems.push('zla-cena')
 
   return problems
