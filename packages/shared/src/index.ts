@@ -19,6 +19,7 @@ export type { CalendarDay, Weekday } from './calendar.ts'
 export {
   bookingHorizon,
   instructorAttends,
+  issuedWeapons,
   instructorPresence,
   occupancyWindow,
   occupied,
@@ -43,7 +44,15 @@ export type {
   WeaponRental,
   WeaponType,
 } from './availability.ts'
-export { bookingAmount, formatAmount, priceBooking, ratesFor, UnpricedItemError } from './pricing.ts'
+export {
+  bookingAmount,
+  formatAmount,
+  parseAmount,
+  priceBooking,
+  ratesFor,
+  UnpricedItemError,
+  writeAmount,
+} from './pricing.ts'
 export type {
   AmountBreakdown,
   AmountInput,
@@ -103,6 +112,27 @@ export {
   readLaneRequest,
 } from './lane.ts'
 export type { LaneCheck, LaneDraft, LaneOutcome, LaneProblem } from './lane.ts'
+export {
+  ammunitionKindProblems,
+  MalformedCatalogRequestError,
+  MAX_UNIT_PRICE_GR,
+  MAX_WEAPON_POOL,
+  poolOverruns,
+  readAmmunitionKindRequest,
+  readWeaponTypeRequest,
+  weaponTypeProblems,
+} from './catalog.ts'
+export type {
+  AmmunitionKindCheck,
+  AmmunitionKindDraft,
+  BookedRental,
+  CatalogOutcome,
+  CatalogProblem,
+  PoolOverrun,
+  PoolOverrunInput,
+  WeaponTypeCheck,
+  WeaponTypeDraft,
+} from './catalog.ts'
 export {
   copyDay,
   formatScheduleMinute,

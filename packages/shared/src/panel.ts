@@ -9,8 +9,9 @@
  * `panel_bookings` w bazie. Funkcja, która filtrowałaby po Strzelnicy tutaj,
  * byłaby drugą granicą — a druga granica to ta, o której się zapomina.
  */
-import type { Occupancy, WeaponOccupancy } from './availability.ts'
+import type { Occupancy } from './availability.ts'
 import { addDays, dayIn, zonedMinuteToInstant } from './calendar.ts'
+import type { BookedRental } from './catalog.ts'
 import type { CalendarDay } from './calendar.ts'
 import type { LaneClosure } from './closure.ts'
 import { closureOccupancy } from './closure.ts'
@@ -246,7 +247,7 @@ export type PanelWeaponOccupancyInput = {
 export function panelWeaponOccupancy({
   bookings,
   rentals,
-}: PanelWeaponOccupancyInput): WeaponOccupancy[] {
+}: PanelWeaponOccupancyInput): BookedRental[] {
   const trzymajace = new Map(
     bookings.filter((wpis) => wpis.holdsTerm).map((wpis) => [wpis.id, wpis.booking]),
   )
@@ -257,6 +258,11 @@ export function panelWeaponOccupancy({
 
     return [
       {
+        // Numer Rezerwacji jedzie dalej razem ze sztukami, choć dostępności nie
+        // dotyczy: po nim konfiguracja katalogu poznaje, **czyje** sztuki nie
+        // mieszczą się w zmniejszonej puli (`poolOverruns`). Dla samego
+        // liczenia zajętości jest polem nadmiarowym i nic nie szkodzi.
+        bookingId: pozycja.bookingId,
         weaponTypeId: pozycja.weaponTypeId,
         quantity: pozycja.quantity,
         startsAt: rezerwacja.startsAt,

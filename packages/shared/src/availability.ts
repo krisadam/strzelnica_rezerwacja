@@ -74,6 +74,16 @@ export type WeaponType = {
    * jeden: Typ z ceną trzymaną osobno dałby się wystawić bez niej.
    */
   unitPrice: number
+  /**
+   * Czy Typ jest w ofercie. Wycofany nie wychodzi do Osoby rezerwującej wcale,
+   * ale zostaje w Panelu i opisuje sprzęt zamówiony w Rezerwacjach złożonych
+   * wcześniej (ADR 0013, tak samo jak Oś wyłączona).
+   *
+   * Dostępność o to pole nie pyta i pytać nie ma: wołający podaje jej katalog,
+   * który sam wybrał — Widget czynny, Panel cały — a odsianie wykonane tutaj
+   * byłoby drugą granicą obok polityki RLS, czyli tą, o której się zapomina.
+   */
+  active: boolean
 }
 
 /** Zamówienie sztuk jednego Typu: pozycja Rezerwacji, a zarazem zamierzenie. */
@@ -247,16 +257,36 @@ export type RemainingWeaponsInput = {
  * za wczesna przy Osiach o różnym rozkładzie; to właściwa strona pomyłki.
  */
 export function remainingWeapons(input: RemainingWeaponsInput): WeaponAvailability[] {
-  const wydane = new Map<string, number>()
-  for (const zajete of input.weaponOccupancies) {
-    if (!overlaps(zajete, input.startsAt, input.endsAt)) continue
-    wydane.set(zajete.weaponTypeId, (wydane.get(zajete.weaponTypeId) ?? 0) + zajete.quantity)
-  }
-
   return input.weaponTypes.map((type) => ({
     type,
-    remaining: Math.max(0, type.pool - (wydane.get(type.id) ?? 0)),
+    remaining: Math.max(
+      0,
+      type.pool - issuedWeapons(input.weaponOccupancies, type.id, input.startsAt, input.endsAt),
+    ),
   }))
+}
+
+/**
+ * Ile sztuk jednego Typu trzymają Rezerwacje nachodzące na podany termin.
+ * Rachunek, z którego bierze się `remainingWeapons` — i ten sam, którym Panel
+ * poznaje przekroczenia puli po jej zmniejszeniu (`poolOverruns`). Jedna kopia,
+ * bo obie odpowiedzi mają wychodzić z tego samego liczenia: przekroczenie
+ * wypisane w konfiguracji ma być tym samym przekroczeniem, przez które Widget
+ * odmówi kolejnego zamówienia.
+ *
+ * Surowa suma, bez odejmowania od Puli i bez ucinania na zerze: dopiero wołający
+ * wie, co z nią zrobić — jednemu potrzeba „ile zostało", drugiemu „o ile za
+ * dużo".
+ */
+export function issuedWeapons(
+  occupancies: readonly WeaponOccupancy[],
+  weaponTypeId: string,
+  startsAt: Date,
+  endsAt: Date,
+): number {
+  return occupancies
+    .filter((zajete) => zajete.weaponTypeId === weaponTypeId && overlaps(zajete, startsAt, endsAt))
+    .reduce((suma, zajete) => suma + zajete.quantity, 0)
 }
 
 /** Rozszerza wejście horyzontu, więc `bookingHorizon` przyjmuje je wprost. */

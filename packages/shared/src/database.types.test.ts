@@ -200,18 +200,22 @@ describe('typy ze schematu bazy', () => {
     expect(nowa.created_at).toBeUndefined()
   })
 
-  it('Typ broni niesie pulę sztuk i cenę za sztukę', () => {
+  it('Typ broni niesie pulę sztuk, cenę za sztukę i to, czy jest w ofercie', () => {
     const typ: Tables<'weapon_types'> = {
       id: '00000000-0000-0000-0000-0000000000c1',
       facility_id: '00000000-0000-0000-0000-000000000001',
       name: 'Glock 17',
       pool: 3,
       unit_price_gr: 5000,
+      active: true,
       created_at: '2026-01-01T00:00:00Z',
     }
 
     expect(typ.pool).toBe(3)
     expect(typ.unit_price_gr).toBe(5000)
+    // Wycofanie jest kolumną, a nie skasowaniem wiersza: pozycję katalogu
+    // wskazują Wypożyczenia złożonych Rezerwacji (ADR 0013).
+    expect(typ.active).toBe(true)
   })
 
   it('Wypożyczenie wiąże Rezerwację z Typem broni i liczbą sztuk', () => {
@@ -238,6 +242,7 @@ describe('typy ze schematu bazy', () => {
       facility_id: '00000000-0000-0000-0000-000000000001',
       name: '9 × 19 mm Parabellum',
       unit_price_gr: 150,
+      active: true,
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -246,6 +251,7 @@ describe('typy ze schematu bazy', () => {
       'facility_id',
       'name',
       'unit_price_gr',
+      'active',
       'created_at',
     ])
   })

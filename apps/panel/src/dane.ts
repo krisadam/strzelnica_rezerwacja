@@ -19,6 +19,7 @@
 import type {
   AmmunitionKind,
   BlockSchedule,
+  BookedRental,
   CalendarException,
   Facility,
   Lane,
@@ -26,7 +27,6 @@ import type {
   OpeningHours,
   PanelBooking,
   PanelWindow,
-  WeaponOccupancy,
   WeaponType,
 } from '@strzelnica/shared'
 import {
@@ -105,11 +105,16 @@ export type Dane = {
   weaponTypes: WeaponType[]
   ammunitionKinds: AmmunitionKind[]
   /**
-   * Sztuki trzymane przez Rezerwacje okna. Złożone z pozycji Rezerwacji, a nie
-   * odczytane z widoku `weapon_occupancy`: tamten wystawia Wypożyczenia
-   * wszystkich Strzelnic i konto Panelu nie ma do niego prawa (ADR 0009).
+   * Sztuki trzymane przez Rezerwacje okna, każda ze swoim numerem Rezerwacji.
+   * Złożone z pozycji Rezerwacji, a nie odczytane z widoku `weapon_occupancy`:
+   * tamten wystawia Wypożyczenia wszystkich Strzelnic i konto Panelu nie ma do
+   * niego prawa (ADR 0009).
+   *
+   * Numer jest tu dla konfiguracji katalogu: dostępność pyta wyłącznie „ile
+   * sztuk i kiedy", ale zmniejszenie puli każe powiedzieć, **czyje** sztuki
+   * przestają się w niej mieścić (`poolOverruns`).
    */
-  weaponOccupancies: WeaponOccupancy[]
+  weaponOccupancies: BookedRental[]
 }
 
 /**

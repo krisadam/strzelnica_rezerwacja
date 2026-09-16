@@ -559,7 +559,7 @@ body {
   padding: 0.5rem 1rem 0.75rem;
 }
 
-.kolizje h3 {
+.kolizje > :is(h3, h4, h5) {
   margin-top: 0.5rem;
 }
 
@@ -571,3 +571,25 @@ body {
   flex-direction: column;
   gap: 0.35rem;
 }
+
+/* Pozycja katalogu w ramce, tak samo jak Oś w konfiguracji: jeden formularz
+   opisuje jedną rzecz, a ramka mówi, gdzie się ona kończy. */
+.pozycja-katalogu {
+  border: 1px solid var(--ramka);
+  border-radius: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.pozycja-katalogu h4 {
+  margin-top: 0;
+  font-size: 1rem;
+}
+
+/* Znacznik przy nazwie pozycji wycofanej — ten sam kolor, co przy Osi
+   wyłączonej, bo mówi o tym samym: tego nie ma w sprzedaży. */
+.pozycja-katalogu__znacznik {
+  color: var(--wylaczony);
+  font-weight: 400;
+}
+

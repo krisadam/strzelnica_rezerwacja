@@ -246,7 +246,13 @@ export function laneClosureFromRow(row: Tables<'lane_closures'>): LaneClosure {
 
 /** Pozycja katalogu w kształcie, w jakim potrzebuje jej formularz i dostępność. */
 export function weaponTypeFromRow(row: Tables<'weapon_types'>): WeaponType {
-  return { id: row.id, name: row.name, pool: row.pool, unitPrice: row.unit_price_gr }
+  return {
+    id: row.id,
+    name: row.name,
+    pool: row.pool,
+    unitPrice: row.unit_price_gr,
+    active: row.active,
+  }
 }
 
 /**
@@ -255,7 +261,7 @@ export function weaponTypeFromRow(row: Tables<'weapon_types'>): WeaponType {
  * więc nie ma widoku, z którego trzeba by liczyć, ile zostało.
  */
 export function ammunitionKindFromRow(row: Tables<'ammunition_kinds'>): AmmunitionKind {
-  return { id: row.id, name: row.name, unitPrice: row.unit_price_gr }
+  return { id: row.id, name: row.name, unitPrice: row.unit_price_gr, active: row.active }
 }
 
 /**

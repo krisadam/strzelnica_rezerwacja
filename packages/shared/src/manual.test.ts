@@ -24,7 +24,9 @@ const OS: Lane = {
   active: true,
 }
 
-const KATALOG_AMUNICJI = [{ id: '9x19', name: '9 × 19 mm Parabellum', unitPrice: 150 }]
+const KATALOG_AMUNICJI = [
+  { id: '9x19', name: '9 × 19 mm Parabellum', unitPrice: 150, active: true },
+]
 
 /**
  * Blok z grafiku dnia wraz z powodami, dla których nie jest wolny. Powody
