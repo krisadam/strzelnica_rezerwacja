@@ -114,20 +114,28 @@ export {
 } from './lane.ts'
 export type { LaneCheck, LaneDraft, LaneOutcome, LaneProblem } from './lane.ts'
 export {
+  embeddingProblems,
   facilityConfigProblems,
   instructorOverruns,
+  MalformedEmbeddingRequestError,
   MalformedFacilityConfigRequestError,
   MAX_INSTRUCTOR_POOL,
   MAX_RATE_GR,
+  MAX_TERMS_LENGTH,
   MAX_TIME_RULE,
   outsideColumnRange,
+  readEmbeddingRequest,
   readFacilityConfigRequest,
 } from './facility.ts'
 export type {
   BookedAttendance,
+  EmbeddingDraft,
+  EmbeddingOutcome,
+  EmbeddingProblem,
   FacilityConfigDraft,
   FacilityConfigOutcome,
   FacilityConfigProblem,
+  FacilityDocuments,
   InstructorOverrun,
   InstructorOverrunInput,
 } from './facility.ts'
@@ -309,6 +317,8 @@ export {
   bookingSummaryFromRows,
   calendarExceptionFromRow,
   facilityContactFromRow,
+  facilityDocumentsFromRow,
+  facilityEmbeddingFromRow,
   facilityFromRow,
   IncompleteOccupancyError,
   IncompletePanelBookingError,
@@ -329,12 +339,16 @@ export type {
   CalendarExceptionRow,
   Facility,
   FacilityContactRow,
+  FacilityDocumentsRow,
+  FacilityEmbedding,
+  FacilityEmbeddingRow,
   FacilityRow,
   Lane,
   PanelBookingRows,
   QueryResult,
 } from './rows.ts'
 export {
+  embedSnippet,
   frameAncestors,
   heightMessage,
   InvalidOriginError,

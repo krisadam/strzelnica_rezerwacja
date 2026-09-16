@@ -22,6 +22,7 @@ import type {
   BookedRental,
   CalendarException,
   Facility,
+  FacilityEmbedding,
   Lane,
   LaneClosure,
   OpeningHours,
@@ -33,6 +34,7 @@ import {
   ammunitionKindFromRow,
   blockScheduleFromRow,
   calendarExceptionFromRow,
+  facilityEmbeddingFromRow,
   facilityFromRow,
   laneClosureFromRow,
   laneFromRow,
@@ -64,7 +66,7 @@ import type { PanelClient } from './supabase.js'
  * błąd zamiast wiersza.
  */
 const STRZELNICA_Z_OFERTA =
-  'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, instructor_pool, participation_rate_gr, instructor_rate_gr, block_schedules(*), opening_hours(*), calendar_exceptions(*)' as const
+  'id, slug, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, instructor_pool, participation_rate_gr, instructor_rate_gr, allowed_origins, terms_text, privacy_url, block_schedules(*), opening_hours(*), calendar_exceptions(*)' as const
 
 export type Dane = {
   /**
@@ -78,6 +80,13 @@ export type Dane = {
    * stoi w bazie (zobacz uwagę na początku pliku).
    */
   facility: Facility
+  /**
+   * Osadzenie Strzelnicy: domeny, na których wolno pokazać jej Widget, jej
+   * regulamin i adres polityki prywatności — wraz z identyfikatorem, z którego
+   * składa się znacznik do wklejenia. Osobno od `facility`, bo mówi o czymś
+   * innym: tamto jest grafikiem i Kwotą, a to cudzą stroną WWW.
+   */
+  embedding: FacilityEmbedding
   /**
    * Chwila, w której te dane odczytano. Jedzie razem z nimi, bo mierzy się nią
    * przeszłość i minimalne wyprzedzenie w formularzu ręcznego wpisu — a „teraz"
@@ -133,6 +142,7 @@ export class BrakStrzelnicyError extends Error {
 /** Strzelnica i jej oferta — to, co przychodzi pierwszym odczytem. */
 type Oferta = {
   facility: Facility
+  embedding: FacilityEmbedding
   schedules: BlockSchedule[]
   openingHours: OpeningHours[]
   exceptions: CalendarException[]
@@ -160,6 +170,7 @@ async function ofertaUzytkownika(client: PanelClient): Promise<Oferta> {
 
   return {
     facility: facilityFromRow(row),
+    embedding: facilityEmbeddingFromRow(row),
     schedules: row.block_schedules.map(blockScheduleFromRow),
     openingHours: row.opening_hours.map(openingHoursFromRow),
     exceptions: row.calendar_exceptions.map(calendarExceptionFromRow),
@@ -184,7 +195,8 @@ async function ofertaUzytkownika(client: PanelClient): Promise<Oferta> {
  * własny porządek i wchodzą do opisu Rezerwacji.
  */
 export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane> {
-  const { facility, schedules, openingHours, exceptions } = await ofertaUzytkownika(client)
+  const { facility, embedding, schedules, openingHours, exceptions } =
+    await ofertaUzytkownika(client)
   const okno = panelWindow({
     timeZone: facility.timeZone,
     horizonDays: facility.timeRules.horizonDays,
@@ -252,6 +264,7 @@ export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane>
 
   return {
     facility,
+    embedding,
     teraz: now,
     okno,
     lanes: osie.map(laneFromRow),

@@ -1,14 +1,23 @@
 /**
  * Strzelnica jako **przedmiot konfiguracji**: cennik wspólny dla całej
- * Strzelnicy, Pula instruktorów i reguły czasowe. Sama Strzelnica — to, czym
- * jest dla grafiku i dla Kwoty — mieszka w `rows.ts` razem z odczytem swojego
+ * Strzelnicy, Pula instruktorów i reguły czasowe, a niżej — dozwolone domeny
+ * osadzenia wraz z jej dokumentami. Sama Strzelnica — to, czym jest dla
+ * grafiku i dla Kwoty — mieszka w `rows.ts` razem z odczytem swojego
  * wiersza; tutaj jest wyłącznie to, co dzieje się, gdy Strzelnica opisuje samą
  * siebie.
  *
- * Trzy rzeczy w jednym pliku, bo zapisują się jednym żądaniem i jednym
- * przyciskiem: wszystkie są kolumnami tego samego wiersza, więc rozdzielone
- * dałyby trzy drogi zapisu do tej samej Strzelnicy i trzy chwile, w których
- * konfiguracja jest w połowie stara. Stawki za Blok tu nie ma i nie będzie:
+ * Dwa formularze, a nie jeden: cennik i osadzenie zapisują się osobnymi
+ * przyciskami, bo odpowiadają na dwa różne pytania — „ile u mnie kosztuje"
+ * i „gdzie oraz na jakich warunkach się u mnie rezerwuje". Sąsiadują, bo obie
+ * odpowiedzi są kolumnami tego samego wiersza i obie idą tą samą drogą zapisu.
+ * Protokół ramki, nagłówek `frame-ancestors` i znacznik do wklejenia zostają
+ * w `embedding.ts`: tamto jest tym, jak Widget stoi na cudzej stronie, a to —
+ * tym, co Strzelnica o sobie wpisała.
+ *
+ * Cennik, Pula i reguły czasowe idą jednym żądaniem i jednym przyciskiem:
+ * wszystkie są kolumnami tego samego wiersza, więc rozdzielone dałyby trzy
+ * drogi zapisu do tej samej Strzelnicy i trzy chwile, w których konfiguracja
+ * jest w połowie stara. Stawki za Blok tu nie ma i nie będzie:
  * należy do Osi (spec — cennik zależny od pory dnia ma kiedyś stanąć właśnie
  * tam), więc jedzie razem z Osią przez `LaneDraft`.
  *
@@ -18,6 +27,7 @@
  */
 import { attendedInstructors } from './availability.ts'
 import type { TimeRules } from './availability.ts'
+import { normalizeOrigin } from './embedding.ts'
 
 /**
  * Największa Pula instruktorów — tyle, ile mieści kolumna `instructor_pool
@@ -263,3 +273,161 @@ export function instructorOverruns({
     }))
     .filter((overrun) => overrun.attended > pool)
 }
+
+/**
+ * Najdłuższy regulamin, jaki przyjmujemy. Nie jest regułą domeny — regulamin
+ * na dwadzieścia stron jest pomyłką, ale to nie my mamy orzec, na której
+ * stronie się zaczyna — tylko granicą powiedzianą wprost, żeby treść wklejona
+ * omyłkowo z całej witryny wróciła nazwanym zastrzeżeniem zamiast wisieć
+ * w ramce. Tę samą granicę powtarza `check` przy kolumnie.
+ */
+export const MAX_TERMS_LENGTH = 20_000
+
+/**
+ * Dokumenty, na które Osoba rezerwująca godzi się przy Rezerwacji. Należą do
+ * Strzelnicy, a nie do platformy: klient akceptuje regulamin tej Strzelnicy,
+ * u której staje na Osi, a nie nasz.
+ *
+ * Puste znaczy dokument jeszcze niepodany — i jest to stan do pokazania
+ * wprost, a nie brak do zastąpienia czymkolwiek naszym.
+ */
+export type FacilityDocuments = {
+  /** Treść regulaminu Strzelnicy, pokazywana w Widgecie przy zgodzie. */
+  terms: string
+  /** Adres polityki prywatności Strzelnicy; Widget podaje go linkiem. */
+  privacyUrl: string
+}
+
+/**
+ * To, co Użytkownik panelu wypełnia na ekranie osadzenia — i zarazem to, co
+ * jedzie siecią. Jeden kształt na oba, tak samo jak `FacilityConfigDraft`.
+ *
+ * Domeny i dokumenty razem, bo zapisują się jednym przyciskiem: są kolumnami
+ * tego samego wiersza, a rozdzielone dałyby dwie drogi zapisu do jednej
+ * Strzelnicy — dokładnie tak samo jak sześć wartości cennika wyżej. Bez
+ * wskazania Strzelnicy: o to, czyja jest konfiguracja, pyta bazę numer
+ * potwierdzonego konta (ADR 0010).
+ */
+export type EmbeddingDraft = FacilityDocuments & {
+  /** Domeny, na których wolno osadzić Widget; pusta lista znaczy „nigdzie". */
+  allowedOrigins: string[]
+}
+
+/** Dlaczego osadzenie i dokumenty Strzelnicy nie wchodzą. */
+export type EmbeddingProblem =
+  /** Wpis na liście domen nie jest źródłem: bez schematu albo ze ścieżką. */
+  | 'zla-domena'
+  /** Regulamin dłuższy, niż mieści kolumna. */
+  | 'za-dlugi-regulamin'
+  /** Adres polityki prywatności nie jest adresem http(s). */
+  | 'zly-adres-polityki'
+  /** Konto bez Strzelnicy. Odpowiedź bazy, nie formularza. */
+  | 'nieznana-strzelnica'
+
+/** Czy napis jest adresem, pod który da się posłać klienta po dokument. */
+function czyAdresDokumentu(value: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    return false
+  }
+  return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+}
+
+/**
+ * Wszystkie zastrzeżenia naraz, w kolejności czytania ekranu — tak samo jak
+ * przy cenniku wyżej, przy Osi i przy katalogach: obsługa ma zobaczyć całą
+ * listę poprawek za jednym razem.
+ *
+ * Pusta lista domen zastrzeżeniem nie jest i nie będzie: znaczy Strzelnicę,
+ * która Widgetu nigdzie nie osadza, a to jest odpowiedź. Tak samo puste
+ * dokumenty — Strzelnica, która ich jeszcze nie podała, ma prawo zapisać samą
+ * listę domen, zamiast wpisywać byle co, żeby przycisk zadziałał.
+ */
+export function embeddingProblems(draft: EmbeddingDraft): EmbeddingProblem[] {
+  const problems: EmbeddingProblem[] = []
+
+  const zlaDomena = draft.allowedOrigins.some((origin) => {
+    try {
+      normalizeOrigin(origin)
+      return false
+    } catch {
+      return true
+    }
+  })
+  if (zlaDomena) problems.push('zla-domena')
+
+  if (draft.terms.length > MAX_TERMS_LENGTH) problems.push('za-dlugi-regulamin')
+  if (draft.privacyUrl !== '' && !czyAdresDokumentu(draft.privacyUrl)) {
+    problems.push('zly-adres-polityki')
+  }
+
+  return problems
+}
+
+export class MalformedEmbeddingRequestError extends Error {
+  constructor(message: string) {
+    super(`Żądanie osadzenia ma zły kształt: ${message}`)
+    this.name = 'MalformedEmbeddingRequestError'
+  }
+}
+
+/** Napis z żądania albo wyjątek; treść osądzają zastrzeżenia. */
+function text(source: Record<string, unknown>, key: string, nazwa: string): string {
+  const value = source[key]
+  if (typeof value !== 'string') {
+    throw new MalformedEmbeddingRequestError(`${nazwa} nie jest tekstem`)
+  }
+  return value
+}
+
+/**
+ * Żądanie odczytane z sieci albo wyjątek. Sprawdzamy tu wyłącznie kształt;
+ * o tym, czy wolno je przyjąć, orzeka `embeddingProblems` — domena zapisana
+ * błędnie przechodzi więc tędy bez słowa, bo ma wrócić nazwanym zastrzeżeniem,
+ * a nie odmową „zły kształt". Ta sama decyzja, co w `readFacilityConfigRequest`.
+ *
+ * Każde z trzech pól musi być **wpisane**: żądanie milczące o którymkolwiek
+ * byłoby żądaniem wyczyszczenia go po cichu, bo zapis idzie w całości — a
+ * literówka w nazwie pola nie ma zdejmować Widgetu ze strony Strzelnicy ani
+ * kasować jej regulaminu.
+ *
+ * Domeny, które **da się** odczytać, sprowadzamy tu do postaci porównywanej
+ * przez przeglądarkę i odsiewamy powtórzenia. Nie jest to poprawianie żądania
+ * za Panel, tylko ta sama ostrożność, co przy każdym innym polu z sieci: to
+ * z tej listy powstaje nagłówek, a wpis różniący się wyłącznie ukośnikiem na
+ * końcu kazałby obsłudze kasować tę samą domenę dwa razy.
+ */
+export function readEmbeddingRequest(value: unknown): EmbeddingDraft {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new MalformedEmbeddingRequestError('treść żądania nie jest obiektem')
+  }
+  const source = value as Record<string, unknown>
+
+  const origins = source.allowedOrigins
+  if (!Array.isArray(origins) || origins.some((origin) => typeof origin !== 'string')) {
+    throw new MalformedEmbeddingRequestError('pole allowedOrigins nie jest listą napisów')
+  }
+
+  const czytelne = (origins as string[]).map((origin) => {
+    try {
+      return normalizeOrigin(origin)
+    } catch {
+      return origin
+    }
+  })
+
+  return {
+    allowedOrigins: [...new Set(czytelne)],
+    terms: text(source, 'terms', 'regulamin').trim(),
+    privacyUrl: text(source, 'privacyUrl', 'adres polityki prywatności').trim(),
+  }
+}
+
+/**
+ * Wynik próby zapisu osadzenia i dokumentów. Bez numeru, tak samo jak
+ * `FacilityConfigOutcome` i z tego samego powodu: Strzelnica jest jedna i była
+ * tu przed żądaniem.
+ */
+export type EmbeddingOutcome = { ok: true } | { ok: false; problem: EmbeddingProblem }

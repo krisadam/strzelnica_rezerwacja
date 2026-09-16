@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  embedSnippet,
   frameAncestors,
   heightMessage,
   InvalidOriginError,
@@ -114,6 +115,32 @@ describe('nagłówek frame-ancestors', () => {
 
   it('zatrzymuje się na domenie zapisanej błędnie, zamiast wpuszczać ją do nagłówka', () => {
     expect(() => frameAncestors(['https://klient.example.pl', 'klient.example.pl'])).toThrow(
+      InvalidOriginError,
+    )
+  })
+})
+
+describe('znacznik osadzenia do skopiowania', () => {
+  it('wskazuje skrypt naszej domeny i Strzelnicę, której dotyczy', () => {
+    expect(
+      embedSnippet({ widgetOrigin: 'https://widget.example.pl', facilitySlug: 'strzelnica-demo' }),
+    ).toBe('<script src="https://widget.example.pl/embed.js" data-strzelnica="strzelnica-demo"></script>')
+  })
+
+  it('nie powiela ukośnika na końcu adresu Widgetu', () => {
+    expect(
+      embedSnippet({ widgetOrigin: 'http://localhost:5173/', facilitySlug: 'demo' }),
+    ).toContain('src="http://localhost:5173/embed.js"')
+  })
+
+  it('nie buduje znacznika bez wskazania Strzelnicy', () => {
+    expect(() => embedSnippet({ widgetOrigin: 'https://widget.example.pl', facilitySlug: ' ' })).toThrow(
+      /Strzelnic/,
+    )
+  })
+
+  it('nie buduje znacznika spod adresu, który nie jest adresem Widgetu', () => {
+    expect(() => embedSnippet({ widgetOrigin: 'widget.example.pl', facilitySlug: 'demo' })).toThrow(
       InvalidOriginError,
     )
   })

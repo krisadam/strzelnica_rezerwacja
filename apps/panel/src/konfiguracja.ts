@@ -1,7 +1,7 @@
 /**
  * Konfiguracja Strzelnicy — Osie, rozkład ich Bloków, godziny otwarcia,
- * Wyjątki kalendarzowe, katalogi sprzętu oraz cennik razem z Pulą instruktorów
- * i regułami czasowymi. Wszystko, co Panel w bazie **zmienia** poza obsługą
+ * Wyjątki kalendarzowe, katalogi sprzętu, cennik razem z Pulą instruktorów
+ * i regułami czasowymi oraz osadzenie Widgetu wraz z dokumentami Strzelnicy. Wszystko, co Panel w bazie **zmienia** poza obsługą
  * Rezerwacji, i wszystko tak samo jak odwołanie i Blokada idzie Edge
  * Functions: prawa zapisu nie ma tu żadna publiczna rola (ADR 0009), a o tym,
  * czyja jest Strzelnica, rozstrzyga baza po numerze konta (ADR 0010).
@@ -14,6 +14,8 @@
 import type {
   AmmunitionKindDraft,
   CatalogOutcome,
+  EmbeddingDraft,
+  EmbeddingOutcome,
   ExceptionRequest,
   FacilityConfigDraft,
   FacilityConfigOutcome,
@@ -35,6 +37,7 @@ const USTAW_WYJATEK = 'ustaw-wyjatek'
 const ZAPISZ_TYP_BRONI = 'zapisz-typ-broni'
 const ZAPISZ_RODZAJ_AMUNICJI = 'zapisz-rodzaj-amunicji'
 const USTAW_KONFIGURACJE = 'ustaw-konfiguracje'
+const USTAW_OSADZENIE = 'ustaw-osadzenie'
 
 /**
  * Zapis Osi — nowej, gdy `id` jest puste, i poprawionej, gdy wskazuje. Formularz
@@ -70,6 +73,19 @@ export function ustawKonfiguracje(
     minLeadMinutes: draft.timeRules.minLeadMinutes,
     cancellationWindowHours: draft.timeRules.cancellationWindowHours,
   })
+}
+
+/**
+ * Zapis osadzenia Strzelnicy: lista dozwolonych domen, treść regulaminu
+ * i adres polityki prywatności — trzy pola jednym żądaniem, tak samo jak
+ * cennik idzie w całości. Żądanie jedzie wprost: `EmbeddingDraft` jest zarazem
+ * treścią formularza, a po drugiej stronie odczyta go `readEmbeddingRequest`.
+ */
+export function ustawOsadzenie(
+  client: PanelClient,
+  draft: EmbeddingDraft,
+): Promise<EmbeddingOutcome> {
+  return wolajFunkcje<EmbeddingOutcome>(client, USTAW_OSADZENIE, { ...draft })
 }
 
 /**

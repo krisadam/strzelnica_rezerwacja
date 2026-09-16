@@ -74,6 +74,13 @@ Strzelnica wkleja u siebie jeden znacznik; ramkę z Widgetem tworzy skrypt
 Ramka dopasowuje wysokość do treści i przewija stronę gospodarza do swojej
 góry przy zmianie widoku — Widget podaje jedno i drugie przez `postMessage`.
 
+Znacznik pokazuje **Panel**, gotowy do skopiowania — z adresem naszego Widgetu
+i identyfikatorem Strzelnicy w środku (zobacz [Osadzenie i dokumenty
+Strzelnicy](#osadzenie-i-dokumenty-strzelnicy)). Adres bierze ze zmiennej
+`VITE_WIDGET_ORIGIN`: to konfiguracja platformy, nie Strzelnicy, i ta sama
+wartość, co `WIDGET_ORIGIN` w środowisku Edge Functions. Lokalnie dopisuje ją do
+`.env` `pnpm db:env`.
+
 Osadzać wolno wyłącznie na domenach z listy `facilities.allowed_origins`. Z niej
 budowany jest nagłówek `Content-Security-Policy: frame-ancestors …` podawany
 razem z dokumentem Widgetu; osadzenie gdzie indziej blokuje przeglądarka. Pusta
@@ -161,9 +168,11 @@ z pozycji Zestawienia dnia do Rezerwacji, Oś dodana w Panelu wchodząca do ofer
 razem ze swoim rozkładem, wyjątek kalendarzowy zamykający dzień klientowi,
 tydzień godzin otwarcia układany w Panelu, pozycja katalogu dodana
 w Panelu, wycofana ze sprzedaży i zostająca w Rezerwacji, która ją zamówiła,
-oraz cennik i reguły czasowe zapisane w Panelu — liczące Kwotę w Widgecie od
+cennik i reguły czasowe zapisane w Panelu — liczące Kwotę w Widgecie od
 razu, zdejmujące dni poza nowym horyzontem i zostawiające nietkniętą Rezerwację
-złożoną wcześniej.
+złożoną wcześniej, oraz domena dopisana w Panelu wchodząca do nagłówka
+`frame-ancestors` bez wdrożenia i znikająca z niego natychmiast po skasowaniu,
+razem z regulaminem tej Strzelnicy stojącym w Widgecie przy zgodzie.
 Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
@@ -176,8 +185,9 @@ w `.env`, zapisywanego przez `pnpm db:env`. Osi są dwie, a testów rezerwujący
 więcej, więc każdy z nich celuje w inny fragment horyzontu: wyścigi biorą
 terminy najbliższe, bo obie ich strony muszą trafić na ten sam Blok.
 
-Testy zmieniające konfigurację **całej** Strzelnicy — tydzień godzin otwarcia
-oraz cennik z Pulą i regułami czasowymi — pracują na drugiej Strzelnicy z seeda,
+Testy zmieniające konfigurację **całej** Strzelnicy — tydzień godzin otwarcia,
+cennik z Pulą i regułami czasowymi oraz osadzenie z dokumentami — pracują na
+drugiej Strzelnicy z seeda,
 nie na demonstracyjnej, i przywracają jej stan przed przebiegiem oraz po nim.
 Nie jest to ostrożność, tylko konieczność: pliki testów jadą równolegle,
 a zamknięty poniedziałek albo horyzont skrócony do trzech dni zdjąłby terminy
@@ -775,6 +785,53 @@ konta (ADR 0010) — tak samo jak przy godzinach otwarcia. Pyta o to test
 izolacji: funkcja bazodanowa wołana wprost, z podstawionym cudzym kontem, nie
 otwiera niczego, bo prawo jej wykonania mają wyłącznie Edge Functions.
 
+## Osadzenie i dokumenty Strzelnicy
+
+Gdzie wolno pokazać Widget Strzelnicy i na jakich warunkach się u niej
+rezerwuje — jedyny ekran konfiguracji, który mówi o **cudzej stronie WWW**,
+a nie o grafiku. Trzy rzeczy stoją na nim razem, bo obsługa robi je za jednym
+posiedzeniem: gotowy znacznik do wklejenia, lista dozwolonych domen oraz
+regulamin i adres polityki prywatności.
+
+Lista domen stoi w schemacie od ticketu #4 — czytał ją nagłówek
+`frame-ancestors`, a zmieniał wyłącznie `supabase db reset`. Ten ekran dokłada
+do niej **drogę zapisu**. Dokumentów nie było wcale: Widget pokazywał przy
+zgodzie zdanie ogólne, a klient godził się na regulamin, którego nikt mu nie
+podał. Teraz niosą je kolumny `facilities.terms_text` i `facilities.privacy_url`
+— obie publiczne, bo obie są ofertą do przeczytania przed zaznaczeniem zgody.
+
+Wszystko idzie **jednym żądaniem i jednym przyciskiem**, tak samo jak cennik
+i tydzień godzin otwarcia: to kolumny jednego wiersza, więc nie ma chwili,
+w której Strzelnica ma nową listę domen i stary regulamin.
+
+Domena przechodzi przez `normalizeOrigin` **w chwili dopisania do listy**, a nie
+dopiero przy zapisie: lista jest tym, co obsługa ogląda, więc ma na niej stać
+dokładnie to, co pojedzie do nagłówka — `https://moja.pl/rezerwacja` poprawione
+po cichu przy zapisie byłoby inną listą niż ta, którą przed chwilą przeczytała.
+Wpis, którego odczytać się nie da, wraca zdaniem mówiącym, czego brakuje. Pusta
+lista znaczy „nigdzie" i ekran mówi to wprost.
+
+**Skasowanie domeny działa natychmiast**: nagłówek liczy się z tej samej
+kolumny przy każdym podaniu dokumentu Widgetu, więc strona zdjęta z listy
+przestaje osadzać przy następnym wejściu — bez wdrożenia i bez czekania.
+Rezerwacji, które już stamtąd przyszły, nie rusza: mówi, czego Strzelnica nie
+sprzedaje, a nie komu odbiera termin — tak samo jak wyłączenie Osi czy
+wycofanie pozycji katalogu.
+
+Dokumenty widzi klient przy zgodzie: regulamin **zwinięty**, bo wypełniany
+formularz jest tym, po co przyszedł, a kilka akapitów odepchnęłoby przycisk poza
+ekran — ale obecny, bo to jest różnica między dokumentem do przeczytania
+a wzmianką, że istnieje. Polityka prywatności otwiera się w nowej karcie, bo
+Widget bywa ramką na cudzej stronie i odejście z niej skasowałoby wypełniony
+formularz. Dokumentu niepodanego nie ma tam wcale, zamiast pustego odnośnika do
+kliknięcia: Strzelnica, która go nie wpisała, żadnego nie ma, a my nie mamy czym
+go zastąpić.
+
+Zapis idzie Edge Function `ustaw-osadzenie`, rolą serwisową, tak samo jak
+cennik, godziny i katalogi (ADR 0003). Strzelnicy nie ma w żądaniu: o to, czyja
+jest konfiguracja, pyta bazę `panel_facility_of` po numerze potwierdzonego konta
+(ADR 0010).
+
 ## Panel
 
 Wejście do Panelu daje konto Supabase Auth powiązane z jedną Strzelnicą przez
@@ -802,7 +859,7 @@ długości, i to w stronę, w którą kłamać nie wolno. Na liście Blokad nie 
 jej kolumny to Osoba rezerwująca, Uczestnicy i Kwota, a Blokada nie ma ani
 jednej z tych rzeczy.
 
-Zmienia Panel dziesięć rzeczy: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
+Zmienia Panel jedenaście rzeczy: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
 przez Strzelnicę](#odwołanie-rezerwacji-przez-strzelnicę)), wprowadza Blokadę
 Osi (zobacz [Blokady Osi](#blokady-osi)), wpisuje Rezerwację przyjętą przez
 telefon (zobacz [Ręczna Rezerwacja
@@ -811,9 +868,12 @@ Blok i jej rozkład Bloków (zobacz [Osie i rozkład Bloków](#osie-i-rozkład-b
 ustawia godziny otwarcia i wyjątki kalendarzowe (zobacz [Godziny otwarcia
 i wyjątki kalendarzowe](#godziny-otwarcia-i-wyjątki-kalendarzowe)), zapisuje
 pozycje obu katalogów sprzętu (zobacz [Katalogi sprzętu](#katalogi-sprzętu))
-oraz ustawia cennik, Pulę instruktorów i reguły czasowe (zobacz [Cennik, Pula
-instruktorów i reguły czasowe](#cennik-pula-instruktorów-i-reguły-czasowe)).
-Wszystkie dziesięć idzie Edge Function, bo tabele mają zamknięte obie publiczne role — a ekran
+ustawia cennik, Pulę instruktorów i reguły czasowe (zobacz [Cennik, Pula
+instruktorów i reguły czasowe](#cennik-pula-instruktorów-i-reguły-czasowe)) oraz
+ustawia dozwolone domeny osadzenia razem z regulaminem i adresem polityki
+prywatności (zobacz [Osadzenie i dokumenty
+Strzelnicy](#osadzenie-i-dokumenty-strzelnicy)).
+Wszystkie jedenaście idzie Edge Function, bo tabele mają zamknięte obie publiczne role — a ekran
 odczytuje po tym dane od nowa, zamiast przepisywać sobie stan z odpowiedzi
 „udało się": między wczytaniem Panelu a kliknięciem klient bywa szybszy.
 
@@ -822,10 +882,12 @@ obsługa przychodzi tu po Rezerwacje, a Osie, ich rozkład i godziny układa raz
 i wraca do nich rzadko. Godziny idą przy tym na sam koniec, bo są wspólne dla
 wszystkich Osi — tam kończy się wszystko, co dotyczy jednej. Katalogi stoją
 między rozkładem a godzinami, bo mówią o sprzęcie, a nie o czasie — nie mają
-czym przerwać porządku „Oś, jej rozkład, jej godziny". Cennik i reguły czasowe
-zamykają ekran, za godzinami: mówią o całej Strzelnicy tak samo jak one, ale
-nie zdejmują z kalendarza ani jednego terminu — mówią tylko, ile kosztuje i jak
-daleko sięga. Formularze układające **przyszłość** — ręczny wpis i Blokada —
+czym przerwać porządku „Oś, jej rozkład, jej godziny". Cennik i reguły czasowe stoją
+za godzinami: mówią o całej Strzelnicy tak samo jak one, ale nie zdejmują
+z kalendarza ani jednego terminu — mówią tylko, ile kosztuje i jak daleko
+sięga. Ekran zamyka osadzenie z dokumentami, bo jako jedyne nie mówi
+o Strzelnicy wcale: mówi o cudzej stronie WWW, na której stanie jej Widget,
+i ustawia się je raz, przy uruchamianiu. Formularze układające **przyszłość** — ręczny wpis i Blokada —
 znają przy tym wyłącznie Osie czynne (i wyłącznie pozycje katalogu w ofercie),
 a kalendarz i lista wszystkie: pierwsze
 mówią o tym, co dopiero stanie na Osi, drugie o tym, co już na niej stoi.

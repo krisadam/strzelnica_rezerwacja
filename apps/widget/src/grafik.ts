@@ -11,6 +11,7 @@ import type {
   CalendarException,
   DaySchedule,
   Facility,
+  FacilityDocuments,
   Intent,
   Lane,
   Occupancy,
@@ -22,6 +23,7 @@ import {
   ammunitionKindFromRow,
   blockScheduleFromRow,
   calendarExceptionFromRow,
+  facilityDocumentsFromRow,
   facilityFromRow,
   laneFromRow,
   occupancyFromRow,
@@ -35,6 +37,12 @@ import type { StrzelnicaClient } from './supabase.js'
 
 export type Grafik = {
   facility: Facility
+  /**
+   * Regulamin i polityka prywatności **tej** Strzelnicy — to, na co Osoba
+   * rezerwująca godzi się w formularzu. Jadą razem z grafikiem, a nie osobnym
+   * odczytem: są kolumnami tego samego wiersza i czyta je ten sam ekran.
+   */
+  documents: FacilityDocuments
   lanes: Lane[]
   schedules: BlockSchedule[]
   openingHours: OpeningHours[]
@@ -139,7 +147,7 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
   const { data: row, error } = await client
     .from('facilities')
     .select(
-      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, instructor_pool, participation_rate_gr, instructor_rate_gr',
+      'id, name, timezone, booking_horizon_days, min_lead_minutes, cancellation_window_hours, instructor_pool, participation_rate_gr, instructor_rate_gr, terms_text, privacy_url',
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -148,6 +156,7 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
   if (!row) throw new UnknownFacilityError(slug)
 
   const facility = facilityFromRow(row)
+  const documents = facilityDocumentsFromRow(row)
 
   const [lanes, schedules, openingHours, exceptions, weaponTypes, ammunitionKinds] =
     await Promise.all([
@@ -167,6 +176,7 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
 
   return {
     facility,
+    documents,
     lanes: rowsOrThrow(lanes).map(laneFromRow),
     schedules: rowsOrThrow(schedules).map(blockScheduleFromRow),
     openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),

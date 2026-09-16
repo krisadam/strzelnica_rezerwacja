@@ -7,6 +7,8 @@ import {
   bookingSummaryFromRows,
   calendarExceptionFromRow,
   facilityContactFromRow,
+  facilityDocumentsFromRow,
+  facilityEmbeddingFromRow,
   facilityFromRow,
   IncompleteOccupancyError,
   InvalidWeekdayError,
@@ -128,6 +130,8 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       // z Rezerwacją, której dotyczy.
       contact_email: 'kontakt@example.pl',
       contact_phone: '+48 123 456 789',
+      terms_text: 'Regulamin Strzelnicy Demo',
+      privacy_url: 'https://example.pl/prywatnosc',
       created_at: '2026-01-01T00:00:00Z',
     }
 
@@ -150,6 +154,42 @@ describe('wiersze bazy jako pojęcia domeny', () => {
     expect(
       facilityContactFromRow({ contact_email: 'kontakt@example.pl', contact_phone: null }),
     ).toEqual({ email: 'kontakt@example.pl', phone: null })
+  })
+
+  it('dokumenty Strzelnicy przechodzą razem z brakiem', () => {
+    expect(
+      facilityDocumentsFromRow({
+        terms_text: 'Na Osi obowiązuje posłuszeństwo wobec Instruktora.',
+        privacy_url: 'https://example.pl/prywatnosc',
+      }),
+    ).toEqual({
+      terms: 'Na Osi obowiązuje posłuszeństwo wobec Instruktora.',
+      privacyUrl: 'https://example.pl/prywatnosc',
+    })
+
+    // Pusto znaczy dokument niepodany — i jest to odpowiedź, a nie wiersz
+    // niepełny: Widget pokazuje wtedy samą zgodę, zamiast podstawiać cokolwiek
+    // naszego.
+    expect(facilityDocumentsFromRow({ terms_text: '', privacy_url: '' })).toEqual({
+      terms: '',
+      privacyUrl: '',
+    })
+  })
+
+  it('osadzenie Strzelnicy niesie jej identyfikator, domeny i dokumenty', () => {
+    expect(
+      facilityEmbeddingFromRow({
+        slug: 'strzelnica-demo',
+        allowed_origins: ['https://klient.example.pl'],
+        terms_text: 'Regulamin',
+        privacy_url: 'https://example.pl/prywatnosc',
+      }),
+    ).toEqual({
+      slug: 'strzelnica-demo',
+      allowedOrigins: ['https://klient.example.pl'],
+      terms: 'Regulamin',
+      privacyUrl: 'https://example.pl/prywatnosc',
+    })
   })
 
   it('Oś zachowuje nazwę, pojemność, stawkę za Blok i to, czy jest w ofercie', () => {

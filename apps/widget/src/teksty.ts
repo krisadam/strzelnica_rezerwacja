@@ -139,6 +139,9 @@ export const teksty = {
     email: 'Adres e-mail',
     telefon: 'Telefon',
     zgoda: 'Akceptuję regulamin i politykę prywatności Strzelnicy.',
+    /** Rozwijany regulamin tej Strzelnicy; pokazuje się, gdy go podała. */
+    regulamin: 'Regulamin Strzelnicy',
+    polityka: 'Polityka prywatności Strzelnicy',
     dalej: 'Dalej',
     zmienTermin: 'Zmień termin',
   },
