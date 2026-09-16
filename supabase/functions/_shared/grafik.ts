@@ -92,7 +92,12 @@ export async function grafikOsi(
         .eq('facility_id', facility.id)
         .lt('starts_at', okno.to.toISOString())
         .gt('ends_at', okno.from.toISOString()),
-      client.from('weapon_types').select('*').eq('facility_id', facility.id),
+      // Wyłącznie Typy w ofercie, i jest to warunek zapisany tutaj, choć Widget
+      // wycofanych nie widzi wcale: klucz anonimowy odcina je polityką RLS,
+      // a rola serwisowa czyta tę tabelę z pominięciem polityk. Bez tego
+      // warunku żądanie sklejone w konsoli wypożyczyłoby broń zdjętą z oferty
+      // — tak samo jak bez sprawdzenia `active` na Osi.
+      client.from('weapon_types').select('*').eq('facility_id', facility.id).eq('active', true),
       // Sztuki trzymane przez cudze Rezerwacje — z całej Strzelnicy, bo katalog
       // jest wspólny dla wszystkich Osi. To samo okno, co dla zajętości Osi.
       client
@@ -104,7 +109,11 @@ export async function grafikOsi(
       // Katalog amunicji bez żadnej zajętości obok: Rodzaj nie ma puli
       // (ADR 0004), więc czyta się go tylko po to, żeby odsiać Rodzaj, którego
       // ta Strzelnica nie zna.
-      client.from('ammunition_kinds').select('*').eq('facility_id', facility.id),
+      client
+        .from('ammunition_kinds')
+        .select('*')
+        .eq('facility_id', facility.id)
+        .eq('active', true),
     ])
 
   const weaponTypes = rowsOrThrow(katalog).map(weaponTypeFromRow)

@@ -13,7 +13,6 @@ import {
   exceptionProblems,
   formatDayLabel,
   formatScheduleMinute,
-  formatTimeRange,
   hoursConflicts,
   MAX_CLOSES_MINUTE,
   MINUTES_IN_DAY,
@@ -23,6 +22,7 @@ import {
   WEEKDAYS,
 } from '@strzelnica/shared'
 import { useCallback, useId, useState } from 'react'
+import { Kolizje } from './Kolizje.js'
 import { ustawGodziny, ustawWyjatek } from './konfiguracja.js'
 import type { PanelClient } from './supabase.js'
 import { teksty } from './teksty.js'
@@ -105,52 +105,6 @@ function kolizje(input: KolizjeInput): PanelBooking[] {
   )
 
   return doRozstrzygniecia.filter((wpis) => poza.has(wpis.id))
-}
-
-/**
- * Rezerwacje, które po zmianie stoją poza godzinami otwarcia. Wskazanie, a nie
- * przeszkoda: godziny wchodzą i tak, a Rezerwacja zostaje na Osi — niesie
- * własny termin i o godziny nie pyta nikogo po tym, jak powstała. Znika
- * wyłącznie Odwołaniem, z powodem wysłanym klientowi, więc przycisk prowadzi do
- * jej szczegółów, a nie do żadnego „napraw".
- */
-function Kolizje({
-  bookings,
-  onWybierz,
-}: {
-  bookings: readonly PanelBooking[]
-  onWybierz: (booking: PanelBooking) => void
-}) {
-  const naglowekId = useId()
-
-  if (bookings.length === 0) return null
-
-  return (
-    <section className="kolizje" aria-labelledby={naglowekId}>
-      <h3 id={naglowekId}>{teksty.godziny.kolizje.naglowek}</h3>
-      <p className="komunikat komunikat--blad" role="alert">
-        {teksty.godziny.kolizje.wstep}
-      </p>
-      <ul className="kolizje__lista">
-        {bookings.map((wpis) => {
-          const { day, startsAt, endsAt, timeZone, laneName, contact } = wpis.booking
-          return (
-            <li key={wpis.id}>
-              <button type="button" className="tabela__link" onClick={() => onWybierz(wpis)}>
-                {teksty.godziny.kolizje.pozycja(
-                  formatDayLabel(day),
-                  formatTimeRange(startsAt, endsAt, timeZone),
-                  laneName,
-                  contact.name,
-                )}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-      <p className="komunikat">{teksty.godziny.kolizje.okno}</p>
-    </section>
-  )
 }
 
 /**
@@ -458,6 +412,8 @@ function Wyjatki({
         {!zamkniete && <PolaGodzin id="wyjatek" hours={godziny} onZmien={setGodziny} />}
 
         <Kolizje
+          naglowek={teksty.godziny.kolizje.naglowek}
+          wstep={teksty.godziny.kolizje.wstep}
           bookings={projekt ? kolizjeDaty(projekt.day, projekt) : []}
           onWybierz={onWybierz}
         />
@@ -600,6 +556,8 @@ export function Godziny({
       </div>
 
       <Kolizje
+        naglowek={teksty.godziny.kolizje.naglowek}
+        wstep={teksty.godziny.kolizje.wstep}
         bookings={kolizje({ bookings, timeZone, teraz, openingHours: tydzien, exceptions })}
         onWybierz={onWybierz}
       />

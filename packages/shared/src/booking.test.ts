@@ -21,8 +21,8 @@ const OS: Lane = {
  * czy zna Rodzaj, a nie ile za niego liczy.
  */
 const KATALOG_AMUNICJI = [
-  { id: '9x19', name: '9 × 19 mm Parabellum', unitPrice: 150 },
-  { id: '22lr', name: '.22 Long Rifle', unitPrice: 40 },
+  { id: '9x19', name: '9 × 19 mm Parabellum', unitPrice: 150, active: true },
+  { id: '22lr', name: '.22 Long Rifle', unitPrice: 40, active: true },
 ]
 
 /**

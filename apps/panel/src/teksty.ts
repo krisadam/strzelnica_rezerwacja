@@ -7,9 +7,10 @@
  * klienta o jego Rezerwacji, tu do obsługi o cudzych. „Termin jest Twój" i „Jan
  * Przykładowy, 2 os." to nie są dwa warianty jednego zdania.
  */
-import { MAX_LANE_CAPACITY } from '@strzelnica/shared'
+import { formatAmount, MAX_LANE_CAPACITY, MAX_UNIT_PRICE_GR, MAX_WEAPON_POOL } from '@strzelnica/shared'
 import type {
   BookingSource,
+  CatalogProblem,
   ClosureProblem,
   Database,
   HoursProblem,
@@ -391,14 +392,6 @@ export const teksty = {
         'Te Rezerwacje stoją poza godzinami, które właśnie ustawiasz. Zostają ' +
         'na Osi — zmiana godzin nikomu terminu nie odbiera. Rozstrzygnij każdą ' +
         'sama: odwołaj z powodem albo zostaw, bo klient i tak przyjedzie.',
-      /**
-       * Kalendarz Panelu sięga tydzień wstecz i po horyzont Strzelnicy, więc
-       * dalej nie ma czego zestawiać z godzinami. Milczenie o tym wyglądałoby
-       * jak „nie ma kolizji".
-       */
-      okno: 'Sprawdzamy wyłącznie Rezerwacje z okna kalendarza wyżej.',
-      pozycja: (dzien: string, godziny: string, os: string, klient: string) =>
-        `${dzien}, ${godziny} · ${os} · ${klient}`,
     },
 
     /**
@@ -462,6 +455,120 @@ export const teksty = {
       'nieznana-strzelnica':
         'To konto nie jest powiązane z żadną Strzelnicą. Zgłoś to operatorowi platformy.',
     } satisfies Record<HoursProblem, string>,
+  },
+
+  /**
+   * Listy „do rozstrzygnięcia" — Rezerwacje, które po zmianie konfiguracji
+   * przestają się w niej mieścić. Wspólne dla godzin otwarcia i dla katalogu,
+   * bo obie odpowiadają na to samo pytanie i wyglądają tak samo; różni je
+   * wyłącznie zdanie wstępne, a to podaje ekran, który listę pokazuje.
+   */
+  kolizje: {
+    /**
+     * Kalendarz Panelu sięga tydzień wstecz i po horyzont Strzelnicy, więc
+     * dalej nie ma czego zestawiać ani z godzinami, ani z pulą. Milczenie o tym
+     * wyglądałoby jak „nie ma kolizji".
+     */
+    okno: 'Sprawdzamy wyłącznie Rezerwacje z okna kalendarza wyżej.',
+    pozycja: (dzien: string, godziny: string, os: string, klient: string) =>
+      `${dzien}, ${godziny} · ${os} · ${klient}`,
+  },
+
+  /**
+   * Katalogi sprzętu: Typy broni i Rodzaje amunicji. Zdania mówią o ofercie
+   * i o magazynie, a nie o grafiku — to jedyny ekran konfiguracji, który nie
+   * mówi o czasie wcale.
+   */
+  katalogi: {
+    naglowek: 'Katalogi sprzętu',
+    wstep:
+      'Czym u Ciebie się strzela i czym się do tego ładuje — to, co klient ' +
+      'wybiera w formularzu Rezerwacji. Pozycji się nie kasuje, tylko wycofuje: ' +
+      'wycofana znika z Widgetu, ale zostaje w Rezerwacjach złożonych wcześniej ' +
+      'i dalej opisuje sprzęt, który komuś obiecano. Zmiana ceny Kwot już ' +
+      'złożonych Rezerwacji nie rusza — każda niesie ceny, po których się ' +
+      'policzyła.',
+    nazwa: 'Nazwa',
+    /** Pole pyta o złote, bo w złotych czyta się cennik; baza trzyma grosze. */
+    cena: 'Cena za sztukę (zł)',
+    /** Cena po polsku, tak jak zobaczy ją klient — sprawdzenie, nie ozdoba. */
+    cenaPodglad: (kwota: string) => `Klient zobaczy: ${kwota} za sztukę.`,
+    /** Znacznik przy nazwie pozycji wycofanej — widać go bez wchodzenia w pola. */
+    wycofana: 'wycofana ze sprzedaży',
+    zapisz: 'Zapisz',
+    zapisywanie: 'Zapisuję…',
+    dodawanie: 'Dodaję…',
+
+    bron: {
+      naglowek: 'Typy broni',
+      wstep:
+        'Pula to liczba sztuk, którymi dysponujesz: więcej nie wypożyczysz ' +
+        'w nakładających się na siebie terminach. Pula zerowa znaczy Typ, ' +
+        'którego chwilowo nie ma czym obsłużyć — a nie Typ wycofany.',
+      pula: 'Pula (sztuk)',
+      wOfercie: 'Typ w ofercie',
+      nowy: 'Nowy Typ broni',
+      dodaj: 'Dodaj Typ',
+      dodano: 'Typ broni dodany.',
+      zapisano: 'Typ broni zapisany.',
+    },
+
+    amunicja: {
+      naglowek: 'Rodzaje amunicji',
+      /**
+       * Brak puli jest tu treścią, a nie przeoczeniem (ADR 0004) — i trzeba to
+       * powiedzieć wprost, bo formularz obok o pulę pyta.
+       */
+      wstep:
+        'Amunicja nie ma puli i mieć nie będzie: nie wraca do Ciebie, więc ' +
+        'system nie prowadzi jej stanu magazynowego i nigdy nie odmówi ' +
+        'z powodu jej braku. Zapotrzebowanie klienta jest zapowiedzią, po ' +
+        'której masz co przygotować.',
+      wOfercie: 'Rodzaj w ofercie',
+      nowy: 'Nowy Rodzaj amunicji',
+      dodaj: 'Dodaj Rodzaj',
+      dodano: 'Rodzaj amunicji dodany.',
+      zapisano: 'Rodzaj amunicji zapisany.',
+    },
+
+    /**
+     * Przekroczenia puli: Rezerwacje, którym po jej zmniejszeniu sztuk już nie
+     * starcza. Zdanie mówi, co się z nimi stanie — czyli nic — bo o to pyta się
+     * pierwsze: ekran, który tylko ostrzega, każe podejrzewać, że coś właśnie
+     * skasował.
+     */
+    przekroczenia: {
+      naglowek: 'Rezerwacje ponad pulę',
+      wstep:
+        'Tym Rezerwacjom sztuk w tej puli już nie starcza. Zostają ze swoimi ' +
+        'sztukami — zmniejszenie puli nikomu broni nie odbiera. Rozstrzygnij ' +
+        'każdą sama: pożycz sprzęt, zadzwoń do klienta albo odwołaj z powodem.',
+      /** Ile sztuk w tym czasie obiecano i z jakiej puli — liczbami, bez odmiany. */
+      sztuki: (wydane: number, pula: number) => `· sztuk w tym czasie: ${wydane} z ${pula}`,
+    },
+
+    /**
+     * Odmowy, każda z podpowiedzią co dalej. Trzy pierwsze wypisuje sam
+     * formularz; „nazwa zajęta" przychodzi i stąd, i z bazy — dopiero ona wie,
+     * co koleżanka z drugiej zmiany dodała minutę temu.
+     *
+     * „Nieznana pozycja" znaczy pozycję, której baza tej Strzelnicy nie
+     * przypisuje, a formularz poprawia pozycję wziętą z tej właśnie Strzelnicy:
+     * żeby to zdanie stanęło na ekranie, musiałaby zniknąć między odczytem
+     * a kliknięciem.
+     */
+    problem: {
+      'brak-nazwy': 'Podaj nazwę — po niej klient pozna sprzęt w formularzu.',
+      'nazwa-zajeta':
+        'Taką nazwę nosi już inna pozycja tego katalogu — także wycofana. Wpisz inną.',
+      'zla-pula': `Pula jest liczbą sztuk: całkowitą, nieujemną i nie większą niż ${MAX_WEAPON_POOL}.`,
+      'zla-cena':
+        'Cenę podaj w złotych, najwyżej z dwiema cyframi po przecinku — na ' +
+        `przykład 50,00 — i nie wyższą niż ${formatAmount(MAX_UNIT_PRICE_GR)} za sztukę.`,
+      'nieznana-pozycja':
+        'Tej pozycji już nie ma. Odśwież ekran i sprawdź, co się z nią stało.',
+    } satisfies Record<CatalogProblem, string>,
+    blad: 'Nie udało się zapisać pozycji katalogu. Spróbuj jeszcze raz za chwilę.',
   },
 
   /**

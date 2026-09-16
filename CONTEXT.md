@@ -207,14 +207,30 @@ zawierać wiele Wypożyczeń różnych Typów.
 ## Typ broni
 
 Pozycja katalogu Strzelnicy (np. „Glock 17") wraz z **pulą** — liczbą sztuk
-dostępnych do wypożyczenia. Suma sztuk danego Typu w nakładających się
-Rezerwacjach nie może przekroczyć Puli.
+dostępnych do wypożyczenia — i ceną za sztukę. Suma sztuk danego Typu
+w nakładających się Rezerwacjach nie może przekroczyć Puli.
 
 ## Rodzaj amunicji
 
-Pozycja katalogu Strzelnicy (np. „9 × 19 mm Parabellum"). W odróżnieniu od
-Typu broni **nie ma puli**: amunicja nie wraca do Strzelnicy, więc nie ma
-stałej liczby sztuk, którą dałoby się rozdzielać między Rezerwacje.
+Pozycja katalogu Strzelnicy (np. „9 × 19 mm Parabellum") wraz z ceną za sztukę.
+W odróżnieniu od Typu broni **nie ma puli**: amunicja nie wraca do Strzelnicy,
+więc nie ma stałej liczby sztuk, którą dałoby się rozdzielać między Rezerwacje.
+
+## Wycofanie pozycji katalogu
+
+Zdjęcie Typu broni albo Rodzaju amunicji z oferty — jak wyłączenie Osi, tylko
+że tu chodzi o sprzęt, a nie o miejsce. Pozycji się nie kasuje: wskazują ją
+Rezerwacje złożone wcześniej, a te znikają wyłącznie Odwołaniem. Wycofana nie
+wychodzi do Osoby rezerwującej wcale, a w Panelu zostaje ze znacznikiem
+i dalej opisuje sprzęt, który komuś obiecano.
+
+## Przekroczenie puli
+
+Stan, w którym sztuk danego Typu obiecano w nakładających się Rezerwacjach
+więcej, niż mówi jego Pula. Bierze się z decyzji Strzelnicy — zmniejszenia Puli
+albo ręcznego wpisu ponad limit — a nie z błędu: Rezerwacja niesie swoje sztuki
+i o Pulę nie pyta nikogo po tym, jak powstała. Panel je **wypisuje**,
+a rozstrzyga człowiek.
 
 ## Zapotrzebowanie na amunicję
 

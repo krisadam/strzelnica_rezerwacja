@@ -20,6 +20,12 @@ export type AmmunitionKind = {
   name: string
   /** Cena jednej sztuki w groszach; jedyne, do czego katalog służy poza nazwą. */
   unitPrice: number
+  /**
+   * Czy Rodzaj jest w ofercie. Wycofany nie wychodzi do Osoby rezerwującej
+   * wcale, ale zostaje w Panelu i opisuje amunicję zamówioną w Rezerwacjach
+   * złożonych wcześniej — tak samo jak wycofany Typ broni (ADR 0013).
+   */
+  active: boolean
 }
 
 /**

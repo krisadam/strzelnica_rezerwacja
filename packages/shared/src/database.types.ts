@@ -70,6 +70,7 @@ export type Database = {
       }
       ammunition_kinds: {
         Row: {
+          active: boolean
           created_at: string
           facility_id: string
           id: string
@@ -77,6 +78,7 @@ export type Database = {
           unit_price_gr: number
         }
         Insert: {
+          active?: boolean
           created_at?: string
           facility_id: string
           id?: string
@@ -84,6 +86,7 @@ export type Database = {
           unit_price_gr?: number
         }
         Update: {
+          active?: boolean
           created_at?: string
           facility_id?: string
           id?: string
@@ -599,6 +602,7 @@ export type Database = {
       }
       weapon_types: {
         Row: {
+          active: boolean
           created_at: string
           facility_id: string
           id: string
@@ -607,6 +611,7 @@ export type Database = {
           unit_price_gr: number
         }
         Insert: {
+          active?: boolean
           created_at?: string
           facility_id: string
           id?: string
@@ -615,6 +620,7 @@ export type Database = {
           unit_price_gr?: number
         }
         Update: {
+          active?: boolean
           created_at?: string
           facility_id?: string
           id?: string
@@ -820,6 +826,16 @@ export type Database = {
           just_revoked: boolean
         }[]
       }
+      save_ammunition_kind: {
+        Args: {
+          p_active: boolean
+          p_ammunition_kind_id: string
+          p_name: string
+          p_unit_price_gr: number
+          p_user_id: string
+        }
+        Returns: string
+      }
       save_calendar_exception: {
         Args: {
           p_closes_minute: number
@@ -837,6 +853,17 @@ export type Database = {
           p_lane_id: string
           p_name: string
           p_user_id: string
+        }
+        Returns: string
+      }
+      save_weapon_type: {
+        Args: {
+          p_active: boolean
+          p_name: string
+          p_pool: number
+          p_unit_price_gr: number
+          p_user_id: string
+          p_weapon_type_id: string
         }
         Returns: string
       }

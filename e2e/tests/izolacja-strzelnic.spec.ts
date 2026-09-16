@@ -43,6 +43,9 @@ const OBCA = {
   /** Druga Oś obcej Strzelnicy — ta, na której stoi jej Blokada. */
   osZBlokada: '00000000-0000-0000-0000-0000000000a4',
   rezerwacja: '00000000-0000-0000-0000-0000000000b2',
+  /** Pozycje katalogów obcej Strzelnicy — te, które przejmujący by wycofał. */
+  typBroni: '00000000-0000-0000-0000-0000000000c4',
+  rodzajAmunicji: '00000000-0000-0000-0000-0000000000e4',
   wypozyczenie: '00000000-0000-0000-0000-0000000000d2',
   zapotrzebowanie: '00000000-0000-0000-0000-0000000000f2',
   blokada: '00000000-0000-0000-0000-000000000302',
@@ -380,6 +383,104 @@ test('Użytkownik panelu nie zmieni godzin ani wyjątków obcej Strzelnicy', asy
   expect(
     await baza<unknown[]>(`calendar_exceptions?facility_id=eq.${OBCA.strzelnica}&select=id`),
   ).not.toHaveLength(0)
+})
+
+/**
+ * Katalogi obcej Strzelnicy: Typ broni i Rodzaj amunicji. Granica stoi tu tak
+ * samo jak przy Osi — numer pozycji jedzie w żądaniu wprost, a zestawia się go
+ * z katalogiem **tej** Strzelnicy, o którą baza pyta po numerze potwierdzonego
+ * konta (`panel_facility_of`, ADR 0010). Znajomość numeru nie otwiera więc
+ * niczego, a wprost do funkcji bazodanowej drogi nie ma wcale: prawo jej
+ * wykonania mają wyłącznie Edge Functions (ADR 0003).
+ *
+ * Pytamy o zapis najgroźniejszy z możliwych: wycofanie cudzej pozycji zdejmuje
+ * ją z oferty obcej Strzelnicy, a zerowa pula zabiera jej sprzęt — jedno
+ * i drugie bez jej wiedzy.
+ */
+test('Użytkownik panelu nie zmieni katalogów obcej Strzelnicy', async () => {
+  // Wołanie Edge Functions niżej przechodzi przez ich zimny start.
+  test.slow()
+
+  const wprost = [
+    {
+      co: 'zapis Typu broni',
+      funkcja: 'rpc/save_weapon_type',
+      zadanie: {
+        p_weapon_type_id: OBCA.typBroni,
+        p_name: 'Wtręt',
+        p_pool: 0,
+        p_unit_price_gr: 1,
+        p_active: false,
+        p_user_id: KONTO_DRUGIEJ,
+      },
+    },
+    {
+      co: 'zapis Rodzaju amunicji',
+      funkcja: 'rpc/save_ammunition_kind',
+      zadanie: {
+        p_ammunition_kind_id: OBCA.rodzajAmunicji,
+        p_name: 'Wtręt',
+        p_unit_price_gr: 1,
+        p_active: false,
+        p_user_id: KONTO_DRUGIEJ,
+      },
+    },
+  ]
+
+  for (const { co, funkcja, zadanie } of wprost) {
+    const odpowiedz = await bazaJakoUzytkownikPanelu(OBSLUGA_DEMO, HASLO_PANELU, funkcja, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(zadanie),
+    })
+    expect({ co, odmowa: odpowiedz.status >= 400 }).toEqual({ co, odmowa: true })
+  }
+
+  // Droga, która jest: Edge Function z tokenem konta demo. Pozycja obcego
+  // katalogu jest dla niej nieznana — mimo że jej numer jest prawdziwy.
+  const drogi = [
+    {
+      co: 'Typ broni',
+      funkcja: 'zapisz-typ-broni',
+      zadanie: {
+        id: OBCA.typBroni,
+        name: 'Wtręt',
+        pool: 0,
+        unitPriceGr: 1,
+        active: false,
+      },
+    },
+    {
+      co: 'Rodzaj amunicji',
+      funkcja: 'zapisz-rodzaj-amunicji',
+      zadanie: { id: OBCA.rodzajAmunicji, name: 'Wtręt', unitPriceGr: 1, active: false },
+    },
+  ]
+
+  for (const { co, funkcja, zadanie } of drogi) {
+    const odpowiedz = await funkcjaJakoUzytkownikPanelu(
+      OBSLUGA_DEMO,
+      HASLO_PANELU,
+      funkcja,
+      zadanie,
+    )
+    expect({ co, kod: odpowiedz.status }).toEqual({ co, kod: 200 })
+    expect({ co, wynik: await odpowiedz.json() }).toEqual({
+      co,
+      wynik: { ok: false, problem: 'nieznana-pozycja' },
+    })
+  }
+
+  // Obce katalogi stoją, jak stały: w ofercie, z pulą i z nazwą z seeda.
+  const [typ] = await baza<{ name: string; pool: number; active: boolean }[]>(
+    `weapon_types?id=eq.${OBCA.typBroni}&select=name,pool,active`,
+  )
+  expect(typ).toEqual({ name: 'Beretta 92FS', pool: 2, active: true })
+
+  const [rodzaj] = await baza<{ name: string; active: boolean }[]>(
+    `ammunition_kinds?id=eq.${OBCA.rodzajAmunicji}&select=name,active`,
+  )
+  expect(rodzaj).toEqual({ name: '.45 ACP', active: true })
 })
 
 /**
