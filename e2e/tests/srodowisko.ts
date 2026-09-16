@@ -186,3 +186,23 @@ export async function funkcjaJakoUzytkownikPanelu(
     body: JSON.stringify(zadanie),
   })
 }
+
+/**
+ * Żądanie do API administracyjnego Supabase Auth rolą serwisową. Ma tu jeden
+ * przypadek: sprzątnięcie konta Panelu założonego w teście przez skrypt
+ * operatora. Konta nie da się skasować przez PostgREST-a — `auth.users` nie
+ * jest w schemacie `public` — a zostawione po przebiegu zajmowałoby adres,
+ * na który następny przebieg tego samego testu już się nie założy.
+ */
+export async function authAdmin(sciezka: string, init: RequestInit = {}): Promise<Response> {
+  const klucz = wymagana('SUPABASE_SERVICE_ROLE_KEY')
+  return fetch(new URL(`/auth/v1/${sciezka}`, wymagana('VITE_SUPABASE_URL')), {
+    ...init,
+    headers: {
+      apikey: klucz,
+      Authorization: `Bearer ${klucz}`,
+      'Content-Type': 'application/json',
+      ...init.headers,
+    },
+  })
+}

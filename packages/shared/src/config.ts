@@ -28,14 +28,9 @@ function required(env: Environment, name: string): string {
   return value
 }
 
-/**
- * Zwraca konfigurację albo tłumaczy, czego brakuje. Aplikacja bez tych dwóch
- * zmiennych nie ma jak odpytać bazy, więc lepiej padnie przy starcie niż
- * przy pierwszym kliknięciu Osoby rezerwującej.
- */
-export function readSupabaseConfig(env: Environment): SupabaseConfig {
+/** Adres Supabase albo wyjątek mówiący, co z nim nie tak. */
+function supabaseUrl(env: Environment): string {
   const url = required(env, 'VITE_SUPABASE_URL')
-  const anonKey = required(env, 'VITE_SUPABASE_ANON_KEY')
 
   let parsed: URL
   try {
@@ -47,5 +42,57 @@ export function readSupabaseConfig(env: Environment): SupabaseConfig {
     throw new MissingSupabaseConfigError(`VITE_SUPABASE_URL musi być adresem http(s): ${url}`)
   }
 
-  return { url, anonKey }
+  return url
+}
+
+/**
+ * Zwraca konfigurację albo tłumaczy, czego brakuje. Aplikacja bez tych dwóch
+ * zmiennych nie ma jak odpytać bazy, więc lepiej padnie przy starcie niż
+ * przy pierwszym kliknięciu Osoby rezerwującej.
+ */
+export function readSupabaseConfig(env: Environment): SupabaseConfig {
+  return { url: supabaseUrl(env), anonKey: required(env, 'VITE_SUPABASE_ANON_KEY') }
+}
+
+/**
+ * To samo połączenie, ale rolą serwisową — dla skryptu operatora platformy,
+ * który zakłada Strzelnicę (`tools/zaloz-strzelnice.ts`). Klucz anonimowy nie
+ * ma prawa zapisać do `facilities` ani jednego wiersza i mieć go nie będzie
+ * (ADR 0009), a rejestracji nie ma wcale, więc pierwsze konto Panelu też
+ * powstaje tędy.
+ *
+ * Osobny kształt, a nie pole doklejone do `SupabaseConfig`: klucz serwisowy
+ * omija RLS w całości, więc nie ma go dostać nikt, kto prosił o konfigurację
+ * przeglądarki. Ten sam podział, co w testach przeglądarkowych.
+ */
+export type ServiceConfig = {
+  url: string
+  serviceRoleKey: string
+}
+
+export function readServiceConfig(env: Environment): ServiceConfig {
+  return { url: supabaseUrl(env), serviceRoleKey: required(env, 'SUPABASE_SERVICE_ROLE_KEY') }
+}
+
+/**
+ * Zmienne odczytane z pliku `.env` — tego, który pisze `pnpm db:env`. Czysta
+ * zamiana tekstu na zmienne: czytanie pliku należy do wołającego, bo `fs` ma
+ * wyłącznie Node, a ten moduł czyta także przeglądarka.
+ *
+ * Wąsko i bez ambicji bycia `dotenv`: rozpoznaje `NAZWA=wartość` i zdejmuje
+ * cudzysłowy, którymi Supabase CLI otacza klucze. Wiersz, którego nie rozumie,
+ * pomija — plik pisze narzędzie, a nie człowiek, więc nie ma tu czego ratować
+ * zgadywaniem.
+ */
+export function readEnvFile(content: string): Environment {
+  const env: Environment = {}
+
+  for (const linia of content.split(/\r?\n/)) {
+    const dopasowanie = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"?(.*?)"?\s*$/.exec(linia)
+    if (!dopasowanie) continue
+    const [, nazwa, wartosc] = dopasowanie
+    if (nazwa && wartosc !== undefined) env[nazwa] = wartosc
+  }
+
+  return env
 }

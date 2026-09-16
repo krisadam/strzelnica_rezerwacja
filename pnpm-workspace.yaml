@@ -2,6 +2,7 @@ packages:
   - 'apps/*'
   - 'packages/*'
   - 'e2e'
+  - 'tools'
 
 # pnpm 10 nie wykonuje skryptów instalacyjnych bez zgody. `supabase` pobiera
 # w `postinstall` binarkę CLI właściwą dla systemu — bez tego wpisu pakiet

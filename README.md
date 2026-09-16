@@ -9,7 +9,7 @@ Osoby rezerwującej i wewnętrzny **Panel** dla obsługi. Kontekst domenowy —
 
 | Narzędzie | Wersja | Po co |
 | --- | --- | --- |
-| Node.js | ≥ 20 (CI używa 22) | uruchomienie aplikacji i testów |
+| Node.js | ≥ 22.6 (CI używa 22) | uruchomienie aplikacji, testów i skryptów operatora |
 | pnpm | 10.15 | monorepo (`corepack enable pnpm`) |
 | Docker | dowolna aktualna | lokalny Supabase |
 | Supabase CLI | ≥ 2.0 | migracje, seed, generowanie typów |
@@ -117,6 +117,7 @@ portu pokazuje, jak wygląda blokada osadzenia.
 | `packages/shared` | typy ze schematu bazy, logika dostępności, wyliczanie Kwoty, walidacja |
 | `supabase/` | migracje, polityki RLS, seed, Edge Functions |
 | `e2e/` | testy przeglądarkowe (Playwright) |
+| `tools/` | skrypty operatora platformy — zakładanie Strzelnicy, obejście błędu Rancher Desktop |
 
 Logika dostępności i wyliczanie Kwoty istnieją w **jednej kopii**
 w `packages/shared` i są używane przez Widget, Panel oraz Edge Functions.
@@ -151,6 +152,7 @@ awaria zapisu.
 | `pnpm db:env` | zapisanie adresu i kluczy lokalnego Supabase do `.env` |
 | `pnpm db:reset` | odtworzenie bazy z migracji i wykonanie seeda |
 | `pnpm db:types` | regeneracja `packages/shared/src/database.types.ts` ze schematu |
+| `pnpm zaloz-strzelnice` | założenie nowej Strzelnicy wraz z pierwszym kontem Panelu |
 
 ## Testy
 
@@ -172,8 +174,9 @@ cennik i reguły czasowe zapisane w Panelu — liczące Kwotę w Widgecie od
 razu, zdejmujące dni poza nowym horyzontem i zostawiające nietkniętą Rezerwację
 złożoną wcześniej, oraz domena dopisana w Panelu wchodząca do nagłówka
 `frame-ancestors` bez wdrożenia i znikająca z niego natychmiast po skasowaniu,
-razem z regulaminem tej Strzelnicy stojącym w Widgecie przy zgodzie.
-Wymagają wstającego Supabase (`pnpm db:start`)
+razem z regulaminem tej Strzelnicy stojącym w Widgecie przy zgodzie, oraz
+Strzelnica założona skryptem operatora — z kontem, które wchodzi do Panelu
+i konfiguruje ją stamtąd od zera. Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
 
@@ -191,7 +194,9 @@ drugiej Strzelnicy z seeda,
 nie na demonstracyjnej, i przywracają jej stan przed przebiegiem oraz po nim.
 Nie jest to ostrożność, tylko konieczność: pliki testów jadą równolegle,
 a zamknięty poniedziałek albo horyzont skrócony do trzech dni zdjąłby terminy
-wszystkim testom rezerwującym naraz. Świadkowie testów izolacji stoją z tego
+wszystkim testom rezerwującym naraz. Test zakładania idzie o krok dalej: pracuje
+na **własnej** Strzelnicy, którą sam zakłada i sam kasuje — bo sprawdza właśnie
+powstawanie, a Strzelnice z seeda już są. Świadkowie testów izolacji stoją z tego
 samego powodu na polach, których tamte testy nie ruszają.
 
 ## Rezerwacje
@@ -943,6 +948,74 @@ Seed zakłada dwa konta, po jednym na Strzelnicę, oba z hasłem `panel-demo-123
 | --- | --- |
 | `obsluga@strzelnica-demo.example.pl` | Strzelnica Demo |
 | `obsluga@strzelnica-druga.example.pl` | Strzelnica Druga |
+
+## Zakładanie Strzelnicy
+
+Nową Strzelnicę zakłada **operator platformy** jednym poleceniem. Panelu
+administracyjnego nie ma i nie będzie, a samodzielnej rejestracji tym bardziej
+(ADR 0001): `enable_signup = false` w `supabase/config.toml` zamyka drogę przez
+formularz, więc pierwsze konto do Panelu powstaje razem ze Strzelnicą i tylko
+tędy.
+
+```bash
+pnpm zaloz-strzelnice --identyfikator=strzelnica-nowa \
+  --nazwa="Strzelnica Nowa" --email=obsluga@strzelnica-nowa.example.pl
+```
+
+| Argument | Znaczenie |
+| --- | --- |
+| `--identyfikator` | identyfikator w adresie Widgetu i w znaczniku osadzenia; małe litery, cyfry i pojedyncze myślniki |
+| `--nazwa` | nazwa Strzelnicy pokazywana klientowi i w Panelu |
+| `--email` | adres pierwszego konta Panelu; on jest nazwą konta przy logowaniu |
+| `--haslo` | hasło tego konta; pominięte znaczy „wylosuj i wypisz" |
+
+Skrypt wypisuje hasło **raz**. Odzyskiwania hasła w Panelu nie ma, więc hasło
+wylosowane trzeba przekazać Strzelnicy i zachować do czasu, aż potwierdzi, że
+weszła.
+
+Zapis idzie rolą serwisową — klucz anonimowy nie ma do `facilities` prawa
+zapisu i mieć go nie będzie (ADR 0009), a konta w Supabase Auth zakłada
+wyłącznie API administracyjne. Skrypt bierze `VITE_SUPABASE_URL`
+i `SUPABASE_SERVICE_ROLE_KEY` z `.env` w korzeniu repozytorium (pisze go
+`pnpm db:env`), a zmienna podana w powłoce wygrywa z plikiem — tak zakłada się
+Strzelnicę poza pracą lokalną, gdzie tego pliku nie ma wcale.
+
+Powstaje Strzelnica **pusta**: nazwa, identyfikator i wartości domyślne
+schematu, w tym reguły czasowe opisujące typową Strzelnicę (30 dni horyzontu,
+2 godziny wyprzedzenia, doba na anulowanie). Osi, rozkładu Bloków, godzin
+otwarcia, cennika, katalogów ani dozwolonych domen skrypt nie wpisuje — to
+wszystko Strzelnica ustawia sobie sama z Panelu, pierwszym zalogowaniem.
+Polecenie z dwudziestoma przełącznikami byłoby panelem administracyjnym
+napisanym w wierszu poleceń.
+
+Idempotencji nie ma i jest to decyzja: przy istniejącym identyfikatorze skrypt
+**odmawia** i nie zmienia ani jednego wiersza. Drugie uruchomienie bywa pomyłką
+operatora, a „doprowadzenie do stanu z polecenia" znaczyłoby dla Strzelnicy
+działającej od pół roku nadpisanie jej nazwy i dopisanie drugiego konta —
+ciszej, niż powinno. Tak samo odmawia przy adresie zajętym przez inne konto.
+
+Zapisy są trzy — konto, Strzelnica, powiązanie — i nie idą jedną transakcją, bo
+dwa z nich idą przez różne API. Potknięcie po drodze cofa więc to, co skrypt
+zdążył założyć: inaczej zostawałaby Strzelnica bez konta, której nie da się
+założyć po raz drugi (identyfikator zajęty) i do której nie da się wejść
+z Panelu (nie ma czym).
+
+Reguły — kształt argumentów, zastrzeżenia do nich i samo hasło — mieszkają
+w `packages/shared/src/provisioning.ts` i są tam pokryte testami; skrypt
+`tools/zaloz-strzelnice.ts` ma wyłącznie to, czego czystą funkcją być nie może:
+klucz serwisowy, sieć i kolejność zapisów. Biegnie wprost ze źródła
+TypeScriptu, bez kroku budowania — stąd wymaganie Node'a ≥ 22.6, który typy
+zdejmuje sam. Drogę od polecenia do skonfigurowanej Strzelnicy sprawdza
+`e2e/tests/zalozenie-strzelnicy.spec.ts`.
+
+Trzech kolumn `facilities` nie ustawi jeszcze ani skrypt, ani Panel: adresu
+powiadomień (`notification_email`) oraz Kontaktu Strzelnicy (`contact_email`,
+`contact_phone`). Nowo założona Strzelnica ma je puste — powiadomień o
+Rezerwacjach więc nie dostaje, a klient po upływie Okna anulowania nie zobaczy,
+gdzie zadzwonić. Ekranu do nich nie ma dla **żadnej** Strzelnicy (te z seeda
+mają je wpisane seedem), a dołożenie go znaczy zmianę decyzji o tym, że są to
+kolumny prywatne, których konto Panelu nie czyta — czyli osobny ticket, nie
+przypis do tego.
 
 ## Izolacja Strzelnic
 
