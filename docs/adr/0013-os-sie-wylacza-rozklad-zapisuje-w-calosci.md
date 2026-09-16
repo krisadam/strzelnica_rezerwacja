@@ -93,3 +93,25 @@ jeszcze nie widzi.
 Kasowanie Osi wróci najwcześniej razem z odpowiedzią na pytanie, co zrobić z jej
 Rezerwacjami — a odpowiedź „odwołać je wszystkie z jednym powodem" jest decyzją
 Strzelnicy, a nie skutkiem ubocznym kliknięcia w konfiguracji.
+
+## Rozszerzenie: katalogi sprzętu (ticket #21)
+
+Ta sama decyzja obejmuje od ticketu #21 pozycje obu katalogów: Typ broni
+i Rodzaj amunicji **wycofuje się** (`active`), a nie kasuje. Powód jest ten sam
+z jednym wzmocnieniem: pozycję wskazują Wypożyczenia i Zapotrzebowania
+złożonych Rezerwacji kluczem obcym `on delete restrict`, więc skasowanie
+pozycji, którą ktoś zamówił, nie zabrałoby wprawdzie jego Rezerwacji — odbiłoby
+się od bazy błędem, którego obsługa nie ma jak przeczytać. Wycofana pozycja
+znika z Widgetu polityką RLS dla klucza anonimowego (`using (active)`),
+a funkcje zapisujące Rezerwację pytają o pozycje czynne osobno, bo czytają bazę
+rolą serwisową — dokładnie tak, jak przy Osi.
+
+Jedna rzecz zachowuje się przy tym inaczej niż cena i jest to świadome: **nazwę**
+pozycji czyta się z katalogu na bieżąco, także w opisie Rezerwacji złożonej
+wcześniej. Cena jest zamrożona, bo klient ma zapłacić to, co zobaczył; nazwa
+opisuje sprzęt, który obsługa ma wydać — więc poprawka literówki ma poprawić
+także dawne opisy, a nie zostawić w nich błąd na zawsze. Nazwa całkiem zmieniona
+na inny sprzęt przepisałaby cudzą Rezerwację i temu nie zapobiega nic poza
+rozsądkiem obsługi; zamrożenie nazwy przy pozycji Rezerwacji jest odpowiedzią na
+inne pytanie i czeka na ticket, który o nie zapyta.
+

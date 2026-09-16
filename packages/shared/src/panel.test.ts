@@ -714,6 +714,9 @@ describe('sztuki broni trzymane przez Rezerwacje Panelu', () => {
       }),
     ).toEqual([
       {
+        // Numer Rezerwacji jedzie dalej razem ze sztukami: po nim konfiguracja
+        // katalogu poznaje, czyje sztuki nie mieszczą się w zmniejszonej puli.
+        bookingId: 'r1',
         weaponTypeId: GLOCK,
         quantity: 2,
         startsAt: wpis.booking.startsAt,

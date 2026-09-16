@@ -29,7 +29,7 @@ async function handle(
   userId: string,
   origin: string | null,
 ): Promise<Response> {
-  // Nazwa i pojemność sprawdzone tą samą czystą funkcją, którą pyta Panel,
+  // Nazwa, pojemność i stawka za Blok sprawdzone tą samą czystą funkcją, którą pyta Panel,
   // zanim pokaże przycisk — serwer liczy to od nowa, bo walidacja
   // w przeglądarce jest wygodą, a nie zabezpieczeniem.
   //
@@ -46,6 +46,10 @@ async function handle(
     p_lane_id: request.id,
     p_name: request.name,
     p_capacity: request.capacity,
+    // Stawka w groszach, tak jak nazywa ją kolumna: przeliczenie ze złotych
+    // zostaje po stronie pola formularza (`parseAmount`), a tędy jedzie
+    // wyłącznie liczba groszy.
+    p_block_rate_gr: request.blockRate,
     p_active: request.active,
     // Konto potwierdzone przez GoTrue, a nie przepisane z treści żądania:
     // baza pyta o jego Strzelnicę i tym warunkiem odcina obce Osie.

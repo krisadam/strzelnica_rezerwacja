@@ -128,13 +128,13 @@ from unnest(array[540, 720, 900, 1080]) as start_minute
 on conflict (lane_id, weekday, start_minute) do nothing;
 
 -- Dzień zamknięty w zasięgu kalendarza Widgetu, liczony od dnia seeda.
-insert into public.calendar_exceptions (facility_id, closed_on, reason)
+insert into public.calendar_exceptions (facility_id, on_date, reason)
 values (
   '00000000-0000-0000-0000-000000000001',
   current_date + 10,
   'Zawody klubowe'
 )
-on conflict (facility_id, closed_on) do nothing;
+on conflict (facility_id, on_date) do nothing;
 
 -- Jedna Rezerwacja, żeby kalendarz demo pokazywał także termin zajęty, a nie
 -- wyłącznie wolne. Celuje w pierwszy Blok Osi pistoletowej (10:00, dwie
@@ -375,13 +375,13 @@ on conflict (lane_id, weekday, start_minute) do nothing;
 
 -- Dzień zamknięty inny niż w Strzelnicy demonstracyjnej: wyjątek kalendarzowy
 -- jest własnością Strzelnicy, a nie datą platformy.
-insert into public.calendar_exceptions (facility_id, closed_on, reason)
+insert into public.calendar_exceptions (facility_id, on_date, reason)
 values (
   '00000000-0000-0000-0000-000000000002',
   current_date + 12,
   'Przegląd techniczny'
 )
-on conflict (facility_id, closed_on) do nothing;
+on conflict (facility_id, on_date) do nothing;
 
 -- Katalogi obcej Strzelnicy: inne pozycje i inne ceny, bo katalog jest jej
 -- własnością. Żadna nazwa nie powtarza się z demonstracyjną, więc nazwa

@@ -181,7 +181,15 @@ export function RecznyWpis({
    */
   onOdswiez: () => void
 }) {
-  const { facility, weaponTypes, ammunitionKinds, teraz } = dane
+  const { facility, teraz } = dane
+  // Formularz układa **przyszłość**, więc zna wyłącznie pozycje katalogu
+  // w ofercie — tak samo jak zna wyłącznie Osie czynne. Pozycja wycofana
+  // opisuje sprzęt obiecany wcześniej, a nie sprzęt, który wolno komuś obiecać:
+  // obsługa, która chce ją znowu wydawać, przywraca ją jednym polem
+  // w konfiguracji niżej. Wycofana nie jest przy tym limitem Strzelnicy do
+  // przekroczenia (ADR 0012), tak samo jak Oś wyłączona.
+  const weaponTypes = dane.weaponTypes.filter((type) => type.active)
+  const ammunitionKinds = dane.ammunitionKinds.filter((kind) => kind.active)
 
   // „Teraz" przyjeżdża z odczytem danych, a nie z zegara czytanego tutaj:
   // grafik ma się przeliczać razem z nimi, raz na minutę, a nie przy każdym
@@ -239,7 +247,7 @@ export function RecznyWpis({
     intent: draft,
     schedules: dane.schedules,
     openingHours: dane.openingHours,
-    closedDates: dane.closedDates,
+    exceptions: dane.exceptions,
     occupancies: panelOccupancy({ bookings: dane.bookings, closures: dane.closures }),
     weaponTypes,
     weaponOccupancies: dane.weaponOccupancies,

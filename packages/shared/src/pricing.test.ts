@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { AmmunitionKind, BookingDraft, Rates, WeaponType } from './index.ts'
-import { bookingAmount, formatAmount, priceBooking, ratesFor, UnpricedItemError } from './index.ts'
+import {
+  bookingAmount,
+  formatAmount,
+  parseAmount,
+  priceBooking,
+  ratesFor,
+  UnpricedItemError,
+  writeAmount,
+} from './index.ts'
 
 /** Cennik do rachunków niżej: okrągłe stawki, żeby sumy dawały się przeczytać. */
 const CENNIK: Rates = {
@@ -9,12 +17,23 @@ const CENNIK: Rates = {
   instructorRate: 8_000,
 }
 
-const GLOCK: WeaponType = { id: 'glock', name: 'Glock 17', pool: 3, unitPrice: 5_000 }
-const KARABINEK: WeaponType = { id: 'ar15', name: 'Karabinek AR-15', pool: 2, unitPrice: 9_000 }
+const GLOCK: WeaponType = { id: 'glock', name: 'Glock 17', pool: 3, unitPrice: 5_000, active: true }
+const KARABINEK: WeaponType = {
+  id: 'ar15',
+  name: 'Karabinek AR-15',
+  pool: 2,
+  unitPrice: 9_000,
+  active: true,
+}
 const KATALOG_BRONI = [GLOCK, KARABINEK]
 
-const PARABELLUM: AmmunitionKind = { id: '9x19', name: '9 × 19 mm Parabellum', unitPrice: 150 }
-const LR: AmmunitionKind = { id: '22lr', name: '.22 Long Rifle', unitPrice: 40 }
+const PARABELLUM: AmmunitionKind = {
+  id: '9x19',
+  name: '9 × 19 mm Parabellum',
+  unitPrice: 150,
+  active: true,
+}
+const LR: AmmunitionKind = { id: '22lr', name: '.22 Long Rifle', unitPrice: 40, active: true }
 const KATALOG_AMUNICJI = [PARABELLUM, LR]
 
 function kwota(nadpisania: Partial<Parameters<typeof bookingAmount>[0]> = {}) {
@@ -237,5 +256,50 @@ describe('Kwota po polsku', () => {
     expect(formatAmount(50)).toBe('0,50 zł')
     expect(formatAmount(0)).toBe('0,00 zł')
     expect(formatAmount(123_456_789)).toBe('1 234 567,89 zł')
+  })
+})
+
+describe('Kwota wpisana ręcznie', () => {
+  it('czyta złote i grosze w polskim zapisie', () => {
+    // Obsługa wpisuje cenę tak, jak ją czyta na ekranie — przecinkiem.
+    expect(parseAmount('50,00')).toBe(5_000)
+    expect(parseAmount('0,50')).toBe(50)
+    expect(parseAmount('120')).toBe(12_000)
+    expect(parseAmount('  1,5  ')).toBe(150)
+  })
+
+  it('czyta też kropkę, bo klawiatura numeryczna daje ją sama', () => {
+    expect(parseAmount('50.25')).toBe(5_025)
+  })
+
+  it('nie zaokrągla po cichu ułamków grosza', () => {
+    // Cena z trzecią cyfrą po przecinku jest pomyłką, a nie zaokrągleniem do
+    // przyjęcia: zaokrąglona wróciłaby klientowi w Kwocie, o której nikt nie
+    // wie, skąd się wzięła.
+    expect(parseAmount('1,005')).toBeNull()
+  })
+
+  it('odmawia temu, co ceną nie jest', () => {
+    expect(parseAmount('')).toBeNull()
+    expect(parseAmount('   ')).toBeNull()
+    expect(parseAmount('-5')).toBeNull()
+    expect(parseAmount('dużo')).toBeNull()
+    expect(parseAmount('5 zł')).toBeNull()
+    expect(parseAmount('1e3')).toBeNull()
+  })
+
+  it('jest odwrotnością zapisu, którym cenę wstawia się do pola', () => {
+    // Cena wpisana w pole, odczytana i wpisana z powrotem ma być tą samą liczbą
+    // groszy — inaczej poprawka literówki w jednym polu zmieniałaby cennik.
+    for (const grosze of [0, 50, 5_000, 123_456]) {
+      expect(parseAmount(writeAmount(grosze))).toBe(grosze)
+    }
+  })
+
+  it('zapisuje cenę pola po polsku, bez waluty', () => {
+    // Waluta zostaje `formatAmount`: Kwotę się czyta, a cenę w polu — poprawia.
+    expect(writeAmount(5_000)).toBe('50,00')
+    expect(writeAmount(50)).toBe('0,50')
+    expect(writeAmount(0)).toBe('0,00')
   })
 })

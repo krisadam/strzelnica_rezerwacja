@@ -5,6 +5,7 @@ import {
   asWeekday,
   blockScheduleFromRow,
   bookingSummaryFromRows,
+  calendarExceptionFromRow,
   facilityContactFromRow,
   facilityFromRow,
   IncompleteOccupancyError,
@@ -66,6 +67,44 @@ describe('wiersze bazy jako pojęcia domeny', () => {
       weekday: 1,
       opensMinute: 600,
       closesMinute: 1320,
+    })
+  })
+
+  it('wyjątek bez godzin jest dniem zamkniętym w całości', () => {
+    const row: Tables<'calendar_exceptions'> = {
+      id: 'wyjatek-1',
+      facility_id: 'strzelnica-1',
+      on_date: '2026-12-25',
+      reason: 'Boże Narodzenie',
+      opens_minute: null,
+      closes_minute: null,
+      created_at: '2026-01-01T00:00:00Z',
+    }
+
+    expect(calendarExceptionFromRow(row)).toEqual({
+      day: '2026-12-25',
+      reason: 'Boże Narodzenie',
+      hours: null,
+    })
+  })
+
+  it('wyjątek z godzinami jest dniem skróconym, a pusty powód — pustym napisem', () => {
+    // Powód `null` i powód pusty znaczą dla ekranu to samo, więc z bazy wychodzi
+    // jeden zapis: dwa kazałyby sprawdzać oba wszędzie, gdzie się je czyta.
+    const row: Tables<'calendar_exceptions'> = {
+      id: 'wyjatek-2',
+      facility_id: 'strzelnica-1',
+      on_date: '2026-12-24',
+      reason: null,
+      opens_minute: 600,
+      closes_minute: 720,
+      created_at: '2026-01-01T00:00:00Z',
+    }
+
+    expect(calendarExceptionFromRow(row)).toEqual({
+      day: '2026-12-24',
+      reason: '',
+      hours: { opensMinute: 600, closesMinute: 720 },
     })
   })
 
@@ -193,7 +232,7 @@ describe('Blokada z wiersza tabeli', () => {
 })
 
 describe('Typ broni z wiersza katalogu', () => {
-  it('bierze z wiersza nazwę, pulę sztuk i cenę', () => {
+  it('bierze z wiersza nazwę, pulę sztuk, cenę i to, czy jest w ofercie', () => {
     expect(
       weaponTypeFromRow({
         id: '00000000-0000-0000-0000-0000000000c1',
@@ -201,6 +240,7 @@ describe('Typ broni z wiersza katalogu', () => {
         name: 'Glock 17',
         pool: 3,
         unit_price_gr: 5000,
+        active: true,
         created_at: '2026-01-01T00:00:00Z',
       }),
     ).toEqual({
@@ -208,7 +248,24 @@ describe('Typ broni z wiersza katalogu', () => {
       name: 'Glock 17',
       pool: 3,
       unitPrice: 5000,
+      active: true,
     })
+  })
+
+  it('przepisuje wycofanie, bo Panel opisuje nim sprzęt z dawnych Rezerwacji', () => {
+    // Wycofany Typ nie wychodzi do Widgetu wcale — odcina go polityka RLS —
+    // ale w Panelu stoi ze znacznikiem przy nazwie.
+    expect(
+      weaponTypeFromRow({
+        id: '00000000-0000-0000-0000-0000000000c1',
+        facility_id: '00000000-0000-0000-0000-000000000001',
+        name: 'Glock 17',
+        pool: 0,
+        unit_price_gr: 5000,
+        active: false,
+        created_at: '2026-01-01T00:00:00Z',
+      }).active,
+    ).toBe(false)
   })
 })
 
@@ -222,12 +279,14 @@ describe('Rodzaj amunicji z wiersza katalogu', () => {
         facility_id: '00000000-0000-0000-0000-000000000001',
         name: '9 × 19 mm Parabellum',
         unit_price_gr: 150,
+        active: true,
         created_at: '2026-01-01T00:00:00Z',
       }),
     ).toEqual({
       id: '00000000-0000-0000-0000-0000000000e1',
       name: '9 × 19 mm Parabellum',
       unitPrice: 150,
+      active: true,
     })
   })
 })

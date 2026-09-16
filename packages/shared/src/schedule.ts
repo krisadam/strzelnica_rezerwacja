@@ -13,6 +13,7 @@
  * cokolwiek trafi do bazy.
  */
 import type { Weekday } from './calendar.ts'
+import { MINUTES_IN_DAY } from './calendar.ts'
 import type { BlockSchedule } from './availability.ts'
 
 /**
@@ -20,14 +21,6 @@ import type { BlockSchedule } from './availability.ts'
  * się zaczyna; nie istnieje termin rozpoczynający się poza tą siatką.
  */
 export const SLOT_MINUTES = 30
-
-/**
- * Ile minut ma doba rozkładu; początek Bloku mieści się przed jej końcem,
- * a długość nie przekracza całej doby. Na wierzchu, bo pola rozkładu w Panelu
- * budują z niej listę początków i granicę długości — druga kopia tej liczby
- * w ekranie rozjechałaby się z zastrzeżeniem, które ją egzekwuje.
- */
-export const MINUTES_IN_DAY = 1440
 
 /** Ile minut ma tydzień rozkładu — siedem dni w zamkniętym rytmie. */
 const MINUTES_IN_WEEK = 7 * MINUTES_IN_DAY

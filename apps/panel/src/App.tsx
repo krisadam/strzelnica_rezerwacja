@@ -2,9 +2,12 @@ import type { BookingFilter, CalendarDay, Environment } from '@strzelnica/shared
 import { dayIn, MissingSupabaseConfigError, readSupabaseConfig } from '@strzelnica/shared'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Blokada } from './Blokada.js'
+import { Cennik } from './Cennik.js'
 import type { Dane } from './dane.js'
 import { BrakStrzelnicyError, wczytajDane } from './dane.js'
+import { Godziny } from './Godziny.js'
 import { Kalendarz } from './Kalendarz.js'
+import { Katalogi } from './Katalogi.js'
 import { Lista } from './Lista.js'
 import { Logowanie } from './Logowanie.js'
 import { Osie } from './Osie.js'
@@ -219,6 +222,44 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
             lanes={dane.lanes}
             schedules={dane.schedules}
             onZapisano={odswiez}
+          />
+          {/* Katalogi pod rozkładem, a przed godzinami: mówią o sprzęcie,
+              a nie o czasie — więc stoją poza porządkiem Oś → rozkład →
+              godziny, zamiast go przerywać. */}
+          <Katalogi
+            client={client}
+            weaponTypes={dane.weaponTypes}
+            ammunitionKinds={dane.ammunitionKinds}
+            bookings={dane.bookings}
+            rentals={dane.weaponOccupancies}
+            teraz={dane.teraz}
+            onZapisano={odswiez}
+            onWybierz={(wpis) => setWybraneId(wpis.id)}
+          />
+          {/* Godziny za katalogami, bo mierzą to, co rozkład wypisuje: Blok
+              stojący poza nimi jest widoczny i niedostępny. Wspólne dla
+              wszystkich Osi — tu kończy się wszystko, co dotyczy jednej. */}
+          <Godziny
+            client={client}
+            openingHours={dane.openingHours}
+            exceptions={dane.exceptions}
+            bookings={dane.bookings}
+            timeZone={dane.facility.timeZone}
+            teraz={dane.teraz}
+            onZapisano={odswiez}
+            onWybierz={(wpis) => setWybraneId(wpis.id)}
+          />
+          {/* Cennik i reguły na samym końcu, bo mówią o całej Strzelnicy,
+              a nie o żadnej Osi z osobna — tak samo jak godziny wyżej.
+              Za godzinami, bo te zdejmują terminy z kalendarza, a cennik nie
+              zdejmuje żadnego: mówi tylko, ile kosztują i jak daleko sięgają. */}
+          <Cennik
+            client={client}
+            facility={dane.facility}
+            bookings={dane.bookings}
+            teraz={dane.teraz}
+            onZapisano={odswiez}
+            onWybierz={(wpis) => setWybraneId(wpis.id)}
           />
         </>
       )}

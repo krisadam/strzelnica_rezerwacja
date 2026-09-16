@@ -123,6 +123,11 @@ w `supabase/functions/_shared` przez którąkolwiek funkcję — wymaga więc pe
 restartu lokalnego Supabase; sam `pnpm db:reset` go nie podmontuje, a każda
 funkcja odpowie wtedy `worker boot error … Module not found`.
 
+Tego samego restartu wymaga **nowa Edge Function**: listę funkcji CLI składa
+także przy `supabase start`, więc do czasu restartu brama odpowiada na nią
+zwykłym `Function not found` — co z przeglądarki wygląda dokładnie tak samo jak
+awaria zapisu.
+
 ## Polecenia
 
 | Polecenie | Działanie |
@@ -153,7 +158,12 @@ w ramce, potwierdzenie adresu, anulowanie przez link, logowanie do Panelu,
 odwołanie Rezerwacji przez Strzelnicę, Blokada Osi zdejmująca terminy
 z Widgetu, ręczna Rezerwacja telefoniczna z przekroczonym limitem, przejście
 z pozycji Zestawienia dnia do Rezerwacji, Oś dodana w Panelu wchodząca do oferty
-razem ze swoim rozkładem.
+razem ze swoim rozkładem, wyjątek kalendarzowy zamykający dzień klientowi,
+tydzień godzin otwarcia układany w Panelu, pozycja katalogu dodana
+w Panelu, wycofana ze sprzedaży i zostająca w Rezerwacji, która ją zamówiła,
+oraz cennik i reguły czasowe zapisane w Panelu — liczące Kwotę w Widgecie od
+razu, zdejmujące dni poza nowym horyzontem i zostawiające nietkniętą Rezerwację
+złożoną wcześniej.
 Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
@@ -165,6 +175,14 @@ a zegara nie zamrażamy (zamrożenie w przeglądarce nie zamraża zegara bazy). 
 w `.env`, zapisywanego przez `pnpm db:env`. Osi są dwie, a testów rezerwujących
 więcej, więc każdy z nich celuje w inny fragment horyzontu: wyścigi biorą
 terminy najbliższe, bo obie ich strony muszą trafić na ten sam Blok.
+
+Testy zmieniające konfigurację **całej** Strzelnicy — tydzień godzin otwarcia
+oraz cennik z Pulą i regułami czasowymi — pracują na drugiej Strzelnicy z seeda,
+nie na demonstracyjnej, i przywracają jej stan przed przebiegiem oraz po nim.
+Nie jest to ostrożność, tylko konieczność: pliki testów jadą równolegle,
+a zamknięty poniedziałek albo horyzont skrócony do trzech dni zdjąłby terminy
+wszystkim testom rezerwującym naraz. Świadkowie testów izolacji stoją z tego
+samego powodu na polach, których tamte testy nie ruszają.
 
 ## Rezerwacje
 
@@ -570,10 +588,192 @@ pola.
 
 Czego ten ekran **nie** ustawia: stawki za Blok. Należy do Cennika (ticket #22),
 więc Oś dodana tutaj wchodzi ze stawką zerową — formularz mówi to wprost, bo Oś
-z rozkładem i bez ceny sprzedawałaby terminy za darmo. Godziny otwarcia
-i wyjątki kalendarzowe mają swój ticket (#20) i do tego czasu pozostają przy
-seedzie; Blok wypisany poza nimi jest widoczny, ale niedostępny — tak samo jak
-przed tym ticketem.
+z rozkładem i bez ceny sprzedawałaby terminy za darmo. Godziny, w których Bloki
+tej Osi w ogóle się sprzedają, ustawia [ekran obok](#godziny-otwarcia-i-wyjątki-kalendarzowe).
+
+## Godziny otwarcia i wyjątki kalendarzowe
+
+Kiedy Strzelnica jest czynna — wspólnie dla wszystkich Osi, inaczej niż rozkład
+Bloków. Dwie rzeczy odpowiadają tu na jedno pytanie z dwóch stron: **tydzień**
+mówi o rytmie („w poniedziałki 10:00–22:00"), a **wyjątek** o jednej dacie
+(„w Wigilię do południa", „w Boże Narodzenie wcale") — i to wyjątek wygrywa.
+Dzień ma więc jedną odpowiedź, liczoną w jednym miejscu (`hoursForDay`), a nie
+dwa sprawdzenia do rozjechania się przy pierwszym święcie.
+
+Wyjątek **zastępuje** tydzień w całości, a nie poprawia go, i wolno mu też dzień
+**otworzyć** — sobota zamknięta w rytmie tygodnia bywa dniem zawodów. Godziny
+puste znaczą przy tym dzień zamknięty, tak samo w wyjątku, jak w tygodniu, gdzie
+dzień zamknięty jest po prostu dniem bez wiersza. Dzień zamknięty nie ma ani
+jednego Bloku — kalendarz Widgetu mówi o tym wprost, zamiast pokazywać pustkę
+do zinterpretowania. Dzień **skrócony** to co innego: Bloki na nim stoją, ale te,
+które nie mieszczą się w godzinach, są widoczne i niedostępne.
+
+Tydzień zapisuje się w całości, tak samo jak rozkład Bloków (ADR 0013): dzień
+dopisany, poprawiony i zamknięty są jednym żądaniem, a zamknięcie polega właśnie
+na **pominięciu** dnia na liście. Wyjątki idą pojedynczo i jest to różnica, a nie
+niekonsekwencja: przybywa ich przez cały rok, więc zapis w całości kasowałby
+święta wpisane poprzednią zmianą. Jedno żądanie obsługuje dopisanie, poprawkę
+i zdjęcie wyjątku — różnią się wyłącznie tym, co na dacie ma zostać.
+
+Rezerwacji ani jedna z tych zmian **nie rusza** i nie ma czym: Rezerwacja niesie
+własny termin i o godziny nie pyta nikogo po tym, jak powstała. Te, które po
+zmianie stoją poza godzinami — w dniu zamkniętym albo wystając poza skrócony —
+Panel **wypisuje z nazwiskiem, Osią i godziną**, zanim cokolwiek pójdzie do bazy,
+i prowadzi z każdej do jej szczegółów. Rozstrzyga je człowiek: odwołaniem
+z powodem albo pozostawieniem, bo klient i tak przyjedzie. Sprawdzenie sięga
+okna kalendarza Panelu — tydzień wstecz i po horyzont — i ekran mówi to wprost,
+bo milczenie o Rezerwacjach dalszych wyglądałoby jak „nie ma kolizji".
+
+Zapis idzie Edge Functions `ustaw-godziny` i `ustaw-wyjatek`, rolą serwisową,
+tak samo jak Blokada, ręczny wpis i rozkład (ADR 0003). Strzelnicy w żądaniu nie
+ma i nie ma jej czym podstawić: godziny są jej własnością, a o tym, czyje są,
+rozstrzyga baza po numerze potwierdzonego konta (`panel_facility_of`, ADR 0010).
+Cała droga przejęcia cudzych godzin wiodłaby więc przez funkcję bazodanową
+wołaną wprost — a prawa jej wykonania nie ma ani klucz anonimowy, ani konto
+Panelu.
+
+Kolumna `calendar_exceptions.closed_on` nazywa się odtąd `on_date`: wyjątek
+przestał znaczyć wyłącznie „zamknięte", a kolumna nazwana po skutku, którego już
+nie gwarantuje, kłamałaby przy pierwszym skróconym dniu.
+
+**Powód** wyjątku do Widgetu nie wychodzi — czyta go wyłącznie obsługa, tak samo
+jak powód Blokady. Blokada załatwia to odebraniem kluczowi anonimowemu prawa do
+całej tabeli; tu tak nie można, bo dzień zamknięty musi dojść do kalendarza
+klienta. Prawa schodzą więc **kolumnami**, jak przy `facilities`: klucz
+anonimowy dostaje datę i godziny, a Widget wypisuje te kolumny w zapytaniu
+zamiast prosić gwiazdką o wszystko. Konto Panelu czyta wiersz w całości.
+
+## Katalogi sprzętu
+
+Czym u Strzelnicy się strzela i czym się do tego ładuje — dwa katalogi na jednym
+ekranie, bo odpowiadają na jedno pytanie klienta wypełniającego formularz.
+Różni je dokładnie jedna rzecz i jest ona decyzją, a nie niedoróbką: Typ broni
+ma **pulę** sztuk, a Rodzaj amunicji nie ma jej i mieć nie będzie (ADR 0004).
+Widać to w typach — `AmmunitionKindDraft` nie ma pola, w które dałoby się stan
+magazynowy wpisać — więc formularza puli amunicji nie da się zbudować przez
+nieuwagę.
+
+Pozycji katalogu się **nie kasuje** — wycofuje się ją, tak samo jak wyłącza się
+Oś (ADR 0013), i z powodu jeszcze mocniejszego: pozycję wskazują Wypożyczenia
+i Zapotrzebowania złożonych Rezerwacji kluczem obcym `on delete restrict`, więc
+skasowanie Typu, który komuś obiecano, odbiłoby się od bazy błędem, którego
+obsługa nie ma jak przeczytać. Wycofana znika z Widgetu w całości, a w Panelu
+zostaje ze znacznikiem przy nazwie: opisuje sprzęt przygotowywany na jutro dla
+kogoś, kto już go zamówił. Mówi o tym **polityka RLS** dla klucza anonimowego
+(`using (active)`), a nie warunek w zapytaniu Widgetu; obie funkcje zapisujące
+Rezerwację pytają o pozycje czynne osobno, bo czytają bazę rolą serwisową.
+Formularz ręcznego wpisu zna tylko pozycje w ofercie — wycofana nie jest limitem
+do przekroczenia (ADR 0012), tylko sprzętem, którego Strzelnica sama nie
+sprzedaje.
+
+Zmniejszenie puli **nie narusza** Rezerwacji już złożonych i nie ma czym:
+Rezerwacja niesie własne sztuki i o Pulę nie pyta nikogo po tym, jak powstała.
+Te, którym po zmianie sztuk nie starcza, Panel **wypisuje z nazwiskiem, Osią
+i godziną**, zanim cokolwiek pójdzie do bazy, i prowadzi z każdej do jej
+szczegółów — razem z liczbą sztuk obiecanych w tym samym czasie. Rozstrzyga je
+człowiek: pożyczeniem sprzętu, telefonem albo odwołaniem z powodem. Liczy to
+`poolOverruns` z tej samej funkcji `issuedWeapons`, z której liczy się
+dostępność Bloku, więc przekroczenie wypisane w konfiguracji jest tym samym
+przekroczeniem, przez które Widget odmówi kolejnego zamówienia. Ta sama
+konstrukcja, co przy Rezerwacjach wypychanych poza godziny otwarcia — razem
+z jej granicą: sprawdzenie sięga okna kalendarza Panelu i pomija Rezerwacje,
+które zdążyły się skończyć, bo wczorajszego wydania broni nie da się
+rozstrzygnąć niczym.
+
+Zmiana ceny nie dotyczy Rezerwacji złożonych wcześniej i nie wymaga do tego ani
+jednego zdania kodu: Rezerwacja zapisuje Kwotę razem z cenami pozycji, po
+których się policzyła, więc katalog nie jest jej pytany drugi raz (zobacz
+[Rezerwacje](#rezerwacje)). Cenę wpisuje się w złotych, bo w złotych czyta się
+cennik, a baza trzyma grosze — przeliczenie jest regułą pokrytą testami
+(`parseAmount`, odwrotność `formatAmount`), a nie mnożeniem przez sto wpisanym
+mimochodem w obsłudze zdarzenia. Ułamek grosza nie zaokrągla się po cichu:
+wraca zastrzeżeniem, bo zaokrąglony trafiłby klientowi do Kwoty, której nikt nie
+umie wytłumaczyć.
+
+Pula zerowa nie jest przy tym wycofaniem i te dwie rzeczy mówi się osobno: zero
+znaczy Typ, którego chwilowo nie ma czym obsłużyć — cały sprzęt w serwisie —
+a wycofanie jest decyzją o ofercie. Pierwsze mija samo, drugie nie.
+
+**Nazwa** zachowuje się inaczej niż cena i jest to świadome: czyta się ją
+z katalogu na bieżąco, także w opisie Rezerwacji złożonej wcześniej. Cena jest
+zamrożona, bo klient ma zapłacić to, co zobaczył; nazwa opisuje sprzęt, który
+obsługa ma wydać — więc poprawka literówki ma poprawić także dawne opisy, a nie
+zostawić w nich błąd na zawsze (ADR 0013).
+
+Zapis idzie Edge Functions `zapisz-typ-broni` i `zapisz-rodzaj-amunicji`, rolą
+serwisową, tak samo jak Blokada, ręczny wpis, rozkład i godziny (ADR 0003).
+Jedna funkcja na dodanie, poprawkę i wycofanie — różnią się wyłącznie tym, czy
+pozycja już jest, a wycofanie jest poprawką jednego pola. Strzelnicy w żądaniu
+nie ma: o to, czyja jest pozycja, pyta bazę `panel_facility_of` po numerze
+potwierdzonego konta (ADR 0010), więc identyfikator obcego Typu nie otwiera
+niczego — i pyta o to test izolacji, obiema drogami.
+
+## Cennik, Pula instruktorów i reguły czasowe
+
+Ile u Strzelnicy kosztuje strzelanie, ilu ma Instruktorów i jak daleko w przód
+przyjmuje zgłoszenia — ostatnia rzecz, którą dostawała z seeda i z wartości
+domyślnych migracji. Ani jedna kolumna nie przybywa tu do schematu: wszystkie
+sześć stoi w `facilities` od tickets #3, #6 i #9, razem ze swoimi `check (… >=
+0)`. Ten ekran dokłada do nich **drogę zapisu**.
+
+Sześć wartości idzie **jednym żądaniem i jednym przyciskiem**, tak samo jak
+tydzień godzin otwarcia idzie w całości (ADR 0013): to jeden formularz, więc nie
+ma chwili, w której Strzelnica ma nową Pulę i stary horyzont, a zgłoszenie
+składane w tej samej chwili widzi konfigurację sprzed zmiany albo po niej, nigdy
+w połowie.
+
+**Stawki za Blok tu nie ma i nie jest to przeoczenie**: jest własnością Osi
+(spec), bo to na niej kiedyś stanie cennik zależny od pory dnia — bez zmiany
+kształtu pozostałych danych. Ustawia się ją więc na ekranie Osi, razem z nazwą
+i pojemnością, i jedzie do bazy tą samą Edge Function `zapisz-os`. Oś dodana
+i wyceniona jednym formularzem nie zostaje przez to ze stawką zerową przez samo
+przeoczenie drugiego ekranu. Ceny za sztukę niosą katalogi (zobacz [Katalogi
+sprzętu](#katalogi-sprzętu)).
+
+Stawki wpisuje się w **złotych**, bo w złotych czyta się cennik, a baza trzyma
+grosze — tą samą parą funkcji, co ceny katalogu (`writeAmount`, `parseAmount`),
+i z tym samym skutkiem dla ułamka grosza: wraca zastrzeżeniem, zamiast
+zaokrąglić się po cichu. Pula i trzy reguły czasowe są zwykłymi liczbami, każda
+w swojej jednostce: horyzont w dniach kalendarza, wyprzedzenie w minutach — tych
+samych, w których zapisany jest rozkład Bloków — a okno anulowania w godzinach,
+bo tak mówi o nim regulamin.
+
+**Zero jest wszędzie odpowiedzią, a nie brakiem odpowiedzi**, i przy każdym polu
+stoi zdanie mówiące, czym dokładnie jest: stawka zerowa znaczy „w cenie", Pula
+zerowa — Strzelnicę, która nadzoru nie zapewnia (rezerwuje u niej wyłącznie ktoś
+z Pozwoleniem), horyzont zerowy — przyjmowanie wyłącznie na dzisiaj,
+a wyprzedzenie zerowe — zapisy do ostatniej chwili. Odrzucane są wyłącznie
+liczby, których nie da się zapisać w kolumnie: ujemne, niecałkowite i te spoza
+zakresu — każda z własnym zdaniem, bo „zła wartość" nie mówi, które z sześciu
+pól poprawić.
+
+Rezerwacji złożonych wcześniej **żadna z tych zmian nie rusza** i nie ma czym:
+każda niesie własną Kwotę wraz ze stawkami, po których się policzyła (zobacz
+[Rezerwacje](#rezerwacje)), własny termin i własną obecność Instruktora.
+Skrócony horyzont mówi, na kiedy Strzelnica **przyjmuje**, a nie komu odbiera
+sobotę. Rezerwacje, którym po zmniejszeniu Puli nadzoru już nie starcza, Panel
+**wypisuje z nazwiskiem, Osią i godziną**, zanim cokolwiek pójdzie do bazy,
+i prowadzi z każdej do jej szczegółów — razem z liczbą Instruktorów zajętych
+w tym samym czasie. Rozstrzyga je człowiek: zmianą grafiku pracownika, telefonem
+albo odwołaniem z powodem. Liczy to `instructorOverruns` tą samą funkcją
+`attendedInstructors`, którą liczy ich dostępność Bloku, więc przekroczenie
+wypisane w konfiguracji jest tym samym przekroczeniem, przez które Widget
+odmówi klientowi bez Pozwolenia. Ta sama konstrukcja i ta sama granica, co przy
+pulach sztuk broni i przy godzinach otwarcia: lista sięga okna kalendarza Panelu
+i pomija Rezerwacje, które zdążyły się skończyć.
+
+Zmiana jest w Widgecie widoczna **natychmiast** i nie wymagało to ani jednego
+zdania kodu: ramka czyta grafik od nowa razem z „teraz", raz na minutę (zobacz
+[Osie i rozkład Bloków](#osie-i-rozkład-bloków)), a Kwota liczy się w niej
+z odczytanych stawek na bieżąco — zamraża ją dopiero złożenie Rezerwacji.
+
+Zapis idzie Edge Function `ustaw-konfiguracje`, rolą serwisową, tak samo jak
+Blokada, ręczny wpis, rozkład, godziny i katalogi (ADR 0003). Strzelnicy nie ma
+w żądaniu i nie ma czego w nim podstawić: konfiguracja jest jej własnością,
+a o tym, czyja jest, pyta bazę `panel_facility_of` po numerze potwierdzonego
+konta (ADR 0010) — tak samo jak przy godzinach otwarcia. Pyta o to test
+izolacji: funkcja bazodanowa wołana wprost, z podstawionym cudzym kontem, nie
+otwiera niczego, bo prawo jej wykonania mają wyłącznie Edge Functions.
 
 ## Panel
 
@@ -602,20 +802,32 @@ długości, i to w stronę, w którą kłamać nie wolno. Na liście Blokad nie 
 jej kolumny to Osoba rezerwująca, Uczestnicy i Kwota, a Blokada nie ma ani
 jednej z tych rzeczy.
 
-Zmienia Panel pięć rzeczy: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
+Zmienia Panel dziesięć rzeczy: odwołuje Rezerwację (zobacz [Odwołanie Rezerwacji
 przez Strzelnicę](#odwołanie-rezerwacji-przez-strzelnicę)), wprowadza Blokadę
 Osi (zobacz [Blokady Osi](#blokady-osi)), wpisuje Rezerwację przyjętą przez
 telefon (zobacz [Ręczna Rezerwacja
-telefoniczna](#ręczna-rezerwacja-telefoniczna)) oraz zapisuje Oś i jej rozkład
-Bloków (zobacz [Osie i rozkład Bloków](#osie-i-rozkład-bloków)). Wszystkie pięć
-idzie Edge Function, bo tabele mają zamknięte obie publiczne role — a ekran
+telefoniczna](#ręczna-rezerwacja-telefoniczna)), zapisuje Oś wraz ze stawką za
+Blok i jej rozkład Bloków (zobacz [Osie i rozkład Bloków](#osie-i-rozkład-bloków)),
+ustawia godziny otwarcia i wyjątki kalendarzowe (zobacz [Godziny otwarcia
+i wyjątki kalendarzowe](#godziny-otwarcia-i-wyjątki-kalendarzowe)), zapisuje
+pozycje obu katalogów sprzętu (zobacz [Katalogi sprzętu](#katalogi-sprzętu))
+oraz ustawia cennik, Pulę instruktorów i reguły czasowe (zobacz [Cennik, Pula
+instruktorów i reguły czasowe](#cennik-pula-instruktorów-i-reguły-czasowe)).
+Wszystkie dziesięć idzie Edge Function, bo tabele mają zamknięte obie publiczne role — a ekran
 odczytuje po tym dane od nowa, zamiast przepisywać sobie stan z odpowiedzi
 „udało się": między wczytaniem Panelu a kliknięciem klient bywa szybszy.
 
 Konfiguracja stoi na dole ekranu, pod wszystkim, co mówi o dniu dzisiejszym:
-obsługa przychodzi tu po Rezerwacje, a Osie i ich rozkład układa raz i wraca do
-nich rzadko. Formularze układające **przyszłość** — ręczny wpis i Blokada —
-znają przy tym wyłącznie Osie czynne, a kalendarz i lista wszystkie: pierwsze
+obsługa przychodzi tu po Rezerwacje, a Osie, ich rozkład i godziny układa raz
+i wraca do nich rzadko. Godziny idą przy tym na sam koniec, bo są wspólne dla
+wszystkich Osi — tam kończy się wszystko, co dotyczy jednej. Katalogi stoją
+między rozkładem a godzinami, bo mówią o sprzęcie, a nie o czasie — nie mają
+czym przerwać porządku „Oś, jej rozkład, jej godziny". Cennik i reguły czasowe
+zamykają ekran, za godzinami: mówią o całej Strzelnicy tak samo jak one, ale
+nie zdejmują z kalendarza ani jednego terminu — mówią tylko, ile kosztuje i jak
+daleko sięga. Formularze układające **przyszłość** — ręczny wpis i Blokada —
+znają przy tym wyłącznie Osie czynne (i wyłącznie pozycje katalogu w ofercie),
+a kalendarz i lista wszystkie: pierwsze
 mówią o tym, co dopiero stanie na Osi, drugie o tym, co już na niej stoi.
 
 Formularz ręcznego wpisu potrzebuje przy tym więcej niż same Rezerwacje: liczy

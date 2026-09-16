@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type {
   BlockSchedule,
+  CalendarException,
   DayAvailabilityInput,
   Occupancy,
   OpeningHours,
@@ -63,7 +64,7 @@ function pytanie(nadpisania: Partial<DayAvailabilityInput> = {}): DayAvailabilit
     laneId: OS_PISTOLETOWA,
     schedules: [blok(600), blok(750)],
     openingHours: OTWARTE_10_22,
-    closedDates: [],
+    exceptions: [],
     occupancies: [],
     instructorPool: 1,
     weaponTypes: [],
@@ -145,18 +146,58 @@ describe('Blok poza godzinami otwarcia', () => {
 })
 
 describe('wyjątek kalendarzowy', () => {
+  function zamkniete(day: string): CalendarException {
+    return { day, reason: 'Zawody klubowe', hours: null }
+  }
+
   it('zamyka dzień, zamiast tylko zdejmować z niego Bloki', () => {
-    expect(scheduleForDay(pytanie({ closedDates: [PONIEDZIALEK] }))).toEqual({
+    expect(scheduleForDay(pytanie({ exceptions: [zamkniete(PONIEDZIALEK)] }))).toEqual({
       open: false,
       blocks: [],
     })
   })
 
   it('nie rusza sąsiednich dni', () => {
-    const grafik = scheduleForDay(pytanie({ closedDates: ['2026-06-14', '2026-06-16'] }))
+    const grafik = scheduleForDay(
+      pytanie({ exceptions: [zamkniete('2026-06-14'), zamkniete('2026-06-16')] }),
+    )
 
     expect(grafik.open).toBe(true)
     expect(grafik.blocks).toHaveLength(2)
+  })
+
+  it('mierzy Bloki własnymi godzinami, gdy dnia nie zamyka', () => {
+    // Dzień skrócony do południa: Bloki zostają na grafiku, ale ten po
+    // zamknięciu nie jest do wzięcia. To nie to samo, co dzień zamknięty —
+    // tam nie ma ani jednego Bloku do pokazania.
+    const grafik = scheduleForDay(
+      pytanie({
+        exceptions: [
+          { day: PONIEDZIALEK, reason: 'Wigilia', hours: { opensMinute: 600, closesMinute: 780 } },
+        ],
+      }),
+    )
+
+    expect(grafik.open).toBe(true)
+    expect(grafik.blocks[0]?.available).toBe(true)
+    expect(grafik.blocks[1]?.refusals).toEqual(['poza-godzinami-otwarcia'])
+  })
+
+  it('otwiera dzień, którego tydzień nie wymienia wcale', () => {
+    // Wtorek jest zamknięty w rytmie tygodnia, a jednak Strzelnica otwiera go
+    // jednorazowo: wyjątek mówi o dacie wszystko, a nie poprawia tygodnia.
+    const grafik = scheduleForDay(
+      pytanie({
+        day: '2026-06-16',
+        schedules: [blok(600, { weekday: 2 })],
+        exceptions: [
+          { day: '2026-06-16', reason: 'Zawody', hours: { opensMinute: 540, closesMinute: 1200 } },
+        ],
+      }),
+    )
+
+    expect(grafik.open).toBe(true)
+    expect(grafik.blocks[0]?.available).toBe(true)
   })
 })
 
@@ -607,8 +648,20 @@ describe('Pula sztuk Typu broni', () => {
   // Cena stoi w katalogu obok puli, ale dostępności nie dotyczy — Typ droższy
   // nie jest przez to trudniej dostępny. Tutaj jest tylko dlatego, że katalog
   // Strzelnicy jest jeden i niesie jedno i drugie.
-  const GLOCK: WeaponType = { id: 'glock', name: 'Glock 17', pool: 3, unitPrice: 5_000 }
-  const SHADOW: WeaponType = { id: 'shadow', name: 'CZ Shadow 2', pool: 1, unitPrice: 6_000 }
+  const GLOCK: WeaponType = {
+    id: 'glock',
+    name: 'Glock 17',
+    pool: 3,
+    unitPrice: 5_000,
+    active: true,
+  }
+  const SHADOW: WeaponType = {
+    id: 'shadow',
+    name: 'CZ Shadow 2',
+    pool: 1,
+    unitPrice: 6_000,
+    active: true,
+  }
   const KATALOG = [GLOCK, SHADOW]
 
   /** Cudze Wypożyczenie w godzinach pierwszego Bloku poniedziałku. */
@@ -737,8 +790,8 @@ describe('Pula sztuk Typu broni', () => {
  */
 describe('pozostałe sztuki Typu broni', () => {
   const KATALOG: WeaponType[] = [
-    { id: 'glock', name: 'Glock 17', pool: 3, unitPrice: 5_000 },
-    { id: 'shadow', name: 'CZ Shadow 2', pool: 1, unitPrice: 6_000 },
+    { id: 'glock', name: 'Glock 17', pool: 3, unitPrice: 5_000, active: true },
+    { id: 'shadow', name: 'CZ Shadow 2', pool: 1, unitPrice: 6_000, active: true },
   ]
 
   const OD = new Date('2026-06-15T08:00:00Z')
@@ -923,7 +976,7 @@ describe('dane naruszające limity Strzelnicy', () => {
 
   it('znosi sztuki wydane ponad Pulę Typu broni', () => {
     const ponadPule = pytanie({
-      weaponTypes: [{ id: 'shadow', name: 'CZ Shadow 2', pool: 1, unitPrice: 6_000 }],
+      weaponTypes: [{ id: 'shadow', name: 'CZ Shadow 2', pool: 1, unitPrice: 6_000, active: true }],
       intent: { hasPermit: true, wantsInstructor: false, rentals: [{ weaponTypeId: 'shadow', quantity: 1 }] },
       weaponOccupancies: [
         {

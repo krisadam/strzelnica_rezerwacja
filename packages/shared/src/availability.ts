@@ -15,6 +15,8 @@
  */
 import type { CalendarDay, Weekday } from './calendar.ts'
 import { addDays, dayIn, weekdayOf, zonedMinuteToInstant } from './calendar.ts'
+import type { CalendarException, DayHours, OpeningHours } from './hours.ts'
+import { hoursForDay } from './hours.ts'
 
 /** Pozycja rozkładu: jeden Blok Osi w jednym dniu tygodnia. */
 export type BlockSchedule = {
@@ -25,14 +27,6 @@ export type BlockSchedule = {
   startMinute: number
   /** Długość Bloku; wielokrotność Slotu. */
   durationMinutes: number
-}
-
-/** Godziny otwarcia Strzelnicy w jednym dniu tygodnia. */
-export type OpeningHours = {
-  weekday: Weekday
-  opensMinute: number
-  /** Domknięcie po północy zapisuje się wartością powyżej 1440. */
-  closesMinute: number
 }
 
 /**
@@ -80,6 +74,16 @@ export type WeaponType = {
    * jeden: Typ z ceną trzymaną osobno dałby się wystawić bez niej.
    */
   unitPrice: number
+  /**
+   * Czy Typ jest w ofercie. Wycofany nie wychodzi do Osoby rezerwującej wcale,
+   * ale zostaje w Panelu i opisuje sprzęt zamówiony w Rezerwacjach złożonych
+   * wcześniej (ADR 0013, tak samo jak Oś wyłączona).
+   *
+   * Dostępność o to pole nie pyta i pytać nie ma: wołający podaje jej katalog,
+   * który sam wybrał — Widget czynny, Panel cały — a odsianie wykonane tutaj
+   * byłoby drugą granicą obok polityki RLS, czyli tą, o której się zapomina.
+   */
+  active: boolean
 }
 
 /** Zamówienie sztuk jednego Typu: pozycja Rezerwacji, a zarazem zamierzenie. */
@@ -253,16 +257,58 @@ export type RemainingWeaponsInput = {
  * za wczesna przy Osiach o różnym rozkładzie; to właściwa strona pomyłki.
  */
 export function remainingWeapons(input: RemainingWeaponsInput): WeaponAvailability[] {
-  const wydane = new Map<string, number>()
-  for (const zajete of input.weaponOccupancies) {
-    if (!overlaps(zajete, input.startsAt, input.endsAt)) continue
-    wydane.set(zajete.weaponTypeId, (wydane.get(zajete.weaponTypeId) ?? 0) + zajete.quantity)
-  }
-
   return input.weaponTypes.map((type) => ({
     type,
-    remaining: Math.max(0, type.pool - (wydane.get(type.id) ?? 0)),
+    remaining: Math.max(
+      0,
+      type.pool - issuedWeapons(input.weaponOccupancies, type.id, input.startsAt, input.endsAt),
+    ),
   }))
+}
+
+/**
+ * Ile sztuk jednego Typu trzymają Rezerwacje nachodzące na podany termin.
+ * Rachunek, z którego bierze się `remainingWeapons` — i ten sam, którym Panel
+ * poznaje przekroczenia puli po jej zmniejszeniu (`poolOverruns`). Jedna kopia,
+ * bo obie odpowiedzi mają wychodzić z tego samego liczenia: przekroczenie
+ * wypisane w konfiguracji ma być tym samym przekroczeniem, przez które Widget
+ * odmówi kolejnego zamówienia.
+ *
+ * Surowa suma, bez odejmowania od Puli i bez ucinania na zerze: dopiero wołający
+ * wie, co z nią zrobić — jednemu potrzeba „ile zostało", drugiemu „o ile za
+ * dużo".
+ */
+export function issuedWeapons(
+  occupancies: readonly WeaponOccupancy[],
+  weaponTypeId: string,
+  startsAt: Date,
+  endsAt: Date,
+): number {
+  return occupancies
+    .filter((zajete) => zajete.weaponTypeId === weaponTypeId && overlaps(zajete, startsAt, endsAt))
+    .reduce((suma, zajete) => suma + zajete.quantity, 0)
+}
+
+/**
+ * Ilu Instruktorów trzymają Rezerwacje nachodzące na podany termin. Siostrzana
+ * wobec `issuedWeapons` i licząca tak samo zachowawczo: Rezerwacje 8–10 i 10–12
+ * nie dzielą Instruktora, ale 9–11 liczy się do obu.
+ *
+ * Wołający podaje **wyłącznie** Zajętość trzymającą Instruktora — Blokada nie
+ * trzyma go nigdy, a Rezerwacja bez niego nie zajmuje miejsca w Puli. Zawężenie
+ * należy do wołającego z tego samego powodu, co przy `active` katalogu: to on
+ * wie, którą Zajętość ogląda.
+ *
+ * Surowa suma, bez odejmowania od Puli: jednemu potrzeba „czy zostało choć
+ * jedno miejsce" (dostępność Bloku), drugiemu „o ile za dużo"
+ * (`instructorOverruns` w konfiguracji Strzelnicy) — i obaj mają liczyć to samo.
+ */
+export function attendedInstructors(
+  occupancies: readonly { startsAt: Date; endsAt: Date }[],
+  startsAt: Date,
+  endsAt: Date,
+): number {
+  return occupancies.filter((zajete) => overlaps(zajete, startsAt, endsAt)).length
 }
 
 /** Rozszerza wejście horyzontu, więc `bookingHorizon` przyjmuje je wprost. */
@@ -270,9 +316,13 @@ export type DayAvailabilityInput = BookingHorizonInput & {
   day: CalendarDay
   laneId: string
   schedules: readonly BlockSchedule[]
+  /** Tydzień Strzelnicy; dzień, którego nie wymienia, jest zamknięty. */
   openingHours: readonly OpeningHours[]
-  /** Daty objęte wyjątkiem kalendarzowym — Strzelnica jest wtedy zamknięta. */
-  closedDates: readonly CalendarDay[]
+  /**
+   * Wyjątki kalendarzowe — każdy zastępuje tydzień na swojej dacie, zamykając
+   * ją albo dając jej własne godziny (`hoursForDay`).
+   */
+  exceptions: readonly CalendarException[]
   /**
    * Rezerwacje i Blokady trzymające Osie. Cudze Osie są tu potrzebne, a nie
    * tylko dopuszczalne: Pula instruktorów liczy się po całej Strzelnicy, więc
@@ -294,7 +344,8 @@ export type DayAvailabilityInput = BookingHorizonInput & {
 
 /** Wszystko, czego trzeba, żeby orzec o jednym Bloku wybranego dnia. */
 type BlockContext = {
-  hours: OpeningHours
+  /** Godziny **tego** dnia: z wyjątku, gdy go ma, a inaczej z tygodnia. */
+  hours: DayHours
   /** Wyznaczony raz dla całego dnia — horyzont nie zależy od Bloku. */
   beyondHorizon: boolean
   minLeadMinutes: number
@@ -380,9 +431,7 @@ function refusalsFor(
   // Stoi po zajętej Osi, bo Osoby rezerwującej nie ma po co zachęcać do zmiany
   // deklaracji, skoro Blok i tak jest czyjś.
   if (context.needsInstructor) {
-    const zajete = context.instructorOccupancies.filter((occupancy) =>
-      overlaps(occupancy, startsAt, endsAt),
-    ).length
+    const zajete = attendedInstructors(context.instructorOccupancies, startsAt, endsAt)
     if (zajete >= context.instructorPool) refusals.push('brak-instruktora')
   }
   // Powód ostatni z zależnych od pytającego, bo najłatwiejszy do obejścia:
@@ -425,11 +474,14 @@ const ZAMKNIETE: DaySchedule = { open: false, blocks: [] }
  * niż cały dzień zamknięty, którego w ogóle nie ma na grafiku.
  */
 export function scheduleForDay(input: DayAvailabilityInput): DaySchedule {
-  if (input.closedDates.includes(input.day)) return ZAMKNIETE
+  // Jedno pytanie o godziny dnia, a nie dwa: wyjątek zamykający dzień i tydzień
+  // bez wiersza na ten dzień znaczą tutaj dokładnie to samo, a rozstrzygnięte
+  // osobno rozjechałyby się z Panelem przy pierwszym wyjątku, który dzień
+  // **otwiera** (`hoursForDay`).
+  const hours = hoursForDay(input)
+  if (!hours) return ZAMKNIETE
 
   const weekday = weekdayOf(input.day)
-  const hours = input.openingHours.find((entry) => entry.weekday === weekday)
-  if (!hours) return ZAMKNIETE
 
   const context: BlockContext = {
     hours,

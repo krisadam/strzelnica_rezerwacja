@@ -70,6 +70,7 @@ export type Database = {
       }
       ammunition_kinds: {
         Row: {
+          active: boolean
           created_at: string
           facility_id: string
           id: string
@@ -77,6 +78,7 @@ export type Database = {
           unit_price_gr: number
         }
         Insert: {
+          active?: boolean
           created_at?: string
           facility_id: string
           id?: string
@@ -84,6 +86,7 @@ export type Database = {
           unit_price_gr?: number
         }
         Update: {
+          active?: boolean
           created_at?: string
           facility_id?: string
           id?: string
@@ -249,24 +252,30 @@ export type Database = {
       }
       calendar_exceptions: {
         Row: {
-          closed_on: string
+          closes_minute: number | null
           created_at: string
           facility_id: string
           id: string
+          on_date: string
+          opens_minute: number | null
           reason: string | null
         }
         Insert: {
-          closed_on: string
+          closes_minute?: number | null
           created_at?: string
           facility_id: string
           id?: string
+          on_date: string
+          opens_minute?: number | null
           reason?: string | null
         }
         Update: {
-          closed_on?: string
+          closes_minute?: number | null
           created_at?: string
           facility_id?: string
           id?: string
+          on_date?: string
+          opens_minute?: number | null
           reason?: string | null
         }
         Relationships: [
@@ -593,6 +602,7 @@ export type Database = {
       }
       weapon_types: {
         Row: {
+          active: boolean
           created_at: string
           facility_id: string
           id: string
@@ -601,6 +611,7 @@ export type Database = {
           unit_price_gr: number
         }
         Insert: {
+          active?: boolean
           created_at?: string
           facility_id: string
           id?: string
@@ -609,6 +620,7 @@ export type Database = {
           unit_price_gr?: number
         }
         Update: {
+          active?: boolean
           created_at?: string
           facility_id?: string
           id?: string
@@ -761,6 +773,10 @@ export type Database = {
           just_confirmed: boolean
         }[]
       }
+      delete_calendar_exception: {
+        Args: { p_on_date: string; p_user_id: string }
+        Returns: boolean
+      }
       expire_stale_bookings: {
         Args: { p_facility_id: string }
         Returns: number
@@ -810,9 +826,30 @@ export type Database = {
           just_revoked: boolean
         }[]
       }
+      save_ammunition_kind: {
+        Args: {
+          p_active: boolean
+          p_ammunition_kind_id: string
+          p_name: string
+          p_unit_price_gr: number
+          p_user_id: string
+        }
+        Returns: string
+      }
+      save_calendar_exception: {
+        Args: {
+          p_closes_minute: number
+          p_on_date: string
+          p_opens_minute: number
+          p_reason: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       save_lane: {
         Args: {
           p_active: boolean
+          p_block_rate_gr: number
           p_capacity: number
           p_lane_id: string
           p_name: string
@@ -820,8 +857,35 @@ export type Database = {
         }
         Returns: string
       }
+      save_weapon_type: {
+        Args: {
+          p_active: boolean
+          p_name: string
+          p_pool: number
+          p_unit_price_gr: number
+          p_user_id: string
+          p_weapon_type_id: string
+        }
+        Returns: string
+      }
+      set_facility_configuration: {
+        Args: {
+          p_booking_horizon_days: number
+          p_cancellation_window_hours: number
+          p_instructor_pool: number
+          p_instructor_rate_gr: number
+          p_min_lead_minutes: number
+          p_participation_rate_gr: number
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       set_lane_schedule: {
         Args: { p_lane_id: string; p_user_id: string; p_week: Json }
+        Returns: boolean
+      }
+      set_opening_hours: {
+        Args: { p_user_id: string; p_week: Json }
         Returns: boolean
       }
     }

@@ -8,6 +8,7 @@ import type {
   AmmunitionKind,
   BlockSchedule,
   CalendarDay,
+  CalendarException,
   DaySchedule,
   Facility,
   Intent,
@@ -20,7 +21,7 @@ import type {
 import {
   ammunitionKindFromRow,
   blockScheduleFromRow,
-  closedDateFromRow,
+  calendarExceptionFromRow,
   facilityFromRow,
   laneFromRow,
   occupancyFromRow,
@@ -37,7 +38,8 @@ export type Grafik = {
   lanes: Lane[]
   schedules: BlockSchedule[]
   openingHours: OpeningHours[]
-  closedDates: CalendarDay[]
+  /** Wyjątki kalendarzowe — daty, które nie idą rytmem tygodnia. */
+  exceptions: CalendarException[]
   weaponTypes: WeaponType[]
   /**
    * Katalog Rodzajów amunicji. Nie ma go w `Zajetosc` obok Typów broni, bo
@@ -86,7 +88,7 @@ export function grafikDnia(
     intent,
     schedules: grafik.schedules,
     openingHours: grafik.openingHours,
-    closedDates: grafik.closedDates,
+    exceptions: grafik.exceptions,
     weaponTypes: grafik.weaponTypes,
     occupancies: zajetosc.lanes,
     weaponOccupancies: zajetosc.weapons,
@@ -152,7 +154,13 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
       client.from('lanes').select('*').eq('facility_id', facility.id).order('name'),
       client.from('block_schedules').select('*').eq('facility_id', facility.id),
       client.from('opening_hours').select('*').eq('facility_id', facility.id),
-      client.from('calendar_exceptions').select('*').eq('facility_id', facility.id),
+      // Kolumny wypisane, a nie `*`: powodu wyjątku klucz anonimowy nie ma
+      // prawa czytać — czyta go wyłącznie Strzelnica, tak samo jak powód
+      // Blokady. Gwiazdka poprosiłaby o kolumnę, którą baza i tak odmówi.
+      client
+        .from('calendar_exceptions')
+        .select('on_date, opens_minute, closes_minute')
+        .eq('facility_id', facility.id),
       client.from('weapon_types').select('*').eq('facility_id', facility.id).order('name'),
       client.from('ammunition_kinds').select('*').eq('facility_id', facility.id).order('name'),
     ])
@@ -162,7 +170,7 @@ export async function loadGrafik(client: StrzelnicaClient, slug: string): Promis
     lanes: rowsOrThrow(lanes).map(laneFromRow),
     schedules: rowsOrThrow(schedules).map(blockScheduleFromRow),
     openingHours: rowsOrThrow(openingHours).map(openingHoursFromRow),
-    closedDates: rowsOrThrow(exceptions).map(closedDateFromRow),
+    exceptions: rowsOrThrow(exceptions).map(calendarExceptionFromRow),
     weaponTypes: rowsOrThrow(weaponTypes).map(weaponTypeFromRow),
     ammunitionKinds: rowsOrThrow(ammunitionKinds).map(ammunitionKindFromRow),
   }

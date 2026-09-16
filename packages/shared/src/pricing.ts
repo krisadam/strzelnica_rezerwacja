@@ -233,3 +233,38 @@ const formatter = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 
 export function formatAmount(grosze: number): string {
   return formatter.format(grosze / 100)
 }
+
+/**
+ * Cena w złotych tak, jak wpisuje się ją w pole: bez waluty i bez odstępów, ale
+ * z przecinkiem — bo tak zapisuje się złote po polsku.
+ *
+ * Odrębna od `formatAmount`, choć obie pokazują grosze jako złote: tamta pisze
+ * Kwotę **do przeczytania**, razem z walutą i odstępem między grupami cyfr, a ta
+ * wypełnia pole, z którego zaraz odczyta ją `parseAmount`. Kwota z waluty byłaby
+ * w polu nie do odczytania z powrotem.
+ */
+export function writeAmount(grosze: number): string {
+  return (grosze / 100).toFixed(2).replace('.', ',')
+}
+
+/**
+ * Cena wpisana ręcznie, w złotych, sprowadzona do groszy — albo `null`, gdy
+ * ceną nie jest. Odwrotność `writeAmount` i stoi obok niej z tego samego
+ * powodu: cena jest jedna, więc zapis i odczyt mają być jedną parą, a nie
+ * dwiema regułami w dwóch ekranach.
+ *
+ * Pole cenowe Panelu pyta o złote, bo obsługa czyta cennik w złotych, a baza
+ * trzyma grosze — przeliczenie jest więc regułą do pokrycia testami, a nie
+ * mnożeniem przez sto wpisanym mimochodem w obsłudze zdarzenia. Ułamek grosza
+ * nie zaokrągla się po cichu: cena z trzecią cyfrą po przecinku jest pomyłką,
+ * a zaokrąglona wróciłaby klientowi w Kwocie, której nikt nie umie wytłumaczyć.
+ */
+export function parseAmount(text: string): number | null {
+  const zapis = text.trim().replace(',', '.')
+  // Wzorzec, a nie sam `Number`: tamten przyjąłby `1e3`, `0x10` i pusty napis,
+  // czyli trzy rzeczy, których nikt nie wpisuje jako ceny.
+  if (!/^\d+(\.\d{1,2})?$/.test(zapis)) return null
+
+  const [zlote = '0', grosze = ''] = zapis.split('.')
+  return Number(zlote) * 100 + Number(grosze.padEnd(2, '0'))
+}

@@ -128,6 +128,34 @@ Rozkład mówi, co jest do wzięcia **od tej chwili**. Rezerwacja już złożona
 zależy od niego wcale: niesie własny termin, więc Blok zdjęty z rozkładu znika
 ze sprzedaży, a nie z grafiku dnia.
 
+## Godziny otwarcia
+
+Kiedy Strzelnica jest czynna, wypisane osobno na każdy dzień tygodnia. Są
+**rytmem**, jak Rozkład Bloków, ale własnością całej Strzelnicy, a nie Osi:
+zamknięty poniedziałek zdejmuje terminy wszystkim Osiom naraz. Dzień, którego
+nie wymieniają, jest dniem zamkniętym — Strzelnica nie ma wtedy ani jednego
+Bloku do wzięcia.
+
+Bloku nie tworzą ani nie kasują: mierzą go. Blok wypisany poza godzinami stoi na
+grafiku dalej i jest widoczny, tyle że niedostępny — inaczej niż w dniu
+zamkniętym, gdzie Bloków nie ma wcale.
+
+## Wyjątek kalendarzowy
+
+Konkretna data, która nie idzie rytmem Godzin otwarcia: święto, zawody, dzień
+skrócony. **Zastępuje** godziny tygodniowe w całości, a nie poprawia ich — data
+objęta wyjątkiem jest albo zamknięta, albo otwarta dokładnie w jego godzinach,
+także wtedy, gdy w rytmie tygodnia jest zamknięta.
+
+Niesie **powód**, i czyta go wyłącznie Strzelnica — jak przy Blokadzie: data
+zdjęta ze sprzedaży bez powodu każe następnej zmianie obsługi dzwonić i pytać,
+czy to pomyłka. Do Osoby rezerwującej powód nie wychodzi; ona widzi dzień bez
+terminów.
+
+Rezerwacji nie rusza. Wyjątek mówi, czego Strzelnica nie sprzedaje, a nie komu
+odbiera termin — Rezerwacja stojąca w dniu, który właśnie zamknięto, trwa, dopóki
+ktoś jej nie odwoła, z powodem i na piśmie.
+
 ## Horyzont rezerwacji
 
 Jak daleko w przód Strzelnica przyjmuje Rezerwacje: liczba dni jej kalendarza
@@ -179,14 +207,30 @@ zawierać wiele Wypożyczeń różnych Typów.
 ## Typ broni
 
 Pozycja katalogu Strzelnicy (np. „Glock 17") wraz z **pulą** — liczbą sztuk
-dostępnych do wypożyczenia. Suma sztuk danego Typu w nakładających się
-Rezerwacjach nie może przekroczyć Puli.
+dostępnych do wypożyczenia — i ceną za sztukę. Suma sztuk danego Typu
+w nakładających się Rezerwacjach nie może przekroczyć Puli.
 
 ## Rodzaj amunicji
 
-Pozycja katalogu Strzelnicy (np. „9 × 19 mm Parabellum"). W odróżnieniu od
-Typu broni **nie ma puli**: amunicja nie wraca do Strzelnicy, więc nie ma
-stałej liczby sztuk, którą dałoby się rozdzielać między Rezerwacje.
+Pozycja katalogu Strzelnicy (np. „9 × 19 mm Parabellum") wraz z ceną za sztukę.
+W odróżnieniu od Typu broni **nie ma puli**: amunicja nie wraca do Strzelnicy,
+więc nie ma stałej liczby sztuk, którą dałoby się rozdzielać między Rezerwacje.
+
+## Wycofanie pozycji katalogu
+
+Zdjęcie Typu broni albo Rodzaju amunicji z oferty — jak wyłączenie Osi, tylko
+że tu chodzi o sprzęt, a nie o miejsce. Pozycji się nie kasuje: wskazują ją
+Rezerwacje złożone wcześniej, a te znikają wyłącznie Odwołaniem. Wycofana nie
+wychodzi do Osoby rezerwującej wcale, a w Panelu zostaje ze znacznikiem
+i dalej opisuje sprzęt, który komuś obiecano.
+
+## Przekroczenie puli
+
+Stan, w którym sztuk danego Typu obiecano w nakładających się Rezerwacjach
+więcej, niż mówi jego Pula. Bierze się z decyzji Strzelnicy — zmniejszenia Puli
+albo ręcznego wpisu ponad limit — a nie z błędu: Rezerwacja niesie swoje sztuki
+i o Pulę nie pyta nikogo po tym, jak powstała. Panel je **wypisuje**,
+a rozstrzyga człowiek.
 
 ## Zapotrzebowanie na amunicję
 

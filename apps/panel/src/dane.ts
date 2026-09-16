@@ -19,20 +19,20 @@
 import type {
   AmmunitionKind,
   BlockSchedule,
-  CalendarDay,
+  BookedRental,
+  CalendarException,
   Facility,
   Lane,
   LaneClosure,
   OpeningHours,
   PanelBooking,
   PanelWindow,
-  WeaponOccupancy,
   WeaponType,
 } from '@strzelnica/shared'
 import {
   ammunitionKindFromRow,
   blockScheduleFromRow,
-  closedDateFromRow,
+  calendarExceptionFromRow,
   facilityFromRow,
   laneClosureFromRow,
   laneFromRow,
@@ -96,17 +96,25 @@ export type Dane = {
   /** Rozkład Bloków wszystkich Osi: z niego bierze się termin ręcznego wpisu. */
   schedules: BlockSchedule[]
   openingHours: OpeningHours[]
-  /** Dni zamknięte wyjątkiem kalendarzowym — wtedy nie ma czego wpisywać. */
-  closedDates: CalendarDay[]
+  /**
+   * Wyjątki kalendarzowe — daty poza rytmem tygodnia. Dzień zamknięty nie ma
+   * czego wpisywać, a skrócony ma tego mniej niż zwykle.
+   */
+  exceptions: CalendarException[]
   /** Katalog Typów broni wraz z pulami sztuk i cenami. */
   weaponTypes: WeaponType[]
   ammunitionKinds: AmmunitionKind[]
   /**
-   * Sztuki trzymane przez Rezerwacje okna. Złożone z pozycji Rezerwacji, a nie
-   * odczytane z widoku `weapon_occupancy`: tamten wystawia Wypożyczenia
-   * wszystkich Strzelnic i konto Panelu nie ma do niego prawa (ADR 0009).
+   * Sztuki trzymane przez Rezerwacje okna, każda ze swoim numerem Rezerwacji.
+   * Złożone z pozycji Rezerwacji, a nie odczytane z widoku `weapon_occupancy`:
+   * tamten wystawia Wypożyczenia wszystkich Strzelnic i konto Panelu nie ma do
+   * niego prawa (ADR 0009).
+   *
+   * Numer jest tu dla konfiguracji katalogu: dostępność pyta wyłącznie „ile
+   * sztuk i kiedy", ale zmniejszenie puli każe powiedzieć, **czyje** sztuki
+   * przestają się w niej mieścić (`poolOverruns`).
    */
-  weaponOccupancies: WeaponOccupancy[]
+  weaponOccupancies: BookedRental[]
 }
 
 /**
@@ -127,7 +135,7 @@ type Oferta = {
   facility: Facility
   schedules: BlockSchedule[]
   openingHours: OpeningHours[]
-  closedDates: CalendarDay[]
+  exceptions: CalendarException[]
 }
 
 async function ofertaUzytkownika(client: PanelClient): Promise<Oferta> {
@@ -154,7 +162,7 @@ async function ofertaUzytkownika(client: PanelClient): Promise<Oferta> {
     facility: facilityFromRow(row),
     schedules: row.block_schedules.map(blockScheduleFromRow),
     openingHours: row.opening_hours.map(openingHoursFromRow),
-    closedDates: row.calendar_exceptions.map(closedDateFromRow),
+    exceptions: row.calendar_exceptions.map(calendarExceptionFromRow),
   }
 }
 
@@ -176,7 +184,7 @@ async function ofertaUzytkownika(client: PanelClient): Promise<Oferta> {
  * własny porządek i wchodzą do opisu Rezerwacji.
  */
 export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane> {
-  const { facility, schedules, openingHours, closedDates } = await ofertaUzytkownika(client)
+  const { facility, schedules, openingHours, exceptions } = await ofertaUzytkownika(client)
   const okno = panelWindow({
     timeZone: facility.timeZone,
     horizonDays: facility.timeRules.horizonDays,
@@ -251,7 +259,7 @@ export async function wczytajDane(client: PanelClient, now: Date): Promise<Dane>
     bookings: rezerwacje,
     schedules,
     openingHours,
-    closedDates,
+    exceptions,
     weaponTypes: katalogBroni.map(weaponTypeFromRow),
     ammunitionKinds: katalogAmunicji.map(ammunitionKindFromRow),
     // Termin sztukom nadaje Rezerwacja, do której pozycja należy — własne

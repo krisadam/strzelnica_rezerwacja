@@ -43,6 +43,9 @@ const OBCA = {
   /** Druga Oś obcej Strzelnicy — ta, na której stoi jej Blokada. */
   osZBlokada: '00000000-0000-0000-0000-0000000000a4',
   rezerwacja: '00000000-0000-0000-0000-0000000000b2',
+  /** Pozycje katalogów obcej Strzelnicy — te, które przejmujący by wycofał. */
+  typBroni: '00000000-0000-0000-0000-0000000000c4',
+  rodzajAmunicji: '00000000-0000-0000-0000-0000000000e4',
   wypozyczenie: '00000000-0000-0000-0000-0000000000d2',
   zapotrzebowanie: '00000000-0000-0000-0000-0000000000f2',
   blokada: '00000000-0000-0000-0000-000000000302',
@@ -52,10 +55,15 @@ const OBCA = {
 const STRZELNICA_DEMO = '00000000-0000-0000-0000-000000000001'
 /** Konto obsługi demo — to, którym przepisano by się na obcą Strzelnicę. */
 const KONTO_DEMO = '00000000-0000-0000-0000-000000000101'
+/** Konto obsługi drugiej Strzelnicy — to, którym podszyłby się przejmujący. */
+const KONTO_DRUGIEJ = '00000000-0000-0000-0000-000000000102'
 
 /** Rezerwacje drugiej Strzelnicy — te, których obsługa demo widzieć nie ma. */
 const KLIENT_OBCY = 'Obcy Klient'
 const OS_OBCA = 'Oś obcej Strzelnicy nr 1'
+
+/** Nazwa Osi, którą klucz anonimowy próbuje dopisać — i po której poznaje się, że nie dopisał. */
+const OS_DOPISANA_ANONIMOWO = 'Oś dopisana kluczem anonimowym'
 
 /**
  * Wiersze zwrócone przez PostgREST-a albo pustka. Odmowa prawem i pustka pod
@@ -231,9 +239,19 @@ const ZAPISY_W_OBCEJ = [
     init: { method: 'PATCH', body: JSON.stringify({ capacity: 99 }) },
   },
   {
+    co: 'zmiana stawki za Blok obcej Osi',
+    zapytanie: `lanes?id=eq.${OBCA.os}`,
+    init: { method: 'PATCH', body: JSON.stringify({ block_rate_gr: 1 }) },
+  },
+  {
+    // Przekierowanie powiadomień obcej Strzelnicy na własną skrzynkę: gdyby
+    // przeszło, o każdej jej Rezerwacji dowiadywałby się ktoś inny niż ona.
     co: 'zmiana konfiguracji Strzelnicy',
     zapytanie: `facilities?id=eq.${OBCA.strzelnica}`,
-    init: { method: 'PATCH', body: JSON.stringify({ instructor_pool: 9 }) },
+    init: {
+      method: 'PATCH',
+      body: JSON.stringify({ notification_email: 'wtret@example.pl' }),
+    },
   },
   {
     co: 'przepisanie własnego konta na obcą Strzelnicę',
@@ -259,6 +277,24 @@ const ZAPISY_W_OBCEJ = [
     zapytanie: `lane_closures?id=eq.${OBCA.blokada}`,
     init: { method: 'DELETE' },
   },
+  {
+    co: 'dopisanie godzin otwarcia obcej Strzelnicy',
+    zapytanie: 'opening_hours',
+    init: {
+      method: 'POST',
+      body: JSON.stringify({
+        facility_id: OBCA.strzelnica,
+        weekday: 7,
+        opens_minute: 0,
+        closes_minute: 60,
+      }),
+    },
+  },
+  {
+    co: 'usunięcie obcego wyjątku kalendarzowego',
+    zapytanie: `calendar_exceptions?facility_id=eq.${OBCA.strzelnica}`,
+    init: { method: 'DELETE' },
+  },
 ]
 
 /** Druga Strzelnica w kształcie, w jakim zostawił ją seed. */
@@ -275,13 +311,17 @@ async function drugaStrzelnicaJestNietknieta(): Promise<void> {
   )
   expect(rezerwacja?.participants).toBe(1)
 
-  const [os] = await baza<{ capacity: number }[]>(`lanes?id=eq.${OBCA.os}&select=capacity`)
-  expect(os?.capacity).toBe(3)
-
-  const [strzelnica] = await baza<{ instructor_pool: number }[]>(
-    `facilities?id=eq.${OBCA.strzelnica}&select=instructor_pool`,
+  // Oś nr 1, a nie nr 2: stawkę tej drugiej przestawia — i przywraca — test
+  // `cennik.spec.ts`, więc świadek postawiony na niej mierzyłby cudzą zmianę.
+  const [os] = await baza<{ capacity: number; block_rate_gr: number }[]>(
+    `lanes?id=eq.${OBCA.os}&select=capacity,block_rate_gr`,
   )
-  expect(strzelnica?.instructor_pool).toBe(2)
+  expect(os).toEqual({ capacity: 3, block_rate_gr: 9000 })
+
+  const [strzelnica] = await baza<{ notification_email: string }[]>(
+    `facilities?id=eq.${OBCA.strzelnica}&select=notification_email`,
+  )
+  expect(strzelnica?.notification_email).toBe('recepcja@strzelnica-druga.example.pl')
 
   expect(
     await baza<unknown[]>(`bookings?facility_id=eq.${OBCA.strzelnica}&select=id`),
@@ -303,6 +343,209 @@ test('Użytkownik panelu nie zapisze niczego w obcej Strzelnicy', async () => {
   }
 
   await drugaStrzelnicaJestNietknieta()
+})
+
+/**
+ * Godziny otwarcia i Wyjątki kalendarzowe obcej Strzelnicy. Granica stoi tu
+ * inaczej niż przy Osi i Rezerwacji, bo żądanie **nie ma czym** wskazać obcej
+ * Strzelnicy: godziny są jej własnością, a o tym, czyje są, rozstrzyga numer
+ * konta podstawiony przez Edge Function (ADR 0010). Cała droga przejęcia wiedzie
+ * więc przez funkcję bazodanową wołaną wprost, z podstawionym **cudzym** kontem
+ * — i tej drogi nie ma: prawo wykonania mają wyłącznie Edge Functions
+ * (ADR 0003).
+ *
+ * Zapis pytamy o ten najgroźniejszy z możliwych: tydzień pusty zamyka obcą
+ * Strzelnicę na siedem dni w tygodniu, a zdjęcie wyjątku otwiera ją w święto —
+ * jedno i drugie bez jej wiedzy.
+ */
+test('Użytkownik panelu nie zmieni godzin ani wyjątków obcej Strzelnicy', async () => {
+  const drogi = [
+    {
+      co: 'tydzień godzin',
+      funkcja: 'rpc/set_opening_hours',
+      zadanie: { p_week: [], p_user_id: KONTO_DRUGIEJ },
+    },
+    {
+      co: 'zapis wyjątku',
+      funkcja: 'rpc/save_calendar_exception',
+      zadanie: {
+        p_on_date: '2030-01-01',
+        p_reason: 'Wtręt',
+        p_opens_minute: null,
+        p_closes_minute: null,
+        p_user_id: KONTO_DRUGIEJ,
+      },
+    },
+    {
+      co: 'zdjęcie wyjątku',
+      funkcja: 'rpc/delete_calendar_exception',
+      zadanie: { p_on_date: '2030-01-01', p_user_id: KONTO_DRUGIEJ },
+    },
+  ]
+
+  for (const { co, funkcja, zadanie } of drogi) {
+    const odpowiedz = await bazaJakoUzytkownikPanelu(OBSLUGA_DEMO, HASLO_PANELU, funkcja, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(zadanie),
+    })
+    expect({ co, odmowa: odpowiedz.status >= 400 }).toEqual({ co, odmowa: true })
+  }
+
+  // Obca Strzelnica ma swój tydzień i swój wyjątek — a tydzień pusty byłby
+  // Strzelnicą zamkniętą na okrągło, i to bez jej wiedzy.
+  expect(
+    await baza<unknown[]>(`opening_hours?facility_id=eq.${OBCA.strzelnica}&select=id`),
+  ).not.toHaveLength(0)
+  expect(
+    await baza<unknown[]>(`calendar_exceptions?facility_id=eq.${OBCA.strzelnica}&select=id`),
+  ).not.toHaveLength(0)
+})
+
+/**
+ * Katalogi obcej Strzelnicy: Typ broni i Rodzaj amunicji. Granica stoi tu tak
+ * samo jak przy Osi — numer pozycji jedzie w żądaniu wprost, a zestawia się go
+ * z katalogiem **tej** Strzelnicy, o którą baza pyta po numerze potwierdzonego
+ * konta (`panel_facility_of`, ADR 0010). Znajomość numeru nie otwiera więc
+ * niczego, a wprost do funkcji bazodanowej drogi nie ma wcale: prawo jej
+ * wykonania mają wyłącznie Edge Functions (ADR 0003).
+ *
+ * Pytamy o zapis najgroźniejszy z możliwych: wycofanie cudzej pozycji zdejmuje
+ * ją z oferty obcej Strzelnicy, a zerowa pula zabiera jej sprzęt — jedno
+ * i drugie bez jej wiedzy.
+ */
+test('Użytkownik panelu nie zmieni katalogów obcej Strzelnicy', async () => {
+  // Wołanie Edge Functions niżej przechodzi przez ich zimny start.
+  test.slow()
+
+  const wprost = [
+    {
+      co: 'zapis Typu broni',
+      funkcja: 'rpc/save_weapon_type',
+      zadanie: {
+        p_weapon_type_id: OBCA.typBroni,
+        p_name: 'Wtręt',
+        p_pool: 0,
+        p_unit_price_gr: 1,
+        p_active: false,
+        p_user_id: KONTO_DRUGIEJ,
+      },
+    },
+    {
+      co: 'zapis Rodzaju amunicji',
+      funkcja: 'rpc/save_ammunition_kind',
+      zadanie: {
+        p_ammunition_kind_id: OBCA.rodzajAmunicji,
+        p_name: 'Wtręt',
+        p_unit_price_gr: 1,
+        p_active: false,
+        p_user_id: KONTO_DRUGIEJ,
+      },
+    },
+  ]
+
+  for (const { co, funkcja, zadanie } of wprost) {
+    const odpowiedz = await bazaJakoUzytkownikPanelu(OBSLUGA_DEMO, HASLO_PANELU, funkcja, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(zadanie),
+    })
+    expect({ co, odmowa: odpowiedz.status >= 400 }).toEqual({ co, odmowa: true })
+  }
+
+  // Droga, która jest: Edge Function z tokenem konta demo. Pozycja obcego
+  // katalogu jest dla niej nieznana — mimo że jej numer jest prawdziwy.
+  const drogi = [
+    {
+      co: 'Typ broni',
+      funkcja: 'zapisz-typ-broni',
+      zadanie: {
+        id: OBCA.typBroni,
+        name: 'Wtręt',
+        pool: 0,
+        unitPriceGr: 1,
+        active: false,
+      },
+    },
+    {
+      co: 'Rodzaj amunicji',
+      funkcja: 'zapisz-rodzaj-amunicji',
+      zadanie: { id: OBCA.rodzajAmunicji, name: 'Wtręt', unitPriceGr: 1, active: false },
+    },
+  ]
+
+  for (const { co, funkcja, zadanie } of drogi) {
+    const odpowiedz = await funkcjaJakoUzytkownikPanelu(
+      OBSLUGA_DEMO,
+      HASLO_PANELU,
+      funkcja,
+      zadanie,
+    )
+    expect({ co, kod: odpowiedz.status }).toEqual({ co, kod: 200 })
+    expect({ co, wynik: await odpowiedz.json() }).toEqual({
+      co,
+      wynik: { ok: false, problem: 'nieznana-pozycja' },
+    })
+  }
+
+  // Obce katalogi stoją, jak stały: w ofercie, z pulą i z nazwą z seeda.
+  const [typ] = await baza<{ name: string; pool: number; active: boolean }[]>(
+    `weapon_types?id=eq.${OBCA.typBroni}&select=name,pool,active`,
+  )
+  expect(typ).toEqual({ name: 'Beretta 92FS', pool: 2, active: true })
+
+  const [rodzaj] = await baza<{ name: string; active: boolean }[]>(
+    `ammunition_kinds?id=eq.${OBCA.rodzajAmunicji}&select=name,active`,
+  )
+  expect(rodzaj).toEqual({ name: '.45 ACP', active: true })
+})
+
+/**
+ * Cennik, Pula instruktorów i reguły czasowe obcej Strzelnicy. Granica stoi tu
+ * tak samo jak przy godzinach otwarcia, bo żądanie **nie ma czym** wskazać
+ * obcej Strzelnicy: konfiguracja jest jej własnością, a o tym, czyja jest,
+ * rozstrzyga numer konta podstawiony przez Edge Function (ADR 0010). Cała droga
+ * przejęcia wiedzie więc przez funkcję bazodanową wołaną wprost, z podstawionym
+ * **cudzym** kontem — i tej drogi nie ma: prawo wykonania mają wyłącznie Edge
+ * Functions (ADR 0003).
+ *
+ * Zapis pytamy o ten najgroźniejszy z możliwych: horyzont zerowy zamyka obcą
+ * Strzelnicę na wszystko poza dzisiaj, a zerowa Pula instruktorów odbiera jej
+ * każdego klienta bez Pozwolenia — jedno i drugie bez jej wiedzy i bez śladu
+ * na jej ekranie.
+ */
+test('Użytkownik panelu nie zmieni cennika ani reguł obcej Strzelnicy', async () => {
+  const odpowiedz = await bazaJakoUzytkownikPanelu(
+    OBSLUGA_DEMO,
+    HASLO_PANELU,
+    'rpc/set_facility_configuration',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        p_instructor_pool: 0,
+        p_participation_rate_gr: 1,
+        p_instructor_rate_gr: 1,
+        p_booking_horizon_days: 0,
+        p_min_lead_minutes: 0,
+        p_cancellation_window_hours: 0,
+        p_user_id: KONTO_DRUGIEJ,
+      }),
+    },
+  )
+  expect({ odmowa: odpowiedz.status >= 400 }).toEqual({ odmowa: true })
+
+  // Obca Strzelnica ma swoje reguły. Świadkiem są dwie z nich, a nie stawki
+  // ani Pula: tamte trzy przestawia — na własnej Strzelnicy i z przywróceniem —
+  // test `cennik.spec.ts`, który bywa akurat w połowie przebiegu obok.
+  // Świadek, który mierzyłby cudzą zmianę, oskarżałby o nią tę funkcję.
+  const [strzelnica] = await baza<
+    { min_lead_minutes: number; cancellation_window_hours: number }[]
+  >(
+    `facilities?id=eq.${OBCA.strzelnica}` +
+      '&select=min_lead_minutes,cancellation_window_hours',
+  )
+  expect(strzelnica).toEqual({ min_lead_minutes: 120, cancellation_window_hours: 24 })
 })
 
 /**
@@ -403,7 +646,7 @@ test('klucz anonimowy nie zapisze niczego w żadnej Strzelnicy', async () => {
         method: 'POST',
         body: JSON.stringify({
           facility_id: STRZELNICA_DEMO,
-          name: 'Oś dopisana kluczem anonimowym',
+          name: OS_DOPISANA_ANONIMOWO,
           capacity: 1,
           block_rate_gr: 0,
         }),
@@ -429,9 +672,17 @@ test('klucz anonimowy nie zapisze niczego w żadnej Strzelnicy', async () => {
 
   await drugaStrzelnicaJestNietknieta()
 
-  // Strzelnica demonstracyjna też stoi, jak stała: Osi ma dwie, a Rezerwacja
-  // z seeda swoich dwóch Uczestników.
-  expect(await baza<unknown[]>(`lanes?facility_id=eq.${STRZELNICA_DEMO}&select=id`)).toHaveLength(2)
+  // Strzelnica demonstracyjna też stoi, jak stała. Świadkiem jest **brak tej
+  // jednej Osi**, o którą pytaliśmy wyżej, a nie liczba wszystkich: Osi
+  // demonstracyjnej przybywa i ubywa w `konfiguracja-osi.spec.ts`, który bywa
+  // akurat w połowie przebiegu obok, a świadek liczący cudze Osie oskarżałby
+  // o nie klucz anonimowy.
+  expect(
+    await baza<unknown[]>(
+      `lanes?facility_id=eq.${STRZELNICA_DEMO}` +
+        `&name=eq.${encodeURIComponent(OS_DOPISANA_ANONIMOWO)}&select=id`,
+    ),
+  ).toEqual([])
   const [rezerwacja] = await baza<{ participants: number }[]>(
     `bookings?id=eq.${REZERWACJA_DEMO}&select=participants`,
   )
@@ -458,16 +709,30 @@ test('klucz anonimowy nie odczyta danych osobowych żadnej Strzelnicy', async ()
     // klucz anonimowy wchodzi — ale nie do nich. Prawa idą tu kolumnami.
     'facilities?select=contact_email,contact_phone',
     'facilities?select=notification_email',
+    // Powód Wyjątku kalendarzowego: czyta go wyłącznie obsługa, tak samo jak
+    // powód Blokady. Klucz anonimowy wchodzi do tej tabeli po datę i godziny —
+    // dzień zamknięty musi dojść do kalendarza klienta — ale nie po zdanie,
+    // którym Strzelnica tłumaczy się sama sobie.
+    'calendar_exceptions?select=reason',
   ]
 
   for (const zrodlo of zrodla) {
     expect({ zrodlo, wiersze: await wierszeAnonimowo(zrodlo) }).toEqual({ zrodlo, wiersze: [] })
   }
 
+  // A po datę i godziny wchodzi — inaczej Widget sprzedawałby termin w święto.
+  // Odmowa wszystkiego byłaby tu równie zła jak odmowa niczego.
+  expect(
+    await wierszeAnonimowo('calendar_exceptions?select=on_date,opens_minute,closes_minute'),
+  ).not.toEqual([])
+
   // I nie jest to pustka z braku danych: rolą serwisową te same kolumny stoją
   // pełne. Ta asercja pilnuje poprzedniej pętli, nie bazy.
   const osobowe = await baza<{ contact_name: string }[]>('bookings?select=contact_name')
   expect(osobowe.length).toBeGreaterThan(0)
+
+  const powody = await baza<{ reason: string | null }[]>('calendar_exceptions?select=reason')
+  expect(powody.filter((wiersz) => wiersz.reason !== null).length).toBeGreaterThan(0)
 })
 
 /**
@@ -629,6 +894,7 @@ test('Użytkownik panelu nie zmieni obcej Osi ani jej rozkładu', async () => {
       p_lane_id: OBCA.os,
       p_name: 'Przejęta',
       p_capacity: 9,
+      p_block_rate_gr: 1,
       p_active: false,
       // Konto podstawione własne: gdyby prawo do tej funkcji istniało,
       // przeglądarka podawałaby tu dowolne.
@@ -655,6 +921,7 @@ test('Użytkownik panelu nie zmieni obcej Osi ani jej rozkładu', async () => {
     id: OBCA.os,
     name: 'Przejęta',
     capacity: 9,
+    blockRateGr: 1,
     active: false,
   })
   expect(funkcjaOsi.status).toBe(200)

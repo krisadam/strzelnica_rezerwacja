@@ -20,6 +20,14 @@ export class InvalidCalendarDayError extends Error {
   }
 }
 
+/**
+ * Ile minut ma doba. Mieszka tu, przy przeliczeniach stref, bo pytają o nią
+ * trzy rzeczy naraz — rozkład Bloków, godziny otwarcia i zamknięcie po
+ * północy — a trzy kopie tej samej liczby rozjechałyby się co do minuty
+ * dokładnie tam, gdzie doba się kończy.
+ */
+export const MINUTES_IN_DAY = 1440
+
 const DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 
 function parseDay(day: CalendarDay): { year: number; month: number; date: number } {
@@ -112,6 +120,21 @@ export function localMomentToInstant(value: string, timeZone: string): Date | nu
   if (!day || hours > 23 || minutes > 59) return null
 
   return zonedMinuteToInstant(day, hours * 60 + minutes, timeZone)
+}
+
+/**
+ * Czy napis jest dniem kalendarzowym. Nie sam wzorzec: 31 lutego ma kształt
+ * daty, a nie ma dnia — więc sprawdzamy, czy zapis wraca z kalendarza taki
+ * sam, jaki do niego poszedł.
+ *
+ * Pytanie, a nie wyjątek, bo pyta o to formularz: data wpisana ręką bywa zła
+ * i jest to zwykły stan pola, a nie awaria (`InvalidCalendarDayError` zostaje
+ * dla dnia, który przychodzi **z bazy** i zły być nie miał prawa).
+ */
+export function isCalendarDay(value: string): boolean {
+  if (!DAY_PATTERN.exec(value)) return false
+  const { year, month, date } = parseDay(value)
+  return formatDay(Date.UTC(year, month - 1, date)) === value
 }
 
 /** Dzień tygodnia dnia kalendarzowego. Nie zależy od strefy — data już ją niesie. */
