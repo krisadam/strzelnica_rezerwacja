@@ -303,7 +303,9 @@ export type Database = {
           name: string
           notification_email: string | null
           participation_rate_gr: number
+          privacy_url: string
           slug: string
+          terms_text: string
           timezone: string
         }
         Insert: {
@@ -320,7 +322,9 @@ export type Database = {
           name: string
           notification_email?: string | null
           participation_rate_gr?: number
+          privacy_url?: string
           slug: string
+          terms_text?: string
           timezone?: string
         }
         Update: {
@@ -337,7 +341,9 @@ export type Database = {
           name?: string
           notification_email?: string | null
           participation_rate_gr?: number
+          privacy_url?: string
           slug?: string
+          terms_text?: string
           timezone?: string
         }
         Relationships: []
@@ -876,6 +882,15 @@ export type Database = {
           p_instructor_rate_gr: number
           p_min_lead_minutes: number
           p_participation_rate_gr: number
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      set_facility_embedding: {
+        Args: {
+          p_allowed_origins: string[]
+          p_privacy_url: string
+          p_terms_text: string
           p_user_id: string
         }
         Returns: boolean

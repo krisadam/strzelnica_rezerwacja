@@ -105,6 +105,22 @@ płaci to, co zobaczył, a nie to, co Strzelnica ustaliła po jego zgłoszeniu.
 Publiczna część modułu, osadzana na dowolnej stronie WWW przez skrypt
 tworzący ramkę. Widoczna dla Osoby rezerwującej.
 
+## Dozwolona domena
+
+Strona WWW, na której Strzelnica godzi się osadzić swój Widget. Lista bez ani
+jednego wpisu znaczy „nigdzie", a nie „wszędzie": brak zgody jest odpowiedzią,
+tak samo jak dzień pominięty w Godzinach otwarcia jest dniem zamkniętym.
+Skasowanie domeny zabiera Widget z tamtej strony, ale nie rusza Rezerwacji,
+które już z niej przyszły — mówi, gdzie Strzelnica nie sprzedaje, a nie komu
+odbiera termin.
+
+## Dokumenty Strzelnicy
+
+Regulamin i polityka prywatności, na które Osoba rezerwująca godzi się przy
+Rezerwacji. Należą do Strzelnicy, a nie do platformy: klient akceptuje warunki
+obiektu, na którym stanie na Osi. Niepodane znaczy Strzelnicę, która ich nie
+ma — zgoda zostaje wtedy sama, bez czego czytać.
+
 ## Panel
 
 Wewnętrzna część modułu, dostępna dla obsługi Strzelnicy po zalogowaniu:

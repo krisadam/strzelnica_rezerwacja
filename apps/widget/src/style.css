@@ -344,3 +344,26 @@ body {
   font-size: 1rem;
   margin: 1.5rem 0 0.6rem;
 }
+
+/* Dokumenty Strzelnicy przy zgodzie: regulamin do rozwinięcia i link do
+   polityki. Mniejszą czcionką niż pola formularza, bo są do przeczytania
+   przed zaznaczeniem zgody, a nie do wypełnienia. */
+.dokumenty {
+  margin: -0.25rem 0 1rem;
+  font-size: 0.9rem;
+}
+
+.dokumenty__regulamin summary {
+  cursor: pointer;
+}
+
+/* Regulamin jest tekstem wpisanym ręką w Panelu: jego akapity stoją tam,
+   gdzie zrobiła je Strzelnica. */
+.dokumenty__regulamin p {
+  white-space: pre-line;
+  margin: 0.5rem 0 0;
+}
+
+.dokumenty__polityka {
+  margin: 0.5rem 0 0;
+}

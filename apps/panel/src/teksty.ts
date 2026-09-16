@@ -12,6 +12,7 @@ import {
   MAX_INSTRUCTOR_POOL,
   MAX_LANE_CAPACITY,
   MAX_RATE_GR,
+  MAX_TERMS_LENGTH,
   MAX_TIME_RULE,
   MAX_UNIT_PRICE_GR,
   MAX_WEAPON_POOL,
@@ -21,6 +22,7 @@ import type {
   CatalogProblem,
   ClosureProblem,
   Database,
+  EmbeddingProblem,
   FacilityConfigProblem,
   HoursProblem,
   InstructorPresence,
@@ -627,6 +629,97 @@ export const teksty = {
       'nieznana-strzelnica':
         'To konto nie jest powiązane z żadną Strzelnicą. Zgłoś to operatorowi platformy.',
     } satisfies Record<FacilityConfigProblem, string>,
+  },
+
+  /**
+   * Osadzenie Widgetu i dokumenty Strzelnicy. Jedyny ekran konfiguracji, który
+   * mówi o cudzej stronie WWW — więc zdania są tu o tym, co obsługa ma zrobić
+   * u siebie, a nie o grafiku: skopiować znacznik, wpisać domenę, wkleić
+   * regulamin.
+   */
+  osadzenie: {
+    naglowek: 'Osadzenie i dokumenty',
+    wstep:
+      'Gdzie wolno pokazać Twój Widget i na jakich warunkach się u Ciebie ' +
+      'rezerwuje. Zmiana wchodzi natychmiast: domena skasowana z listy ' +
+      'przestaje osadzać przy następnym wejściu, a nowy regulamin widzi ' +
+      'pierwszy klient, który otworzy formularz.',
+    zapisz: 'Zapisz osadzenie i dokumenty',
+    zapisywanie: 'Zapisuję…',
+    zapisano: 'Osadzenie i dokumenty zapisane.',
+    blad: 'Nie udało się zapisać osadzenia. Spróbuj jeszcze raz za chwilę.',
+
+    znacznik: {
+      naglowek: 'Kod do wklejenia',
+      wstep:
+        'Wklej to na swojej stronie w miejscu, w którym ma stanąć rezerwacja. ' +
+        'Nic poza tym nie jest potrzebne — kalendarz pojawi się sam. Pamiętaj, ' +
+        'żeby domena tej strony stała niżej na liście dozwolonych.',
+      etykieta: 'Znacznik osadzenia',
+      kopiuj: 'Kopiuj',
+      skopiowano: 'Skopiowane.',
+      /**
+       * Adres Widgetu i identyfikator Strzelnicy są konfiguracją platformy,
+       * a nie jej własną, więc ich brak jest sprawą dla nas — i trzeba to
+       * powiedzieć wprost, żeby nikt nie szukał pola, którego tu nie ma.
+       */
+      brakZnacznika:
+        'Nie ma z czego złożyć znacznika — brakuje adresu, spod którego ' +
+        'podawany jest Widget, albo identyfikatora Twojej Strzelnicy. Jedno ' +
+        'i drugie ustawia operator platformy; zgłoś mu to.',
+    },
+
+    domeny: {
+      naglowek: 'Dozwolone domeny',
+      wstep:
+        'Strony, na których wolno osadzić Twój Widget. Pusta lista znaczy ' +
+        '„nigdzie": dopóki nie wpiszesz swojej domeny, przeglądarka nie pokaże ' +
+        'kalendarza u nikogo. Skasowanie domeny działa tak samo — zabiera ' +
+        'Widget z tamtej strony, ale nie rusza ani jednej Rezerwacji, która ' +
+        'już z niej przyszła.',
+      etykieta: 'Domena',
+      opis: 'Sam adres domeny, ze schematem i bez ścieżki, np. https://moja-strzelnica.pl',
+      dodaj: 'Dodaj domenę',
+      usun: (domena: string) => `Usuń ${domena}`,
+      pusta: 'Żadna strona nie może osadzić Twojego Widgetu.',
+      /**
+       * Wpis nie do odczytania — wytknięty od razu, zanim wejdzie na listę.
+       * Zdanie stoi tu, a nie bierze się z wyjątku `normalizeOrigin`: ten mówi
+       * do konsoli i do Edge Function, a na ekran Panelu idzie polszczyzna
+       * z tego słownika, tak samo jak każde inne zdanie tego ekranu.
+       */
+      zlyZapis:
+        'To nie jest domena: podaj sam adres ze schematem, bez ścieżki ' +
+        'i parametrów, np. https://moja-strzelnica.pl',
+    },
+
+    dokumenty: {
+      naglowek: 'Regulamin i polityka prywatności',
+      wstep:
+        'To, co klient akceptuje przy Rezerwacji. Twoje dokumenty, nie nasze — ' +
+        'dopóki są puste, przy zgodzie stoi samo zdanie o akceptacji i klient ' +
+        'nie ma czego przeczytać.',
+      regulamin: 'Treść regulaminu',
+      regulaminOpis: `Pokazuje się w Widgecie przy zgodzie; najwyżej ${MAX_TERMS_LENGTH} znaków.`,
+      polityka: 'Adres polityki prywatności',
+      politykaOpis: 'Pełny adres strony z polityką, np. https://moja-strzelnica.pl/prywatnosc',
+    },
+
+    /**
+     * Odmowy, każda z podpowiedzią co dalej. „Nieznana Strzelnica" znaczy konto
+     * bez powiązania — tak samo jak przy cenniku.
+     */
+    problem: {
+      'zla-domena':
+        'Któraś z domen nie jest domeną: ma być sam adres ze schematem, bez ' +
+        'ścieżki i parametrów, np. https://moja-strzelnica.pl',
+      'za-dlugi-regulamin': `Regulamin ma najwyżej ${MAX_TERMS_LENGTH} znaków. Zostaw w nim to, na co klient się godzi, a resztę wystaw na swojej stronie.`,
+      'zly-adres-polityki':
+        'Adres polityki prywatności ma być pełnym adresem strony, ' +
+        'np. https://moja-strzelnica.pl/prywatnosc. Pusty znaczy: nie podaję.',
+      'nieznana-strzelnica':
+        'To konto nie jest powiązane z żadną Strzelnicą. Zgłoś to operatorowi platformy.',
+    } satisfies Record<EmbeddingProblem, string>,
   },
 
   /**

@@ -15,6 +15,7 @@ import type {
 import { dayIn } from './calendar.ts'
 import type { Weekday } from './calendar.ts'
 import type { LaneClosure } from './closure.ts'
+import type { EmbeddingDraft, FacilityDocuments } from './facility.ts'
 import type { CalendarException, OpeningHours } from './hours.ts'
 import type { Tables } from './database.types.ts'
 import type { FacilityContact } from './management.ts'
@@ -171,6 +172,49 @@ export type FacilityContactRow = Pick<Tables<'facilities'>, 'contact_email' | 'c
  */
 export function facilityContactFromRow(row: FacilityContactRow): FacilityContact {
   return { email: row.contact_email, phone: row.contact_phone }
+}
+
+/**
+ * Kolumny dokumentów Strzelnicy. Publiczne jak `FacilityRow` i z tego samego
+ * powodu — regulamin jest ofertą, a nie daną obsługi — ale wypisane osobno, bo
+ * czyta je co innego: `FacilityRow` idzie do grafiku, a te do ekranu zgody.
+ */
+export type FacilityDocumentsRow = Pick<Tables<'facilities'>, 'terms_text' | 'privacy_url'>
+
+/**
+ * Regulamin i polityka prywatności Strzelnicy. Pusto przechodzi jako pusto:
+ * dokument niepodany jest stanem do pokazania wprost — Widget stawia wtedy
+ * samą zgodę — a nie brakiem do zastąpienia czymkolwiek naszym.
+ */
+export function facilityDocumentsFromRow(row: FacilityDocumentsRow): FacilityDocuments {
+  return { terms: row.terms_text, privacyUrl: row.privacy_url }
+}
+
+/**
+ * Kolumny ekranu osadzenia w Panelu: lista domen, dokumenty i identyfikator
+ * Strzelnicy, z którego składa się znacznik do wklejenia. Slug jest tu jedyną
+ * daną, której nie widzi `Facility` — grafiku nie obchodzi, a tego ekranu
+ * obchodzi najbardziej, bo to on trafia na cudzą stronę.
+ */
+export type FacilityEmbeddingRow = Pick<
+  Tables<'facilities'>,
+  'slug' | 'allowed_origins' | 'terms_text' | 'privacy_url'
+>
+
+/**
+ * Osadzenie Strzelnicy w kształcie, w jakim czyta je Panel: to, co jedzie
+ * z powrotem zapisem (`EmbeddingDraft`), oraz identyfikator, którego się nie
+ * zapisuje, bo nadaje go platforma.
+ */
+export type FacilityEmbedding = EmbeddingDraft & { slug: string }
+
+/** Osadzenie Strzelnicy wraz z jej identyfikatorem — tak, jak czyta je Panel. */
+export function facilityEmbeddingFromRow(row: FacilityEmbeddingRow): FacilityEmbedding {
+  return {
+    slug: row.slug,
+    allowedOrigins: row.allowed_origins,
+    ...facilityDocumentsFromRow(row),
+  }
 }
 
 /** Oś w kształcie, w jakim potrzebuje jej kalendarz. */

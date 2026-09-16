@@ -2,6 +2,7 @@ import type {
   AmmunitionKind,
   AmountBreakdown,
   BookingDraft,
+  FacilityDocuments,
   WeaponOccupancy,
   WeaponType,
 } from '@strzelnica/shared'
@@ -15,6 +16,46 @@ import { opisInstruktora, teksty } from './teksty.js'
 import { Wybrany } from './Wybrany.js'
 import { Wypozyczenia } from './Wypozyczenia.js'
 import { Zastrzezenia } from './Zastrzezenia.js'
+
+/**
+ * Regulamin i polityka prywatności **tej** Strzelnicy, postawione przy zgodzie.
+ * Nie nasze i nie ogólne: klient godzi się na warunki obiektu, na którym
+ * stanie na Osi, więc zgoda bez jego dokumentów byłaby zgodą na nic.
+ *
+ * Regulamin zwinięty, a nie rozwinięty: wypełniany formularz jest tym, po co
+ * Osoba rezerwująca przyszła, a kilka akapitów regulaminu odepchnęłoby
+ * przycisk poza ekran. Zwinięty jest **obecny** — to jest różnica między
+ * dokumentem do przeczytania a dokumentem, o którym się mówi, że istnieje.
+ *
+ * Dokumentu niepodanego nie ma tu wcale, zamiast pustego „Regulamin" do
+ * kliknięcia: Strzelnica, która go nie wpisała, żadnego nie ma, a my nie mamy
+ * czym go zastąpić.
+ */
+function Dokumenty({ documents }: { documents: FacilityDocuments }) {
+  if (!documents.terms && !documents.privacyUrl) return null
+
+  return (
+    <div className="dokumenty">
+      {documents.terms && (
+        <details className="dokumenty__regulamin">
+          <summary>{teksty.formularz.regulamin}</summary>
+          {/* `white-space: pre-line` w stylach: regulamin jest tekstem
+              wpisanym ręką, więc jego akapity są tam, gdzie ktoś je zrobił. */}
+          <p>{documents.terms}</p>
+        </details>
+      )}
+      {documents.privacyUrl && (
+        <p className="dokumenty__polityka">
+          {/* Nowa karta, bo Widget bywa ramką na cudzej stronie: odejście
+              z niej skasowałoby wypełniony formularz. */}
+          <a href={documents.privacyUrl} target="_blank" rel="noreferrer noopener">
+            {teksty.formularz.polityka}
+          </a>
+        </p>
+      )}
+    </div>
+  )
+}
 
 /**
  * Formularz Rezerwacji. Zastrzeżenia liczy `bookingProblems` — ta sama czysta
@@ -32,6 +73,7 @@ export function Formularz({
   wybor,
   timeZone,
   kwota,
+  documents,
   weaponTypes,
   weaponOccupancies,
   ammunitionKinds,
@@ -44,6 +86,8 @@ export function Formularz({
   timeZone: string
   /** Kwota dla tego, co stoi w zgłoszeniu; przeliczana przy każdej zmianie. */
   kwota: AmountBreakdown
+  /** Regulamin i polityka prywatności tej Strzelnicy — to, na co idzie zgoda. */
+  documents: FacilityDocuments
   weaponTypes: readonly WeaponType[]
   weaponOccupancies: readonly WeaponOccupancy[]
   ammunitionKinds: readonly AmmunitionKind[]
@@ -158,6 +202,8 @@ export function Formularz({
         />
         <span>{teksty.formularz.zgoda}</span>
       </label>
+
+      <Dokumenty documents={documents} />
 
       <Kwota amount={kwota} />
 

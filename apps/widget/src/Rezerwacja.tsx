@@ -211,6 +211,7 @@ export function Rezerwacja({
         wybor={odswiezony(krok.wybor)}
         timeZone={facility.timeZone}
         kwota={kwotaDla(krok.wybor)}
+        documents={grafik.documents}
         weaponTypes={grafik.weaponTypes}
         weaponOccupancies={zajetosc.weapons}
         ammunitionKinds={grafik.ammunitionKinds}

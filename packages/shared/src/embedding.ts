@@ -1,7 +1,13 @@
 /**
  * Osadzenie Widgetu na obcej stronie: adres ramki, protokół `postMessage`
- * między Widgetem a skryptem-loaderem oraz nagłówek `frame-ancestors`.
- * Zobacz ADR 0002.
+ * między Widgetem a skryptem-loaderem, nagłówek `frame-ancestors`, gotowy
+ * znacznik do wklejenia oraz dokumenty Strzelnicy, na które klient godzi się
+ * przy Rezerwacji. Zobacz ADR 0002.
+ *
+ * Regulamin i polityka prywatności stoją tu, a nie przy konfiguracji
+ * Strzelnicy, bo są **częścią osadzenia**: jadą jednym formularzem i jednym
+ * zapisem razem z listą domen — tym samym, którym Strzelnica odpowiada na
+ * pytanie „na czyjej stronie i na czyich warunkach się u mnie rezerwuje".
  *
  * Wszystko tutaj jest czystą funkcją, bo każdy z tych trzech kawałków ma
  * dwie strony i muszą się zgadzać: skrypt na stronie gospodarza i Widget
@@ -136,4 +142,31 @@ export function frameAncestors(origins: string[]): string {
   const dozwolone = [...new Set(origins.map(normalizeOrigin))]
   if (dozwolone.length === 0) return "frame-ancestors 'none'"
   return `frame-ancestors ${dozwolone.join(' ')}`
+}
+
+/**
+ * Znacznik, który Użytkownik panelu kopiuje i wkleja u siebie na stronie —
+ * ten sam, który opisuje `embed.ts`. Liczony tutaj, bo Panel ma go pokazać
+ * gotowego do skopiowania, a wypisany w tekście ekranu rozjechałby się ze
+ * skryptem przy pierwszej zmianie nazwy atrybutu.
+ *
+ * Adres Widgetu jest naszą domeną, jednakową dla wszystkich Strzelnic, więc
+ * przychodzi z konfiguracji platformy, a nie z danych Strzelnicy — tak samo
+ * jak `WIDGET_ORIGIN` w środowisku Edge Functions.
+ */
+export function embedSnippet({
+  widgetOrigin,
+  facilitySlug,
+}: {
+  widgetOrigin: string
+  facilitySlug: string
+}): string {
+  const slug = facilitySlug.trim()
+  if (!slug) throw new Error('Znacznik osadzenia nie wskazuje Strzelnicy.')
+
+  // Przez `normalizeOrigin`, a nie przez sklejenie napisów: adres ze ścieżką
+  // albo bez schematu dałby znacznik, który u gospodarza nic nie wczyta —
+  // a to jest dokładnie ten kawałek konfiguracji, którego nikt nie ogląda.
+  const skrypt = new URL('embed.js', `${normalizeOrigin(widgetOrigin)}/`)
+  return `<script src="${skrypt.toString()}" data-strzelnica="${slug}"></script>`
 }

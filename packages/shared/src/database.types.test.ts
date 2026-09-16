@@ -21,6 +21,8 @@ describe('typy ze schematu bazy', () => {
       notification_email: 'recepcja@example.pl',
       contact_email: 'kontakt@example.pl',
       contact_phone: '+48 123 456 789',
+      terms_text: 'Regulamin Strzelnicy Demo',
+      privacy_url: 'https://example.pl/prywatnosc',
       created_at: '2026-01-01T00:00:00Z',
     }
 

@@ -19,7 +19,7 @@
 insert into public.facilities (
   id, slug, name, booking_horizon_days, min_lead_minutes, cancellation_window_hours,
   allowed_origins, instructor_pool, participation_rate_gr, instructor_rate_gr,
-  notification_email, contact_email, contact_phone
+  notification_email, contact_email, contact_phone, terms_text, privacy_url
 )
 values (
   '00000000-0000-0000-0000-000000000001',
@@ -38,7 +38,15 @@ values (
   -- Kontakt podawany klientom — inny niż skrzynka obsługi, bo to on wychodzi
   -- na ekran po upływie Okna anulowania.
   'kontakt@strzelnica-demo.example.pl',
-  '+48 123 456 789'
+  '+48 123 456 789',
+  -- Regulamin i polityka są dokumentami **tej** Strzelnicy: klient godzi się
+  -- na nie, a nie na nasze. Demo ma je wypisane, bo bez nich Widget pokazuje
+  -- samą zgodę i nie widać, co ten ekran w ogóle podaje do przeczytania.
+  'Na Osi obowiązuje bezwzględne posłuszeństwo wobec Instruktora. '
+    || 'Broń kieruje się wyłącznie w stronę kulochwytu, także rozładowaną. '
+    || 'Za osoby niepełnoletnie odpowiada opiekun obecny na Osi. '
+    || 'Rozliczenie następuje na miejscu, gotówką lub kartą.',
+  'https://strzelnica-demo.example.pl/prywatnosc'
 )
 on conflict (id) do nothing;
 
@@ -301,7 +309,8 @@ on conflict (id) do nothing;
 -- — Osie, rozkład, godziny, wyjątek, oba katalogi, Rezerwacje z pozycjami
 -- i list w skrzynce — a nie sam szkielet.
 --
--- Bez dozwolonych domen: Widgetu nikt tu nie osadza. Konfiguracja celowo różna
+-- Bez dozwolonych domen i bez dokumentów: Widgetu nikt tu nie osadza, a zgoda
+-- stoi w nim sama — tak wygląda Strzelnica, która jeszcze nic nie wypełniła. Konfiguracja celowo różna
 -- od demonstracyjnej co do każdej stawki i co do Puli instruktorów — obca
 -- podstawiona pod Panel demo nie byłaby do odróżnienia od własnej, gdyby obie
 -- miały te same liczby.

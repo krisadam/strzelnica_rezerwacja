@@ -10,6 +10,7 @@ import { Kalendarz } from './Kalendarz.js'
 import { Katalogi } from './Katalogi.js'
 import { Lista } from './Lista.js'
 import { Logowanie } from './Logowanie.js'
+import { Osadzenie } from './Osadzenie.js'
 import { Osie } from './Osie.js'
 import { RecznyWpis } from './RecznyWpis.js'
 import { Rozklad } from './Rozklad.js'
@@ -68,7 +69,16 @@ const ODSWIEZANIE_MS = 60_000
  * jej **identyfikator**, a nie ją samą: odświeżenie ma zmienić także ten ekran,
  * a zapamiętany obiekt zostałby na nim taki, jaki był o poranku.
  */
-function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
+function Rezerwacje({
+  client,
+  sesja,
+  widgetOrigin,
+}: {
+  client: PanelClient
+  sesja: Sesja
+  /** Adres, spod którego podajemy Widget; z niego składa się znacznik osadzenia. */
+  widgetOrigin: string
+}) {
   const [stan, setStan] = useState<Stan>({ faza: 'wczytywanie' })
   const [dzien, setDzien] = useState<CalendarDay | null>(null)
   const [filtr, setFiltr] = useState<BookingFilter>({ day: null, laneId: null })
@@ -261,6 +271,16 @@ function Rezerwacje({ client, sesja }: { client: PanelClient; sesja: Sesja }) {
             onZapisano={odswiez}
             onWybierz={(wpis) => setWybraneId(wpis.id)}
           />
+          {/* Osadzenie na samym końcu, bo jako jedyne nie mówi o Strzelnicy
+              wcale: mówi o cudzej stronie WWW, na której stanie jej Widget,
+              i o dokumentach, które klient tam przeczyta. Ustawia się je raz,
+              przy uruchamianiu, i wraca do nich najrzadziej ze wszystkiego. */}
+          <Osadzenie
+            client={client}
+            embedding={dane.embedding}
+            widgetOrigin={widgetOrigin}
+            onZapisano={odswiez}
+          />
         </>
       )}
     </>
@@ -296,6 +316,13 @@ function usePolaczenie(): Polaczenie {
  */
 export function App() {
   const polaczenie = usePolaczenie()
+  /**
+   * Adres, spod którego podajemy Widget — nasza domena, jednakowa dla
+   * wszystkich Strzelnic, więc konfiguracja platformy, a nie dana Strzelnicy.
+   * Tak samo jak `WIDGET_ORIGIN` w środowisku Edge Functions; brak zatrzymuje
+   * się dopiero na ekranie osadzenia, bo tylko on go czyta.
+   */
+  const widgetOrigin = srodowisko().VITE_WIDGET_ORIGIN ?? ''
   const client = 'client' in polaczenie ? polaczenie.client : null
   const [sesja, setSesja] = useState<Sesja | null>(null)
   const [sprawdzona, setSprawdzona] = useState(false)
@@ -319,7 +346,7 @@ export function App() {
         // czasie wyglądałby na wylogowanie.
         <p className="komunikat">{teksty.wczytywanie}</p>
       ) : sesja ? (
-        <Rezerwacje client={client} sesja={sesja} />
+        <Rezerwacje client={client} sesja={sesja} widgetOrigin={widgetOrigin} />
       ) : (
         <Logowanie client={client} />
       )}
