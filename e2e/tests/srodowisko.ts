@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { readEnvFile } from '@strzelnica/shared'
 
 /**
  * Dostęp do bazy rolą serwisową — wyłącznie dla testów.
@@ -20,23 +21,22 @@ let wczytane: Record<string, string> | null = null
 /**
  * Zmienne z pliku `.env`. Czytane raz i zapamiętane. Zmienna podana
  * w środowisku procesu wygrywa z plikiem — tak, jak dzieje się na CI.
+ *
+ * Sam rozbiór pliku należy do `packages/shared` (`readEnvFile`): czyta go także
+ * skrypt operatora platformy, a plik odczytany tam inaczej niż tutaj znaczyłby
+ * testy mierzące inną bazę niż ta, którą zakładają.
  */
 function srodowisko(): Record<string, string> {
   if (wczytane) return wczytane
 
-  const plik: Record<string, string> = {}
+  let plik: Record<string, string | undefined> = {}
   try {
-    for (const linia of readFileSync(KORZEN_ENV, 'utf8').split(/\r?\n/)) {
-      const dopasowanie = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"?(.*?)"?\s*$/.exec(linia)
-      if (!dopasowanie) continue
-      const [, nazwa, wartosc] = dopasowanie
-      if (nazwa && wartosc !== undefined) plik[nazwa] = wartosc
-    }
+    plik = readEnvFile(readFileSync(KORZEN_ENV, 'utf8'))
   } catch {
     // Brak pliku nie jest tu błędem — zmienne mogą stać w środowisku procesu.
   }
 
-  wczytane = { ...plik, ...(process.env as Record<string, string>) }
+  wczytane = { ...plik, ...(process.env as Record<string, string>) } as Record<string, string>
   return wczytane
 }
 

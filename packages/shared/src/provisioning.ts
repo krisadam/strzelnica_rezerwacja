@@ -17,6 +17,7 @@
  * To jest pytanie do bazy — odpowiada na nie jedyność kolumny `facilities.slug`
  * — a nie do napisu.
  */
+import { EMAIL_PATTERN } from './booking.ts'
 
 /**
  * Najdłuższy identyfikator, jaki przyjmujemy. Nie bierze się z domeny, tylko
@@ -64,7 +65,11 @@ export type ProvisioningDraft = {
   name: string
   /** Adres pierwszego konta Panelu; on jest nazwą konta przy logowaniu. */
   email: string
-  /** Hasło tego konta; puste znaczy „wylosuj", a nie „konto bez hasła". */
+  /**
+   * Hasło tego konta. Puste (`null`) znaczy „wylosuj", a nie „konto bez
+   * hasła" — i bierze się wyłącznie z **pominiętego** argumentu: `--haslo=`
+   * bez treści jest hasłem za krótkim, czyli pomyłką do wytknięcia.
+   */
   password: string | null
 }
 
@@ -78,13 +83,6 @@ export type ProvisioningProblem =
   | 'niepoprawny-email'
   /** Hasło podane przez operatora krótsze, niż przyjmuje Supabase Auth. */
   | 'za-krotkie-haslo'
-
-/**
- * Adres e-mail sprawdzany zgrubnie: coś, małpa, coś z kropką. Ta sama miara,
- * co przy Osobie rezerwującej — i z tego samego powodu: ostrzejszy wzorzec
- * odrzucałby adresy, które istnieją, a i tak nie dowiódłby, że adresat odbiera.
- */
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
  * Wszystkie zastrzeżenia naraz, w kolejności argumentów polecenia — tak samo
@@ -176,7 +174,11 @@ export function readProvisioningArguments(argv: readonly string[]): Provisioning
     slug: wymagany(wartosci, IDENTYFIKATOR),
     name: wymagany(wartosci, NAZWA),
     email: wymagany(wartosci, EMAIL),
-    password: wartosci.get(HASLO)?.trim() ?? null,
+    // Hasło bez obcinania spacji, inaczej niż trzy pozostałe: spacja bywa jego
+    // znakiem, a konto założone z hasłem innym niż wpisane byłoby kontem,
+    // do którego operator nie wejdzie — i nie dowie się dlaczego, bo hasła
+    // podanego z ręki skrypt nie wypisuje.
+    password: wartosci.get(HASLO) ?? null,
   }
 }
 

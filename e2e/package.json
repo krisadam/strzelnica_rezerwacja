@@ -8,6 +8,9 @@
     "test:ui": "playwright test --ui",
     "typecheck": "tsc -p tsconfig.json"
   },
+  "dependencies": {
+    "@strzelnica/shared": "workspace:*"
+  },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
     "@types/node": "^22.15.0",

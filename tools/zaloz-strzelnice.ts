@@ -101,14 +101,30 @@ function srodowisko(): Record<string, string | undefined> {
  * odmowę **dziedzinową** — zajęty adres konta — i odróżnia ją od awarii.
  */
 class BladZadania extends Error {
-  /** Pole przypisane w ciele, a nie skrótem w nagłówku konstruktora: Node
+  /** Pola przypisane w ciele, a nie skrótem w nagłówku konstruktora: Node
    * uruchamia ten plik, zdejmując z niego typy, a skrótu zdjąć nie umie. */
   status: number
+  tresc: string
 
   constructor(status: number, gdzie: string, tresc: string) {
     super(`${gdzie} odpowiedziało kodem ${status}: ${tresc}`)
     this.name = 'BladZadania'
     this.status = status
+    this.tresc = tresc
+  }
+
+  /**
+   * Czy GoTrue odmówił, bo adres należy już do innego konta. Pytamy o treść,
+   * a nie o sam kod: 422 jest kodem tej odmowy w wydaniu, na którym pracujemy,
+   * ale starsze odpowiadają na to samo kodem 400 — a wtedy operator dostałby
+   * surową odpowiedź API zamiast zdania po polsku. Hasło za krótkie tędy nie
+   * przejdzie: odsiewa je `provisioningProblems`, zanim cokolwiek pójdzie
+   * w sieć.
+   */
+  oZajetymAdresie(): boolean {
+    return (
+      (this.status === 400 || this.status === 422) && /registered|already exists/i.test(this.tresc)
+    )
   }
 }
 
@@ -164,6 +180,24 @@ async function juzIstnieje(config: ServiceConfig, slug: string): Promise<boolean
 }
 
 /**
+ * Identyfikator zajęty przez inną Strzelnicę. Pada w dwóch miejscach i jest to
+ * ta sama odmowa: raz z pytania zadanego przed zapisem — żeby nie zakładać
+ * konta pod Strzelnicę, która i tak nie wejdzie — raz z samego zapisu, gdy
+ * między jednym a drugim ktoś zdążył ten identyfikator zająć. Rozstrzyga
+ * jedyność kolumny `facilities.slug`, a pytanie wcześniej jest wyłącznie po to,
+ * żeby powiedzieć operatorowi, co jest nie tak.
+ */
+class ZajetyIdentyfikatorError extends Error {
+  constructor(slug: string) {
+    super(
+      `Strzelnica o identyfikatorze „${slug}" już istnieje. Nic nie zostało zmienione.\n` +
+        'Podaj inny identyfikator albo zmieniaj tę Strzelnicę z Panelu.',
+    )
+    this.name = 'ZajetyIdentyfikatorError'
+  }
+}
+
+/**
  * Adres zajęty przez inne konto. GoTrue odmawia wtedy kodem 422 — a jest to
  * odmowa dziedzinowa, nie awaria: operator ma przeczytać, że tym adresem ktoś
  * już się loguje, a nie surową odpowiedź API.
@@ -203,7 +237,7 @@ async function zaloz(
       body: JSON.stringify({ email: draft.email, password: haslo, email_confirm: true }),
     })
   } catch (blad) {
-    if (blad instanceof BladZadania && blad.status === 422) {
+    if (blad instanceof BladZadania && blad.oZajetymAdresie()) {
       throw new ZajetyAdresError(draft.email)
     }
     throw blad
@@ -223,7 +257,12 @@ async function zaloz(
     })
   } catch (blad) {
     await posprzataj(config, { facilityId: strzelnica?.id ?? null, userId: konto.id })
-    throw blad
+    // Naruszenie jedyności `slug` — PostgREST kwituje je kodem 409 — to nie
+    // awaria, tylko ta sama odmowa, którą wypisuje pytanie przed zapisem.
+    // Tędy przechodzi wyłącznie identyfikator zajęty **w międzyczasie**.
+    throw blad instanceof BladZadania && blad.status === 409
+      ? new ZajetyIdentyfikatorError(draft.slug)
+      : blad
   }
 }
 
@@ -231,23 +270,37 @@ async function zaloz(
  * Cofnięcie tego, co skrypt zdążył założyć w tym przebiegu. Kasuje wyłącznie
  * własne wiersze — Strzelnica jest tu pusta i świeża, więc nie ma w niej ani
  * Rezerwacji, ani niczego, co ktoś zdążyłby wpisać.
- *
- * Niepowodzenie samego sprzątania nie przesłania błędu, przez który sprzątamy:
- * operator ma zobaczyć, co naprawdę poszło nie tak, a wiersz, którego nie
- * udało się skasować, wypisuje się obok jako osobne zdanie — razem z numerem,
- * bo bez niego nikt go nie znajdzie.
  */
 async function posprzataj(
   config: ServiceConfig,
   co: { facilityId: string | null; userId: string },
 ): Promise<void> {
+  // Każde kasowanie we własnym `try`: nieudane pierwsze nie ma powodu
+  // zabierać ze sobą drugiego, a zostawione konto jest tu gorszą pozostałością
+  // niż pusta Strzelnica — zajmuje adres, którym operator chciałby powtórzyć
+  // polecenie.
+  if (co.facilityId) {
+    await skasuj(`Strzelnica ${co.facilityId}`, () =>
+      baza(config, `facilities?id=eq.${co.facilityId}`, { method: 'DELETE' }),
+    )
+  }
+  await skasuj(`konto ${co.userId}`, () =>
+    auth(config, `admin/users/${co.userId}`, { method: 'DELETE' }),
+  )
+}
+
+/**
+ * Kasowanie, którego niepowodzenie nie przesłania błędu, przez który
+ * sprzątamy: operator ma zobaczyć, co naprawdę poszło nie tak, a wiersz,
+ * którego nie udało się usunąć, wypisuje się obok jako osobne zdanie — razem
+ * z numerem, bo bez niego nikt go nie znajdzie.
+ */
+async function skasuj(co: string, kasowanie: () => Promise<unknown>): Promise<void> {
   try {
-    if (co.facilityId) await baza(config, `facilities?id=eq.${co.facilityId}`, { method: 'DELETE' })
-    await auth(config, `admin/users/${co.userId}`, { method: 'DELETE' })
+    await kasowanie()
   } catch (blad) {
     console.error(
-      'Nie udało się posprzątać po nieudanym zakładaniu — zostaje do skasowania ' +
-        `konto ${co.userId}${co.facilityId ? ` i Strzelnica ${co.facilityId}` : ''}: ${opis(blad)}`,
+      `Nie udało się posprzątać po nieudanym zakładaniu — zostaje do skasowania ${co}: ${opis(blad)}`,
     )
   }
 }
@@ -257,7 +310,7 @@ function opis(blad: unknown): string {
 }
 
 /** Wiersz podsumowania: nazwa pola i wartość, wyrównane do jednej kolumny. */
-function wiersz(nazwa: string, wartosc: string): string {
+function wierszPodsumowania(nazwa: string, wartosc: string): string {
   return `  ${nazwa.padEnd(14)}${wartosc}`
 }
 
@@ -288,13 +341,7 @@ async function main(): Promise<number> {
     return 1
   }
 
-  if (await juzIstnieje(config, draft.slug)) {
-    console.error(
-      `Strzelnica o identyfikatorze „${draft.slug}" już istnieje. Nic nie zostało zmienione.\n` +
-        'Podaj inny identyfikator albo zmieniaj tę Strzelnicę z Panelu.',
-    )
-    return 1
-  }
+  if (await juzIstnieje(config, draft.slug)) throw new ZajetyIdentyfikatorError(draft.slug)
 
   // Losowość bierze się tutaj, a samo hasło składa czysta funkcja: generator
   // jest jedyną rzeczą w tym rachunku, której nie da się sprawdzić testem.
@@ -304,11 +351,11 @@ async function main(): Promise<number> {
   await zaloz(config, draft, haslo)
 
   console.log('Strzelnica założona.\n')
-  console.log(wiersz('Identyfikator', draft.slug))
-  console.log(wiersz('Nazwa', draft.name))
-  console.log(wiersz('Konto Panelu', draft.email))
+  console.log(wierszPodsumowania('Identyfikator', draft.slug))
+  console.log(wierszPodsumowania('Nazwa', draft.name))
+  console.log(wierszPodsumowania('Konto Panelu', draft.email))
   if (wylosowane) {
-    console.log(wiersz('Hasło', haslo))
+    console.log(wierszPodsumowania('Hasło', haslo))
     console.log(
       '\nHasła nie da się odzyskać ani zmienić z Panelu — przekaż je Strzelnicy tak,\n' +
         'jak przekazuje się hasła, i zachowaj do czasu, aż potwierdzi, że weszła.',

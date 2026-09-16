@@ -149,8 +149,14 @@ function empty(value: string): boolean {
  * Adres e-mail sprawdzany zgrubnie: coś, małpa, coś z kropką. Ostrzejszy
  * wzorzec odrzucałby adresy, które istnieją, a i tak nie dowiódłby, że adresat
  * odbiera — to rozstrzyga dopiero potwierdzenie adresu (ticket #10).
+ *
+ * Jedna kopia dla całego modułu: tę samą miarę przykłada się do adresu Osoby
+ * rezerwującej i do adresu konta Panelu zakładanego przez operatora
+ * (`provisioning.ts`). Druga kopia rozjechałaby się przy pierwszej poprawce,
+ * a rozjazd znaczyłby adres przyjęty w jednym formularzu i odrzucony
+ * w drugim. Poza pakiet nie wychodzi — jest regułą, nie ustawieniem.
  */
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
  * Pozycja Rezerwacji sprowadzona do tego, co w niej istotne: co i ile sztuk.

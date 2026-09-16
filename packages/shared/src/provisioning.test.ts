@@ -117,7 +117,15 @@ describe('argumenty polecenia', () => {
     )
   })
 
-  it('obcina spacje wokół wartości', () => {
+  it('zostawia hasło takim, jakim je podano — ze spacjami włącznie', () => {
+    // Spacja bywa znakiem hasła, a konto założone z hasłem innym niż wpisane
+    // byłoby kontem, do którego operator nie wejdzie.
+    expect(readProvisioningArguments([...komplet, '--haslo=  hasło z brzegami  '])).toEqual(
+      zamiar({ password: '  hasło z brzegami  ' }),
+    )
+  })
+
+  it('obcina spacje wokół pozostałych wartości', () => {
     expect(
       readProvisioningArguments([
         '--identyfikator=  strzelnica-nowa ',
