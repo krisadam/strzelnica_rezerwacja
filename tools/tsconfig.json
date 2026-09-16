@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // Skrypty operatora biegną w Node: czytają argumenty polecenia, plik `.env`
+    // i losują bajty. Ten sam wpis, co w `e2e`.
+    "types": ["node"]
+  },
+  "include": ["*.ts"]
+}

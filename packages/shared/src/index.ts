@@ -1,7 +1,23 @@
 export type { Database, Json, Tables, TablesInsert, TablesUpdate } from './database.types.ts'
 export type { AmmunitionDemand, AmmunitionKind } from './ammunition.ts'
-export { MissingSupabaseConfigError, readSupabaseConfig } from './config.ts'
-export type { Environment, SupabaseConfig } from './config.ts'
+export {
+  MissingSupabaseConfigError,
+  readEnvFile,
+  readServiceConfig,
+  readSupabaseConfig,
+} from './config.ts'
+export type { Environment, ServiceConfig, SupabaseConfig } from './config.ts'
+export {
+  FACILITY_SLUG_PATTERN,
+  MalformedProvisioningArgumentsError,
+  MAX_FACILITY_SLUG_LENGTH,
+  MIN_PANEL_PASSWORD_LENGTH,
+  PANEL_PASSWORD_BYTES,
+  panelPassword,
+  provisioningProblems,
+  readProvisioningArguments,
+} from './provisioning.ts'
+export type { ProvisioningDraft, ProvisioningProblem } from './provisioning.ts'
 export {
   addDays,
   dayIn,

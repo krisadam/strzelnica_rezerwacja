@@ -78,10 +78,15 @@ export function dzienZaDni(oIleDni: number): string {
  * izolacji, bo obie grupy pytają o to samo z dwóch stron: jedna, co konto
  * widzi, druga — czego nie.
  */
-export async function zalogujDoPanelu(page: Page, email: string): Promise<void> {
+export async function zalogujDoPanelu(
+  page: Page,
+  email: string,
+  /** Hasło inne niż seedowe ma jeden przypadek: konto założone przez skrypt. */
+  haslo = HASLO_PANELU,
+): Promise<void> {
   await page.goto(PANEL_URL)
   await page.getByLabel('Adres e-mail').fill(email)
-  await page.getByLabel('Hasło').fill(HASLO_PANELU)
+  await page.getByLabel('Hasło').fill(haslo)
   await page.getByRole('button', { name: 'Zaloguj' }).click()
   await expect(page.getByRole('button', { name: 'Wyloguj' })).toBeVisible()
 }

@@ -1,18 +1,12 @@
 {
-  "name": "@strzelnica/e2e",
+  "name": "@strzelnica/tools",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "playwright test",
-    "test:ui": "playwright test --ui",
     "typecheck": "tsc -p tsconfig.json"
   },
-  "dependencies": {
-    "@strzelnica/shared": "workspace:*"
-  },
   "devDependencies": {
-    "@playwright/test": "^1.55.0",
     "@types/node": "^22.15.0",
     "typescript": "^5.9.2"
   }
