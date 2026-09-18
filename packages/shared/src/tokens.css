@@ -3,23 +3,88 @@
    która kiedyś odpowie innym odcieniem, a CSS nie ma jak zauważyć, że granat
    w Panelu przestał być granatem Widgetu.
 
-   Jeden wygląd dla wszystkich Strzelnic — bez konfiguracji kolorów.
+   Jeden wygląd dla wszystkich Strzelnic — bez konfiguracji kolorów. Motyw
+   ciemny nie jest wyjątkiem od tej zasady: przełącznika nie ustawia żadna
+   Strzelnica, tylko aplikacja, i docelowo obie naraz (ADR 0014).
 
    Oba arkusze importują ten plik u siebie, a nie w module wejściowym swojej
    aplikacji: arkusz ma być samowystarczalny i mówić czytającemu, skąd biorą
    się zmienne, których używa. */
+
 :root {
+  /* Paleta jasna — ta, którą moduł ma dziś na ekranie. Zostaje wartością
+     domyślną, dopóki obie aplikacje nie przejdą na ciemną własnymi ticketami:
+     przestawienie jej tutaj przemalowałoby naraz Panel i Widget, a arkusze obu
+     trzeba dostosować osobno. */
   --tlo: #ffffff;
   --tlo-drugie: #f5f6f8;
   --tekst: #16181d;
   --przygaszony: #5d636e;
   --ramka: #d5d9e0;
+  /* Akcent — kolor rzeczy, którą moduł wskazuje: przycisku głównego i tego, co
+     wybrane. Dotąd tę rolę pełnił kolor wolnego terminu, przez co zieleń mówiła
+     naraz „ten termin jest do wzięcia" i „naciśnij mnie" (ADR 0014). Nikt go
+     jeszcze nie używa; bierze go ticket przemalowujący aplikację.
+
+     ADR podaje bursztyn dla bazy ciemnej i o jasnej nie mówi nic. Ta wartość
+     jest więc tym samym bursztynem przyciemnionym tyle, ile trzeba, by trzymał
+     4,5:1 na bieli (5,2:1) — token pusty w jednym wariancie byłby dziurą, na
+     którą natknąłby się dopiero ktoś przełączający motyw. */
+  --akcent: #a8570a;
   --wolny: #1f7a3f;
   --blad: #a3232b;
   /* Blokada nie jest ani wolnym terminem, ani błędem — jest Osią wyjętą z
      obiegu, więc bierze kolor obok tamtych dwóch, nie któryś z nich. */
   --wylaczony: #6b4ea8;
+
+  /* Promienie i skala nagłówków stoją poza przełącznikiem motywu, bo motyw ich
+     nie dotyczy: kształt kontrolki i wielkość nagłówka są w obu paletach te
+     same. Wartości niosą skalę Panelu i są zgodne z ADR 0014 — promienie
+     drobne, nie osiemnastopunktowe z referencji.
+
+     Nie są to wartości, które da się dziś podstawić w obu arkuszach bez śladu:
+     Widget ma u siebie miejsca z promieniem 0,4 rem i nagłówki 1,05 rem oraz
+     1 rem tam, gdzie ta skala mówi 1,1 rem i 0,95 rem. Jedna skala dla obu
+     aplikacji jest celem, a różnice zbiera ticket przemalowujący Widget —
+     tu nikt tych zmiennych jeszcze nie używa, więc nic się nie przesuwa. */
+  --promien-drobny: 0.35rem;
+  --promien: 0.5rem;
+  --naglowek-1: 1.35rem;
+  --naglowek-2: 1.1rem;
+  --naglowek-3: 0.95rem;
+
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: var(--tekst);
   background: var(--tlo);
+}
+
+/* Paleta ciemna (ADR 0014): granatowa baza, kremowy tekst, bursztynowy akcent,
+   hierarchia budowana obwódkami na jednym płaskim tle, a nie warstwami
+   jasności. Wartości pochodzą z prototypu, który tę decyzję rozstrzygnął.
+
+   Włącza ją jeden atrybut na korzeniu dokumentu — `<html data-motyw="ciemny">`.
+   Nie ustawia go dziś ani Panel, ani Widget, więc obie aplikacje wyglądają
+   dokładnie tak, jak przed dołożeniem tego bloku. Przełącznik jest po to, żeby
+   każda z nich weszła w nową paletę własnym ticketem: ich arkusze trzeba
+   dostosować osobno, a stan, w którym jedna aplikacja jest przemalowana
+   w połowie, byłby gorszy od obu jasnych.
+
+   Każdy kolor tekstu i każdy kolor stanu trzyma tu co najmniej 4,5:1 wobec obu
+   teł — policzone, nie ocenione okiem. Sprawdza to `tokens.test.ts`, który
+   czyta ten plik: odcień „uspokojony" później cofnąłby przy okazji dostępność
+   publicznego formularza rezerwacji. Jedynym kolorem poza tym rachunkiem jest
+   obwódka: nie niesie ani tekstu, ani stanu. */
+:root[data-motyw='ciemny'] {
+  --tlo: #0e1726;
+  --tlo-drugie: #16223a;
+  --tekst: #f2eadf;
+  --przygaszony: #a9b4c7;
+  --ramka: #2c3c5c;
+  --akcent: #e08a3c;
+  /* Kolory stanu musiały pojaśnieć, a nie stonować się: na granacie ciemna
+     zieleń wolnego terminu i ciemna czerwień błędu schodzą poniżej progu
+     czytelności. */
+  --wolny: #4bbf7b;
+  --blad: #f0736f;
+  --wylaczony: #a98be0;
 }

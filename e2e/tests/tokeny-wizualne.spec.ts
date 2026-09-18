@@ -46,3 +46,28 @@ for (const { nazwa, adres } of APLIKACJE) {
     expect(await zmiennaCss(page, TOKEN)).toBe(WARTOSC)
   })
 }
+
+/**
+ * Ciemna paleta modułu (ADR 0014) stoi w tym samym arkuszu obok jasnej i czeka
+ * na tickety przemalowujące obie aplikacje. Świadkiem jest ten sam token: jego
+ * ciemny odpowiednik.
+ *
+ * Wartości kontrastu pilnuje test jednostkowy przy arkuszu tokenów, bo da się
+ * ją policzyć bez przeglądarki. Tutaj chodzi o rzecz, której policzyć się nie
+ * da: czy przełącznik faktycznie przemalowuje wyrenderowany dokument — i czy
+ * dopóki nikt go nie ustawia, aplikacja stoi przy palecie jasnej.
+ */
+const WARTOSC_CIEMNA = '#a98be0'
+
+for (const { nazwa, adres } of APLIKACJE) {
+  test(`${nazwa} nie włącza ciemnego motywu, ale daje się nań przełączyć`, async ({ page }) => {
+    await page.goto(adres)
+
+    expect(await page.locator('html').getAttribute('data-motyw')).toBeNull()
+    expect(await zmiennaCss(page, TOKEN)).toBe(WARTOSC)
+
+    await page.evaluate(() => document.documentElement.setAttribute('data-motyw', 'ciemny'))
+
+    expect(await zmiennaCss(page, TOKEN)).toBe(WARTOSC_CIEMNA)
+  })
+}
