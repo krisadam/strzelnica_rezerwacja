@@ -68,10 +68,11 @@ describe('obie palety w jednym arkuszu', () => {
     expect([...CIEMNY.keys()].sort()).toEqual(kolory.sort())
   })
 
-  it('nie rusza wartości jasnych — obie aplikacje wyglądają jak przed zmianą', () => {
+  it('nie rusza wartości jasnych — Panel wygląda jak przed zmianą', () => {
     // Świadkiem jest kolor rzeczy wyjętych ze sprzedaży, ten sam, na którym
-    // stoi test przeglądarkowy: żadna aplikacja nie ustawia przełącznika, więc
-    // to te wartości nadal widzi Osoba rezerwująca i Użytkownik panelu.
+    // stoi test przeglądarkowy. Przełącznik ustawia dziś wyłącznie Widget, więc
+    // to są wartości, które nadal widzi Użytkownik panelu — i mają nimi zostać
+    // do czasu, aż i on dostanie swój ticket przemalowujący.
     expect(token(JASNY, '--wylaczony')).toBe('#6b4ea8')
     expect(token(JASNY, '--tlo')).toBe('#ffffff')
     expect(token(JASNY, '--tekst')).toBe('#16181d')

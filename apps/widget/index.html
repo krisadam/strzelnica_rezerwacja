@@ -1,5 +1,14 @@
 <!doctype html>
-<html lang="pl">
+<!--
+  Ciemna paleta modułu (ADR 0014) włącza się atrybutem na korzeniu dokumentu.
+  Stoi tutaj, a nie w kodzie aplikacji, bo ma obowiązywać od pierwszej klatki:
+  ustawiony po starcie Reacta dałby mignięcie białym tłem na cudzej stronie.
+
+  Panel takiego atrybutu jeszcze nie ma i do czasu swojego ticketu zostaje
+  jasny — przełącznik jest po to, żeby każda aplikacja weszła w nową paletę
+  osobno.
+-->
+<html lang="pl" data-motyw="ciemny">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

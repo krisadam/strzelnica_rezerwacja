@@ -5,17 +5,17 @@
 
    Jeden wygląd dla wszystkich Strzelnic — bez konfiguracji kolorów. Motyw
    ciemny nie jest wyjątkiem od tej zasady: przełącznika nie ustawia żadna
-   Strzelnica, tylko aplikacja, i docelowo obie naraz (ADR 0014).
+   Strzelnica, tylko aplikacja — dziś Widget, docelowo obie (ADR 0014).
 
    Oba arkusze importują ten plik u siebie, a nie w module wejściowym swojej
    aplikacji: arkusz ma być samowystarczalny i mówić czytającemu, skąd biorą
    się zmienne, których używa. */
 
 :root {
-  /* Paleta jasna — ta, którą moduł ma dziś na ekranie. Zostaje wartością
-     domyślną, dopóki obie aplikacje nie przejdą na ciemną własnymi ticketami:
-     przestawienie jej tutaj przemalowałoby naraz Panel i Widget, a arkusze obu
-     trzeba dostosować osobno. */
+  /* Paleta jasna — ta, którą ma dziś na ekranie Panel. Zostaje wartością
+     domyślną, dopóki nie przejdzie on na ciemną własnym ticketem: przestawienie
+     jej tutaj przemalowałoby Panel bez dostosowania jego arkusza, a to osobna
+     robota od tej, którą zrobił u siebie Widget. */
   --tlo: #ffffff;
   --tlo-drugie: #f5f6f8;
   --tekst: #16181d;
@@ -42,11 +42,10 @@
      same. Wartości niosą skalę Panelu i są zgodne z ADR 0014 — promienie
      drobne, nie osiemnastopunktowe z referencji.
 
-     Nie są to wartości, które da się dziś podstawić w obu arkuszach bez śladu:
-     Widget ma u siebie miejsca z promieniem 0,4 rem i nagłówki 1,05 rem oraz
-     1 rem tam, gdzie ta skala mówi 1,1 rem i 0,95 rem. Jedna skala dla obu
-     aplikacji jest celem, a różnice zbiera ticket przemalowujący Widget —
-     tu nikt tych zmiennych jeszcze nie używa, więc nic się nie przesuwa. */
+     Widget miał u siebie miejsca z promieniem 0,4 rem i nagłówki 1,05 rem oraz
+     1 rem tam, gdzie ta skala mówi 1,1 rem i 0,95 rem; różnice zebrał ticket,
+     który go przemalował. Panel stał na tych wartościach od początku, więc
+     podstawienie ich w jego arkuszu niczego nie przesunie. */
   --promien-drobny: 0.35rem;
   --promien: 0.5rem;
   --naglowek-1: 1.35rem;
@@ -63,11 +62,11 @@
    jasności. Wartości pochodzą z prototypu, który tę decyzję rozstrzygnął.
 
    Włącza ją jeden atrybut na korzeniu dokumentu — `<html data-motyw="ciemny">`.
-   Nie ustawia go dziś ani Panel, ani Widget, więc obie aplikacje wyglądają
-   dokładnie tak, jak przed dołożeniem tego bloku. Przełącznik jest po to, żeby
-   każda z nich weszła w nową paletę własnym ticketem: ich arkusze trzeba
-   dostosować osobno, a stan, w którym jedna aplikacja jest przemalowana
-   w połowie, byłby gorszy od obu jasnych.
+   Ustawia go dziś Widget i tylko on; Panel czeka na swój bliźniaczy ticket,
+   więc obie aplikacje wyglądają przez chwilę różnie i tak ma być. Przełącznik
+   jest właśnie po to: arkusz każdej z nich trzeba dostosować osobno, a stan,
+   w którym jedna aplikacja jest przemalowana w połowie, byłby gorszy od tego,
+   w którym druga jest jeszcze cała jasna.
 
    Każdy kolor tekstu i każdy kolor stanu trzyma tu co najmniej 4,5:1 wobec obu
    teł — policzone, nie ocenione okiem. Sprawdza to `tokens.test.ts`, który
@@ -87,4 +86,13 @@
   --wolny: #4bbf7b;
   --blad: #f0736f;
   --wylaczony: #a98be0;
+
+  /* Natywne kontrolki — pola liczbowe, pola wyboru, paski przewijania — nie
+     biorą koloru z palety, tylko z tego, co strona zadeklaruje przeglądarce.
+     Bez tej deklaracji formularz rezerwacji stoi białymi polami na granacie.
+
+     Stoi tu, a nie w arkuszu Widgetu, bo jest częścią tej palety, a nie tej
+     aplikacji: kiedy przełącznik ustawi u siebie Panel, jego kontrolki mają
+     pociemnieć z tego samego powodu i bez dopisywania tego drugi raz. */
+  color-scheme: dark;
 }
