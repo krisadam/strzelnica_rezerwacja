@@ -74,10 +74,50 @@ describe('paleta modułu', () => {
   })
 })
 
+/** Poziomy nagłówków, dla których skala ma wartość — tyle, ile ma Panel. */
+const POZIOMY = [1, 2, 3, 4, 5]
+
 describe('tokeny niezależne od skóry', () => {
   it('niosą promienie i skalę nagłówków, których projekt dotąd nie miał', () => {
-    for (const nazwa of ['--promien-drobny', '--promien', '--naglowek-1', '--naglowek-2', '--naglowek-3']) {
+    const skala = POZIOMY.map((poziom) => `--naglowek-${poziom}`)
+
+    for (const nazwa of ['--promien-drobny', '--promien', ...skala]) {
       expect(token(nazwa)).toMatch(/^[\d.]+rem$/)
     }
+  })
+
+  /** Wielkość nagłówka danego poziomu w rem — do porównania z sąsiednim. */
+  function wielkosc(poziom: number): number {
+    return Number.parseFloat(token(`--naglowek-${poziom}`))
+  }
+
+  it('rozstawia poziomy nagłówków na tyle, żeby różnicę było widać', () => {
+    // Skala ściśnięta czyta się jak jeden blok tekstu: poziomy wprawdzie są,
+    // ale żaden nie mówi okiem, że jest wyżej od następnego. Próg bierze się
+    // z najmniejszego kroku, jaki w typografii uchodzi za widoczny — mniej
+    // więcej jedna szósta. Pytamy o stosunek, a nie o same wartości: skala ma
+    // zostać rozciągnięta także po tym, jak ktoś przesunie ją w całości.
+    for (const poziom of POZIOMY.slice(0, -1)) {
+      expect(wielkosc(poziom) / wielkosc(poziom + 1)).toBeGreaterThanOrEqual(1.15)
+    }
+  })
+
+  it('daje nagłówkom grubości, którymi porządek niesie się bez koloru', () => {
+    // Jeden krój systemowy i jedna paleta zostawiają hierarchii dwa nośniki:
+    // wielkość i grubość. Grubość stoi w tokenach razem ze skalą, bo jest
+    // drugą połową tej samej decyzji — i tak samo jak skala ma być jedna dla
+    // obu aplikacji.
+    const wagi = POZIOMY.map((poziom) => Number(token(`--waga-naglowka-${poziom}`)))
+
+    // Porządek niesie ta, która się gdzieś zmienia: pięć jednakowych wartości
+    // przeszłoby każde pytanie o kolejność, a nie rozdzielałoby niczego.
+    expect(new Set(wagi).size).toBeGreaterThan(1)
+
+    // Poziom niżej nie może być grubszy od wyższego: tak rysuje `h4`
+    // przeglądarka i to jest ta pomyłka, której skala ma nie oddawać.
+    for (const [i, waga] of wagi.slice(1).entries()) {
+      expect(waga).toBeLessThanOrEqual(Number(wagi[i]))
+    }
+    for (const waga of wagi) expect(waga).toBeGreaterThanOrEqual(400)
   })
 })

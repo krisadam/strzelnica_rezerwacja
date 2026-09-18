@@ -44,14 +44,45 @@
   /* Promienie i skala nagłówków stoją tu obok palety, ale nie są jej częścią:
      kształt kontrolki i wielkość nagłówka nie zmieniłyby się nawet wtedy, gdyby
      moduł kiedyś dostał drugą skórę. Rozdziela je dziś wyłącznie ten komentarz
-     — dopóki blok jest jeden, nie ma czego rozdzielać selektorem. Wartości
-     niosą skalę Panelu i są zgodne z ADR 0014 — promienie drobne, nie
-     osiemnastopunktowe z referencji. */
+     — dopóki blok jest jeden, nie ma czego rozdzielać selektorem. Promienie
+     zostają drobne, zgodnie z ADR 0014 — nie osiemnastopunktowe z referencji. */
   --promien-drobny: 0.35rem;
   --promien: 0.5rem;
-  --naglowek-1: 1.35rem;
-  --naglowek-2: 1.1rem;
-  --naglowek-3: 0.95rem;
+
+  /* Skala nagłówków rozciągnięta: poprzednia szła krokiem o kilka setnych i
+     przez to ekran czytał się jak jeden blok tekstu — poziomy wprawdzie były,
+     ale żaden nie mówił okiem, że stoi wyżej od następnego. Krok między
+     dwoma pierwszymi poziomami to dziś niemal półtora, między drugim
+     a trzecim — jedna piąta z okładem; różnicę widać bez porównywania
+     sąsiadów.
+
+     Grubości stoją tu razem ze skalą, bo są drugą połową tej samej decyzji.
+     Przy jednym kroju systemowym i palecie, w której kolor pojawia się rzadko
+     (ADR 0014), porządek czytania niosą wyłącznie te dwie rzeczy: barwa jest
+     tu zajęta mówieniem o stanie, a nie o randze nagłówka. Grubość dzieli
+     skalę na dwie części — nagłówki, pod którymi stoi ekran albo jego
+     rozdział, i nagłówki, pod którymi stoi jedna rzecz. Przecięcie zostawia
+     poziomom trzeciemu i czwartemu, oddalonym od siebie najmniej, drugą
+     różnicę obok wielkości: trzeci jeszcze rozdziela ekran, czwarty nazywa
+     już pojedynczą pozycję.
+
+     Poziomów jest pięć, bo tyle ich ma Panel: pozycja katalogu stoi o dwa
+     stopnie pod nagłówkiem ekranu, a lista kolizji wewnątrz niej jeszcze
+     niżej — piątego nie widać w kodzie jako `<h5>`, bo `Kolizje` dostają
+     poziom nagłówka od ekranu, który je pokazuje. Skala urwana na trzecim
+     oddawałaby czwarty i piąty przeglądarce, która rysuje `h4` grubiej
+     i niewiele mniej niż nasze `h3` — porządek czytania odwracałby się
+     dokładnie tam, gdzie dokument schodzi najgłębiej. */
+  --naglowek-1: 2rem;
+  --naglowek-2: 1.45rem;
+  --naglowek-3: 1.2rem;
+  --naglowek-4: 1rem;
+  --naglowek-5: 0.85rem;
+  --waga-naglowka-1: 700;
+  --waga-naglowka-2: 700;
+  --waga-naglowka-3: 600;
+  --waga-naglowka-4: 600;
+  --waga-naglowka-5: 600;
 
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: var(--tekst);

@@ -37,20 +37,40 @@ body {
 }
 
 /* Skala nagłówków i promienie przychodzą z tokenów — jedna skala dla obu
-   aplikacji, tak samo jak jedna paleta. Wartości tokenów wzięły się stąd, więc
-   nic się tu nie przesuwa: podstawienie ich jest zamianą liczby na jej nazwę. */
+   aplikacji, tak samo jak jedna paleta.
+
+   Poziomów jest tu pięć, bo tyle ich ma dokument Panelu: pozycja katalogu
+   stoi o dwa stopnie pod nagłówkiem ekranu, a lista kolizji wewnątrz niej
+   jeszcze niżej. Dwa najgłębsze brały dotąd wielkość i grubość od
+   przeglądarki, która rysuje `h4` grubiej niż nasze `h3` — porządek czytania
+   odwracał się dokładnie tam, gdzie dokument schodzi najgłębiej. */
 .panel h1 {
   font-size: var(--naglowek-1);
+  font-weight: var(--waga-naglowka-1);
   margin: 0 0 1.25rem;
 }
 
 .panel h2 {
   font-size: var(--naglowek-2);
+  font-weight: var(--waga-naglowka-2);
   margin: 0 0 0.75rem;
 }
 
 .panel h3 {
   font-size: var(--naglowek-3);
+  font-weight: var(--waga-naglowka-3);
+  margin: 0 0 0.5rem;
+}
+
+.panel h4 {
+  font-size: var(--naglowek-4);
+  font-weight: var(--waga-naglowka-4);
+  margin: 0 0 0.5rem;
+}
+
+.panel h5 {
+  font-size: var(--naglowek-5);
+  font-weight: var(--waga-naglowka-5);
   margin: 0 0 0.5rem;
 }
 
@@ -378,6 +398,31 @@ body {
 .zestawienie__ile {
   display: block;
   font-weight: 600;
+  /* Liczba jest w tym wierszu półtora raza wyższa od nazwy, a wiersze sum stoją
+     jeden pod drugim — bez tego odstępu zbiegłyby się ze sobą. */
+  line-height: 1.5;
+}
+
+/* Chwyt „duża liczba, drobna jednostka": liczba wybita wielkością, jednostka
+   przy niej drobna i przygaszona. W Panelu mają go sumy dziennego Zestawienia
+   i nic poza nimi — to jedyny ekran, po którego liczby obsługa tu przychodzi.
+   Trzymają go dwie aplikacje w dwóch arkuszach, bo arkusz ma każda swój; jedną
+   kopię ma to, co mogłoby się rozjechać po cichu — reguła dzielenia napisu,
+   w `packages/shared`.
+
+   Liczba jest tu mniejsza niż przy Kwocie w Widgecie: sum stoi na ekranie
+   kilkanaście naraz, jedna pod drugą, a tamta Kwota jest na swoim ekranie
+   jedna. Chwyt ma wybijać liczbę spośród tego, co ją otacza, a nie mieć
+   wszędzie tę samą wysokość w pikselach. */
+.duza-liczba {
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.duza-liczba__jednostka {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--przygaszony);
 }
 
 .zestawienie__zrodla {
@@ -629,7 +674,6 @@ body {
 
 .pozycja-katalogu h4 {
   margin-top: 0;
-  font-size: 1rem;
 }
 
 /* Znacznik przy nazwie pozycji wycofanej — ten sam kolor, co przy Osi
