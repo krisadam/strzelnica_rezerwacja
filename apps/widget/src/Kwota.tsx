@@ -1,5 +1,5 @@
 import type { AmountBreakdown } from '@strzelnica/shared'
-import { formatAmount } from '@strzelnica/shared'
+import { formatAmount, splitFigure } from '@strzelnica/shared'
 import { teksty } from './teksty.js'
 
 /**
@@ -17,6 +17,35 @@ import { teksty } from './teksty.js'
  * karty, którego nie ma.
  */
 type Skladnik = { etykieta: string; wartosc: number }
+
+/**
+ * Kwota wybita wielkością, z walutą przy niej drobną i przygaszoną. Chwyt
+ * stoi w Widgecie w tym jednym miejscu — Kwota jest tu jedyną liczbą, po którą
+ * Osoba rezerwująca schodzi wzrokiem na dół formularza — i w Panelu w sumach
+ * dziennego Zestawienia. Nigdzie indziej: wybite wszystko nie wybija już nic.
+ *
+ * Napis przychodzi gotowy z `formatAmount`, a dzieli go `splitFigure`
+ * z `@strzelnica/shared` — ta sama funkcja, którą dzieli swoje sumy Panel.
+ * Podział jest przepołowieniem napisu, a nie złożeniem go z kawałków, więc
+ * to, co czyta czytnik ekranu, zostaje co do znaku takie jak przedtem, razem
+ * z odstępem nierozdzielającym przed walutą.
+ */
+function DuzaLiczba({ napis }: { napis: string }) {
+  const podzial = splitFigure(napis)
+  // Kwota bez cyfry nie istnieje, ale nie ma powodu, żeby ten warunek kosztował
+  // pusty ekran, jeśli kiedyś zaistnieje.
+  if (podzial === null) return <>{napis}</>
+
+  return (
+    <>
+      {podzial.before}
+      <span className="duza-liczba">{podzial.figure}</span>
+      {/* Jednostki nie ma przy liczbie, która kończy napis — pusty element
+          wyglądałby w drzewie jak jednostka, której nie widać. */}
+      {podzial.after && <span className="duza-liczba__jednostka">{podzial.after}</span>}
+    </>
+  )
+}
 
 function Rachunek({
   skladniki,
@@ -48,7 +77,9 @@ function Rachunek({
 
       <p className="kwota__razem">
         <span>{teksty.kwota.razem}</span>
-        <strong>{formatAmount(total)}</strong>
+        <strong>
+          <DuzaLiczba napis={formatAmount(total)} />
+        </strong>
       </p>
       <p className="kwota__uwaga">{teksty.kwota.naMiejscu}</p>
       {uwaga && <p className="kwota__uwaga">{uwaga}</p>}

@@ -80,6 +80,8 @@ export type {
   PricedRental,
   Rates,
 } from './pricing.ts'
+export { splitFigure } from './figure.ts'
+export type { Figure } from './figure.ts'
 export {
   CONFIRMATION_PARAM,
   confirmationOutcome,

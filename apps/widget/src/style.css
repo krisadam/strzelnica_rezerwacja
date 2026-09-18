@@ -34,14 +34,27 @@ body {
 }
 
 /* Skala nagłówków i promienie przychodzą z tokenów — jedna skala dla obu
-   aplikacji. Widget miał tu dotąd własne wartości o kilka setnych obok
-   panelowych; ten ticket zbiera tę różnicę, bo i tak przepisuje arkusz.
-   Poziom rozstrzyga znacznik, nie dotychczasowa wielkość: każde `h2` bierze
-   `--naglowek-2`, każde `h3` — `--naglowek-3`, tak jak w Panelu. Nagłówek dnia
-   w Kalendarzu przez to o setne urósł, bo dotąd stał w skali `h3`. */
+   aplikacji. Poziom rozstrzyga znacznik, nie dotychczasowa wielkość: każde
+   `h2` bierze `--naglowek-2`, każde `h3` — `--naglowek-3`, tak jak w Panelu.
+
+   Wielkość i grubość stoją tu w trzech regułach po jednej na poziom, a
+   miejsca, w których nagłówek na coś czeka, dokładają już tylko odstęp. Dopóki
+   każde z nich powtarzało wielkość u siebie, poziom bywał tym, co ktoś przy
+   tamtym miejscu wpisał, a nie tym, co mówi znacznik. */
 .widget h1 {
   font-size: var(--naglowek-1);
+  font-weight: var(--waga-naglowka-1);
   margin: 0 0 1.25rem;
+}
+
+.widget h2 {
+  font-size: var(--naglowek-2);
+  font-weight: var(--waga-naglowka-2);
+}
+
+.widget h3 {
+  font-size: var(--naglowek-3);
+  font-weight: var(--waga-naglowka-3);
 }
 
 .osie,
@@ -100,8 +113,6 @@ body {
 }
 
 .dzien h2 {
-  font-size: var(--naglowek-2);
-  font-weight: 600;
   margin: 0;
   text-align: center;
   flex: 1;
@@ -206,7 +217,6 @@ body {
 }
 
 .krok > h2 {
-  font-size: var(--naglowek-2);
   margin: 0 0 1rem;
 }
 
@@ -337,7 +347,6 @@ body {
 }
 
 .kwota h3 {
-  font-size: var(--naglowek-3);
   margin: 0 0 0.6rem;
 }
 
@@ -369,11 +378,37 @@ body {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
+  /* Etykieta stoi linią bazową Kwoty, a nie środkiem swojego wiersza: Kwota
+     jest od niej dwa razy wyższa, więc wyśrodkowana podjechałaby do połowy
+     cyfr. */
+  align-items: baseline;
   margin: 0.6rem 0 0;
   padding-top: 0.6rem;
   border-top: 1px solid var(--ramka);
   font-size: 1.05rem;
   font-weight: 600;
+}
+
+/* Chwyt „duża liczba, drobna jednostka": liczba wybita wielkością, jednostka
+   przy niej drobna i przygaszona. W Widgecie ma go Kwota do zapłaty i nic
+   poza nią — jest jedyną liczbą, po którą Osoba rezerwująca tu schodzi.
+   Trzymają go dwie aplikacje w dwóch arkuszach, bo arkusz ma każda swój; jedną
+   kopię ma to, co mogłoby się rozjechać po cichu — reguła dzielenia napisu,
+   w `packages/shared`.
+
+   Odstęp przed jednostką siedzi w samej jednostce, razem z nią przygaszony,
+   więc szerokość między liczbą a walutą jest tą, którą napisał `Intl` — nie
+   dokładamy tu ani nie zabieramy ani jednej spacji. */
+.duza-liczba {
+  font-size: 1.9rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.duza-liczba__jednostka {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--przygaszony);
 }
 
 .kwota__uwaga {
@@ -386,7 +421,6 @@ body {
    nie jest tym, po co Osoba rezerwująca tu weszła, dopóki nie okaże się, że
    sama nie może już nic zrobić. */
 .kontakt h3 {
-  font-size: var(--naglowek-3);
   margin: 1.5rem 0 0.6rem;
 }
 

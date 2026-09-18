@@ -1,5 +1,5 @@
 import type { CalendarDay, PanelBooking, TallyItem } from '@strzelnica/shared'
-import { dayTally, formatDayLabel, formatTimeRange } from '@strzelnica/shared'
+import { dayTally, formatDayLabel, formatTimeRange, splitFigure } from '@strzelnica/shared'
 import type { ReactNode } from 'react'
 import { opisPozycji, teksty } from './teksty.js'
 
@@ -7,6 +7,39 @@ import { opisPozycji, teksty } from './teksty.js'
 const GRUPA_BRON = 'zestawienie-bron'
 const GRUPA_AMUNICJA = 'zestawienie-amunicja'
 const GRUPA_INSTRUKTOR = 'zestawienie-instruktor'
+
+/**
+ * Suma wybita wielkością, z jednostką przy niej drobną i przygaszoną. Chwyt
+ * stoi w Panelu w tym jednym miejscu — Zestawienie jest ekranem, po którego
+ * sumy obsługa tu przychodzi — i w Widgecie przy Kwocie do zapłaty. Nigdzie
+ * indziej: wybite wszystko nie wybija już nic.
+ *
+ * Napis przychodzi gotowy ze słownika, a dzieli go `splitFigure`
+ * z `@strzelnica/shared` — ta sama funkcja, którą dzieli Kwotę Widget.
+ * Podział jest przepołowieniem napisu, a nie złożeniem go z kawałków, więc
+ * pozycja czytana czytnikiem ekranu brzmi co do znaku tak, jak brzmiała: ten
+ * sam myślnik po nazwie z katalogu i ten sam skrót jednostki po liczbie.
+ *
+ * Element nosi wołający, a nie ten chwyt: raz jest nim pozycja listy, raz
+ * akapit pod nagłówkiem grupy, i nie jest to różnica do zjednoczenia —
+ * czytnik ekranu czyta drzewo dokumentu, a nie wielkość kroju.
+ */
+function DuzaLiczba({ napis }: { napis: string }) {
+  const podzial = splitFigure(napis)
+  // Suma bez cyfry nie istnieje, ale zdanie bez niej jest tu do napisania
+  // — brak pozycji mówi się słowami i te słowa mają się pokazać.
+  if (podzial === null) return <>{napis}</>
+
+  return (
+    <>
+      {podzial.before}
+      <span className="duza-liczba">{podzial.figure}</span>
+      {/* Jednostki nie ma przy liczbie, która kończy napis — pusty element
+          wyglądałby w drzewie jak jednostka, której nie widać. */}
+      {podzial.after && <span className="duza-liczba__jednostka">{podzial.after}</span>}
+    </>
+  )
+}
 
 /**
  * Rezerwacja pod pozycją Zestawienia — przycisk prowadzący do jej szczegółów.
@@ -82,7 +115,9 @@ function Pozycje({
     <ul className="zestawienie__pozycje">
       {pozycje.map((pozycja) => (
         <li key={pozycja.name}>
-          <span className="zestawienie__ile">{opisPozycji(pozycja)}</span>
+          <span className="zestawienie__ile">
+            <DuzaLiczba napis={opisPozycji(pozycja)} />
+          </span>
           <ul className="zestawienie__zrodla">
             {pozycja.shares.map((udzial) => (
               <Zrodlo
@@ -162,7 +197,7 @@ export function Zestawienie({
             ) : (
               <>
                 <p className="zestawienie__ile">
-                  {teksty.zestawienie.ilu(instructorBookings.length)}
+                  <DuzaLiczba napis={teksty.zestawienie.ilu(instructorBookings.length)} />
                 </p>
                 <ul className="zestawienie__zrodla">
                   {instructorBookings.map((booking) => (
