@@ -1,15 +1,6 @@
-/* Jeden wygląd dla wszystkich Strzelnic — bez konfiguracji kolorów. */
-:root {
-  --tlo: #ffffff;
-  --tekst: #16181d;
-  --przygaszony: #5d636e;
-  --ramka: #d5d9e0;
-  --wolny: #1f7a3f;
-  --blad: #a3232b;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  color: var(--tekst);
-  background: var(--tlo);
-}
+/* Wygląd Widgetu. Kolory przychodzą ze wspólnego arkusza tokenów, tego
+   samego, co w Panelu — to jeden moduł i ma wyglądać jak jeden. */
+@import '@strzelnica/shared/tokens.css';
 
 body {
   margin: 0;

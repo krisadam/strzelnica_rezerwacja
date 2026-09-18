@@ -1,0 +1,25 @@
+/* Tokeny wizualne modułu w jednej kopii dla Panelu i dla Widgetu — tak samo,
+   jak w jednej kopii stoją tu reguły domeny. Druga kopia palety to paleta,
+   która kiedyś odpowie innym odcieniem, a CSS nie ma jak zauważyć, że granat
+   w Panelu przestał być granatem Widgetu.
+
+   Jeden wygląd dla wszystkich Strzelnic — bez konfiguracji kolorów.
+
+   Oba arkusze importują ten plik u siebie, a nie w module wejściowym swojej
+   aplikacji: arkusz ma być samowystarczalny i mówić czytającemu, skąd biorą
+   się zmienne, których używa. */
+:root {
+  --tlo: #ffffff;
+  --tlo-drugie: #f5f6f8;
+  --tekst: #16181d;
+  --przygaszony: #5d636e;
+  --ramka: #d5d9e0;
+  --wolny: #1f7a3f;
+  --blad: #a3232b;
+  /* Blokada nie jest ani wolnym terminem, ani błędem — jest Osią wyjętą z
+     obiegu, więc bierze kolor obok tamtych dwóch, nie któryś z nich. */
+  --wylaczony: #6b4ea8;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--tekst);
+  background: var(--tlo);
+}
