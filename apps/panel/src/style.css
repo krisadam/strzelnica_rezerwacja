@@ -1,7 +1,17 @@
 /* Wygląd Panelu. Osobny arkusz od Widgetu i celowo inny w układzie: Widget
    prowadzi jedną osobę przez jeden formularz, a Panel pokazuje obsłudze cały
    dzień naraz — stąd szerokość na pełny ekran i Osie obok siebie. Kolory te
-   same, bo to jeden moduł — stąd wspólny arkusz tokenów. */
+   same, bo to jeden moduł — stąd wspólny arkusz tokenów.
+
+   Panel stoi na ciemnej bazie (ADR 0014), tej samej, co Widget, i buduje
+   hierarchię tak samo: **obwódki na jednym płaskim tle**, a nie warstwy
+   jasności powierzchni. Pas nagłówka bez własnej płyty i wpis w kalendarzu bez
+   wypełnienia nie są więc niedokończoną robotą — wypełnienie ma tu tylko to, co
+   musi się odciąć od wszystkiego innego, a takiej rzeczy na tych ekranach nie
+   ma. Panel jest gęstszy od Widgetu, więc płyt jaśniejszych od tła stałoby na
+   jego ekranie kilkanaście naraz i żadna nie znaczyłaby już nic.
+
+   Paletę włącza atrybut `data-motyw` w `index.html`, nie ten arkusz. */
 @import '@strzelnica/shared/tokens.css';
 
 body {
@@ -12,20 +22,34 @@ body {
   max-width: 76rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
+
+  /* Pola zaznaczane rysuje przeglądarka, a nie ten arkusz, a na ciemnej bazie
+     sięga ona po własny błękit — czytelny, ale jedyny kolor na ekranie spoza
+     palety modułu. */
+  accent-color: var(--akcent);
 }
 
+/* Odnośniki — adres i telefon Osoby rezerwującej w szczegółach — z tego samego
+   powodu, co wyżej: domyślny błękit przeglądarki jest tu kolorem z zewnątrz. */
+.panel a {
+  color: var(--akcent);
+}
+
+/* Skala nagłówków i promienie przychodzą z tokenów — jedna skala dla obu
+   aplikacji, tak samo jak jedna paleta. Wartości tokenów wzięły się stąd, więc
+   nic się tu nie przesuwa: podstawienie ich jest zamianą liczby na jej nazwę. */
 .panel h1 {
-  font-size: 1.35rem;
+  font-size: var(--naglowek-1);
   margin: 0 0 1.25rem;
 }
 
 .panel h2 {
-  font-size: 1.1rem;
+  font-size: var(--naglowek-2);
   margin: 0 0 0.75rem;
 }
 
 .panel h3 {
-  font-size: 0.95rem;
+  font-size: var(--naglowek-3);
   margin: 0 0 0.5rem;
 }
 
@@ -38,8 +62,7 @@ body {
   padding: 0.75rem 1rem;
   margin: 0 0 1.5rem;
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
-  background: var(--tlo-drugie);
+  border-radius: var(--promien);
 }
 
 .naglowek__konto {
@@ -57,12 +80,17 @@ body {
   color: var(--blad);
 }
 
+/* Przycisk konturowy, jak wszystko tutaj: obwódka i napis, żadnego
+   wypełnienia. Napis bierze kolor tekstu, a nie akcent — Panel nie ma przycisku
+   głównego, bo obsługa naciska na tych ekranach kilkanaście rzeczy i żadna
+   z nich nie jest tą jedną, po którą się tu przychodzi. */
 .przycisk {
   font: inherit;
   padding: 0.4rem 0.9rem;
   border: 1px solid var(--ramka);
-  border-radius: 0.35rem;
-  background: var(--tlo);
+  border-radius: var(--promien-drobny);
+  background: none;
+  color: inherit;
   cursor: pointer;
 }
 
@@ -78,13 +106,30 @@ body {
   margin: 0 0 0.75rem;
 }
 
+/* Pole jak karta i jak wpis w kalendarzu: obwódka, żadnego wypełnienia.
+   Przeglądarka dałaby tu z deklaracji `color-scheme` własną ciemną płytę —
+   jaśniejszą od granatu i inną niż wszystko dookoła — więc odbieramy jej ją
+   wprost, razem z kolorem napisu, który na zdjętym tle zostałby systemowy.
+
+   Rozwiniętej listy wyboru to nie dotyczy: jest osobnym oknem przeglądarki,
+   maluje je `color-scheme`, a pozycje biorą kremowy odziedziczony stąd. */
 .pole input,
 .pole select,
 .pole textarea {
   font: inherit;
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--ramka);
-  border-radius: 0.35rem;
+  border-radius: var(--promien-drobny);
+  background: none;
+  color: inherit;
+}
+
+/* Pole zaznaczane rysuje przeglądarka od zera: obwódka i zdjęte tło z reguły
+   wyżej opisują pudełko, którego tu nie ma, a w części silników potrafią zgasić
+   samą kontrolkę — oddajemy jej oba, tak samo jak w Widgecie. */
+.pole--zaznaczane input {
+  border: revert;
+  background: revert;
 }
 
 /* Powód odwołania rośnie w dół, a nie w bok: pole rozciągane w szerokość
@@ -148,7 +193,7 @@ body {
 
 .os {
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   padding: 0.75rem 1rem 1rem;
 }
 
@@ -161,8 +206,19 @@ body {
   gap: 0.5rem;
 }
 
+/* Wpis kalendarza bez wypełnienia, jak wszystko na tym ekranie. Rezerwacja jest
+   przyciskiem — prowadzi do szczegółów — więc tło i kolor napisu trzeba
+   przeglądarce odebrać wprost: bez tego zostaje jej szara płyta kontrolki.
+
+   Kolor zostaje tu na obwódce, inaczej niż w Bloku Widgetu, gdzie niesie go sam
+   napis (ADR 0014). Tam chodziło o to, żeby zielona obwódka nie powtarzała
+   zielonego napisu „wolny"; tutaj nie ma czego powtarzać — wpis mówi, czyja
+   jest Rezerwacja, a nie w jakim jest stanie, więc kreska niesie jedyne
+   rozróżnienie rysowane kolorem: Rezerwacja czy Blokada. */
 .wpis {
   font: inherit;
+  color: inherit;
+  background: none;
   text-align: left;
   width: 100%;
   display: flex;
@@ -171,26 +227,21 @@ body {
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--ramka);
   border-left: 3px solid var(--wolny);
-  border-radius: 0.35rem;
-  background: var(--tlo-drugie);
+  border-radius: var(--promien-drobny);
   cursor: pointer;
 }
 
 /* Blokada odróżnialna od Rezerwacji dwiema rzeczami naraz: obwódką w innym
    kolorze i brakiem kursora — nie prowadzi na żaden ekran, bo cała jej treść
    stoi w kolumnie. Sam kolor nie wystarcza: kto go nie rozróżnia, ten czyta
-   znacznik „Blokada" w miejscu, w którym przy Rezerwacji stoi nazwisko. */
+   znacznik „Blokada" w miejscu, w którym przy Rezerwacji stoi nazwisko.
+
+   Reszta wyglądu przychodzi z `.wpis`, obok którego ten znacznik stoi zawsze;
+   powtórzona tu dosłownie zostawała dotąd bez skutku poza tłem, które z ciemną
+   bazą znika razem z tłem Rezerwacji. */
 .wpis--blokada {
   border-left-color: var(--wylaczony);
-  background: var(--tlo);
   cursor: default;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--ramka);
-  border-left: 3px solid var(--wylaczony);
-  border-radius: 0.35rem;
 }
 
 .wpis--blokada .wpis__klient {
@@ -227,7 +278,7 @@ body {
    kilkanaście pozycji dało się przejrzeć bez przewijania. */
 .pozycje {
   border: 1px solid var(--ramka);
-  border-radius: 0.35rem;
+  border-radius: var(--promien-drobny);
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.75rem;
 }
@@ -308,7 +359,7 @@ body {
 
 .zestawienie__grupa {
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   padding: 0.75rem 1rem 1rem;
 }
 
@@ -421,7 +472,7 @@ body {
    zaczyna się tam, gdzie ta się kończy. */
 .os-konfiguracja {
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   margin: 0 0 1rem;
   padding: 0.75rem 1rem 1rem;
 }
@@ -449,7 +500,7 @@ body {
 
 .rozklad__dzien {
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   padding: 0.5rem 0.75rem 0.75rem;
 }
 
@@ -479,7 +530,7 @@ body {
 
 .rozklad__kopiowanie {
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   margin: 0 0 1rem;
   padding: 0.5rem 1rem 0.75rem;
 }
@@ -506,7 +557,7 @@ body {
 
 .godziny__dzien {
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   padding: 0.5rem 0.75rem 0.75rem;
 }
 
@@ -525,7 +576,7 @@ body {
 
 .godziny__wyjatek {
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   margin: 0 0 1rem;
   padding: 0.5rem 1rem 0.75rem;
 }
@@ -548,7 +599,7 @@ body {
    w którym stoi coś do rozstrzygnięcia przez człowieka, a nie do ustawienia. */
 .kolizje {
   border: 1px solid var(--blad);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   margin: 0 0 1rem;
   padding: 0.5rem 1rem 0.75rem;
 }
@@ -570,7 +621,7 @@ body {
    opisuje jedną rzecz, a ramka mówi, gdzie się ona kończy. */
 .pozycja-katalogu {
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   margin: 0 0 1rem;
   padding: 0.75rem 1rem 1rem;
 }

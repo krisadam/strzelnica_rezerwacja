@@ -9,7 +9,7 @@
    odciąć od wszystkiego innego, a takiej rzeczy na tych ekranach nie ma.
 
    Paletę włącza atrybut `data-motyw` w `index.html`, nie ten arkusz. Panel
-   zostaje do swojego ticketu jasny i to jest stan przejściowy, nie rozjazd. */
+   ustawia go u siebie tak samo, odkąd przeszedł na tę samą bazę. */
 @import '@strzelnica/shared/tokens.css';
 
 body {

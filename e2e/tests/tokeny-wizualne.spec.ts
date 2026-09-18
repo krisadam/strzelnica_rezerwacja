@@ -20,27 +20,27 @@ import { STRZELNICA } from './pomocniki.js'
  * wyciągnięciem palety do wspólnego pliku miał go wyłącznie Panel: arkusz
  * okrojony do dawnej zawartości Widgetu odda tu pustą wartość.
  *
- * Wartości stoją tu drugą kopią świadomie — to one są przedmiotem asercji.
+ * Wartość stoi tu drugą kopią świadomie — to ona jest przedmiotem asercji.
  * Test ma zauważyć, że token zgubił wartość, którą ma mieć w swojej palecie,
- * więc każdy ticket ruszający paletę poprawia je tutaj razem z nią.
+ * więc każdy ticket ruszający paletę poprawia ją tutaj razem z nią.
  */
 const TOKEN = '--wylaczony'
-const WYLACZONY_JASNY = '#6b4ea8'
 const WYLACZONY_CIEMNY = '#a98be0'
+const WYLACZONY_JASNY = '#6b4ea8'
 
 const WIDGET = `${WIDGET_URL}/?strzelnica=${STRZELNICA}`
 
 /**
  * Ciemna paleta modułu (ADR 0014) stoi w arkuszu tokenów obok jasnej, a włącza
- * ją atrybut `data-motyw` na korzeniu dokumentu. Widget wszedł w nią własnym
- * ticketem i ustawia ten atrybut u siebie; Panel czeka na swój bliźniaczy
- * ticket i dlatego renderuje się dalej jasny. Ta różnica jest zamierzona
- * i przejściowa — test pilnuje jej w obie strony, żeby żadna z aplikacji nie
- * przeskoczyła na drugą paletę mimochodem.
+ * ją atrybut `data-motyw` na korzeniu dokumentu. Obie aplikacje weszły w nią
+ * osobnymi ticketami i obie ten atrybut u siebie ustawiają — moduł ma jedną
+ * skórę. Przejściowy rozjazd, w którym Panel był jeszcze jasny, skończył się
+ * wraz z jego przemalowaniem; test pilnuje teraz, żeby żadna z aplikacji nie
+ * wróciła na jasną paletę mimochodem.
  */
 const APLIKACJE = [
-  { nazwa: 'Widget', adres: WIDGET, motyw: 'ciemny', wartosc: WYLACZONY_CIEMNY },
-  { nazwa: 'Panel', adres: PANEL_URL, motyw: null, wartosc: WYLACZONY_JASNY },
+  { nazwa: 'Widget', adres: WIDGET },
+  { nazwa: 'Panel', adres: PANEL_URL },
 ]
 
 function zmiennaCss(page: Page, nazwa: string): Promise<string> {
@@ -50,39 +50,43 @@ function zmiennaCss(page: Page, nazwa: string): Promise<string> {
   )
 }
 
-for (const { nazwa, adres, motyw, wartosc } of APLIKACJE) {
+for (const { nazwa, adres } of APLIKACJE) {
   test(`${nazwa} zna tokeny wizualne modułu`, async ({ page }) => {
     await page.goto(adres)
 
-    expect(await page.locator('html').getAttribute('data-motyw')).toBe(motyw)
-    expect(await zmiennaCss(page, TOKEN)).toBe(wartosc)
+    expect(await page.locator('html').getAttribute('data-motyw')).toBe('ciemny')
+    expect(await zmiennaCss(page, TOKEN)).toBe(WYLACZONY_CIEMNY)
+  })
+
+  /**
+   * Natywne kontrolki — pola liczbowe, pola wyboru, listy wyboru, suwaki — nie
+   * biorą koloru z palety, tylko z tego, co strona zadeklaruje przeglądarce.
+   * Bez tej deklaracji formularze stoją białymi polami na granacie i jest to
+   * awaria widoczna wyłącznie okiem: żaden token nie ma złej wartości.
+   */
+  test(`${nazwa} zapowiada przeglądarce ciemne kontrolki`, async ({ page }) => {
+    await page.goto(adres)
+
+    const schemat = await page.evaluate(
+      () => getComputedStyle(document.documentElement).colorScheme,
+    )
+
+    expect(schemat).toBe('dark')
   })
 }
 
 /**
- * Przełącznik ma działać także tam, gdzie go dziś nikt nie ustawia: Panel
- * bierze ciemną paletę w chwili, gdy atrybut się pojawi. To jedyna rzecz,
- * której nie policzy test jednostkowy przy arkuszu tokenów — czy przełącznik
- * faktycznie przemalowuje wyrenderowany dokument.
+ * Paleta jasna została w arkuszu tokenów jako wariant dokumentu bez
+ * przełącznika, choć nie pokazuje jej dziś żadna aplikacja. Póki tam stoi, ma
+ * działać: wariant, który przestał malować, a nikt tego nie zauważył, jest
+ * dokładnie tą cichą awarią, przed którą stoi cały ten plik. Tego, czy
+ * przełącznik przemalowuje wyrenderowany dokument, nie orzeknie test
+ * jednostkowy przy arkuszu — on czyta wartości, a nie stronę.
  */
-test('Panel daje się przełączyć na ciemną paletę', async ({ page }) => {
+test('dokument bez przełącznika bierze paletę jasną', async ({ page }) => {
   await page.goto(PANEL_URL)
 
-  await page.evaluate(() => document.documentElement.setAttribute('data-motyw', 'ciemny'))
+  await page.evaluate(() => document.documentElement.removeAttribute('data-motyw'))
 
-  expect(await zmiennaCss(page, TOKEN)).toBe(WYLACZONY_CIEMNY)
-})
-
-/**
- * Natywne kontrolki — pola liczbowe, pola wyboru, suwaki — nie biorą koloru
- * z palety, tylko z tego, co strona zadeklaruje przeglądarce. Bez tej
- * deklaracji formularz rezerwacji renderuje się białymi polami na granacie
- * i jest to awaria widoczna wyłącznie okiem: żaden token nie ma złej wartości.
- */
-test('Widget zapowiada przeglądarce ciemne kontrolki', async ({ page }) => {
-  await page.goto(WIDGET)
-
-  const schemat = await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)
-
-  expect(schemat).toBe('dark')
+  expect(await zmiennaCss(page, TOKEN)).toBe(WYLACZONY_JASNY)
 })
