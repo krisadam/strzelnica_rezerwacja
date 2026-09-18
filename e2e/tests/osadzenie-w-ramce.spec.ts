@@ -88,3 +88,73 @@ test('osadzenie na domenie spoza listy blokuje przeglądarka', async ({ page }) 
   // zostaje przy wysokości początkowej.
   expect(await wysokoscRamki(page)).toBe(WYSOKOSC_BEZ_WIDGETU)
 })
+
+/**
+ * Kształt, jaki skrypt osadzający nadaje ramce (ADR 0014). Wartości stoją tu
+ * drugą kopią z tego samego powodu, co wysokość początkowa wyżej: są ustalone
+ * w skrypcie osadzającym i rozjazd ma się zatrzymać na tym teście. Promień
+ * rzędu jednego piksela albo margines rzędu dwustu byłby tą samą awarią co
+ * brak jednego i drugiego.
+ */
+const PROMIEN_RAMKI = 8
+const MARGINES_POZIOMY = 16
+
+/**
+ * Ciemny Widget na jasnej stronie gospodarza ma się czytać jako celowa ciemna
+ * karta, a nie jak dziura w layoucie (ADR 0014). Kształt nadaje ramce skrypt
+ * osadzający, bo stylów gospodarza nie znamy i nic z nich do ramki nie wchodzi.
+ */
+test('ramka stoi na stronie gospodarza jako karta odsunięta po bokach', async ({ page }) => {
+  await page.goto(GOSPODARZ_URL)
+  await poczekajNaWidget(page)
+
+  const ksztalt = await page.locator('iframe').evaluate((ramka) => {
+    const styl = getComputedStyle(ramka)
+    const polozenie = ramka.getBoundingClientRect()
+    const gospodarz = ramka.parentElement!.getBoundingClientRect()
+    return {
+      promien: parseFloat(styl.borderTopLeftRadius),
+      lewy: parseFloat(styl.marginLeft),
+      prawy: parseFloat(styl.marginRight),
+      gora: parseFloat(styl.marginTop),
+      dol: parseFloat(styl.marginBottom),
+      miesciSie: polozenie.left >= gospodarz.left && polozenie.right <= gospodarz.right,
+    }
+  })
+
+  expect(ksztalt.promien).toBe(PROMIEN_RAMKI)
+  expect(ksztalt.lewy).toBe(MARGINES_POZIOMY)
+  expect(ksztalt.prawy).toBe(MARGINES_POZIOMY)
+  // Odstęp w pionie wchodziłby w ten sam wymiar, którym rządzi protokół
+  // wysokości — stąd go nie ma.
+  expect(ksztalt.gora).toBe(0)
+  expect(ksztalt.dol).toBe(0)
+  // Margines dokłada się do szerokości, więc ramka rozciągnięta na sto procent
+  // wystawałaby o niego poza pudełko, w którym postawił ją gospodarz.
+  expect(ksztalt.miesciSie).toBe(true)
+})
+
+/**
+ * Węższa ramka łamie treść Widgetu inaczej, więc zmiana szerokości okna jest
+ * zmianą wysokości dokumentu. Protokół obsługuje to tak samo jak zmianę kroku
+ * formularza, ale mierzy to dopiero ten test: pozostałe ustawiają okno przed
+ * wczytaniem strony.
+ */
+test('zwężenie okna przestawia wysokość ramki', async ({ page }) => {
+  await page.goto(GOSPODARZ_URL)
+  const widget = await poczekajNaWidget(page)
+
+  const dopasowana = async () => {
+    const ramka = await wysokoscRamki(page)
+    const tresc = await widget
+      .locator('body')
+      .evaluate((body) => body.getBoundingClientRect().height)
+    return ramka >= tresc && ramka - tresc < 2
+  }
+
+  await expect.poll(dopasowana).toBe(true)
+
+  await page.setViewportSize({ width: 420, height: 900 })
+
+  await expect.poll(dopasowana).toBe(true)
+})
