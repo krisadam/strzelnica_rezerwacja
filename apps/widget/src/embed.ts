@@ -19,6 +19,25 @@ import { readWidgetMessage, TYTUL_RAMKI, widgetFrameUrl } from '@strzelnica/shar
  */
 const WYSOKOSC_POCZATKOWA = 600
 
+/**
+ * Kształt ramki: promień i **wyłącznie poziomy** margines, w pikselach.
+ * Ciemny Widget na jasnej stronie gospodarza ma się czytać jako celowa ciemna
+ * karta, a nie jak dziura w jego layoucie (ADR 0014) — a że do wnętrza ramki
+ * nie wchodzi nic ze stylów gospodarza, krawędź ramki jest jedynym miejscem,
+ * w którym da się to powiedzieć.
+ *
+ * Piksele, a nie `rem` spod tokenów modułu: `rem` na cudzej stronie mierzy się
+ * jej korzeniem, więc ta sama liczba dawałaby inny kształt na każdej stronie,
+ * na której nas ktoś osadzi. Osiem pikseli to `--promien` (0,5 rem) przy
+ * korzeniu domyślnym.
+ *
+ * Marginesu pionowego nie ma świadomie: wysokość ramki niesie protokół
+ * `postMessage`, więc odstęp w pionie wchodziłby w ten sam wymiar, o którym
+ * ten protokół mówi.
+ */
+const PROMIEN_RAMKI = 8
+const MARGINES_POZIOMY = 16
+
 function osadz(skrypt: HTMLScriptElement): void {
   const adres = widgetFrameUrl({
     loaderSrc: skrypt.src,
@@ -31,8 +50,12 @@ function osadz(skrypt: HTMLScriptElement): void {
   ramka.src = adres
   ramka.title = TYTUL_RAMKI
   ramka.style.display = 'block'
-  ramka.style.width = '100%'
+  // Margines dokłada się do szerokości, więc ramka rozciągnięta na stoprocentową
+  // szerokość wystawałaby o niego poza kolumnę gospodarza.
+  ramka.style.width = `calc(100% - ${2 * MARGINES_POZIOMY}px)`
+  ramka.style.margin = `0 ${MARGINES_POZIOMY}px`
   ramka.style.border = '0'
+  ramka.style.borderRadius = `${PROMIEN_RAMKI}px`
   ramka.style.height = `${WYSOKOSC_POCZATKOWA}px`
   skrypt.insertAdjacentElement('afterend', ramka)
 
