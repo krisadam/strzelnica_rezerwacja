@@ -2,19 +2,24 @@
  * Panel: co Użytkownik panelu widzi o Rezerwacjach swojej Strzelnicy i jak to
  * jest poukładane. Trzy spojrzenia na ten sam zbiór — kalendarz dnia z podziałem
  * na Osie, lista z filtrami i Zestawienie dnia — więc jeden kształt Rezerwacji
- * i trzy czyste funkcje, które go układają.
+ * i czyste funkcje, które go układają. Obok nich stoi `dayLoad`, jedyna, która
+ * nie układa niczego do czytania, tylko odpowiada jedną liczbą: jak pełny jest
+ * dzień.
  *
  * Wielodostępności nie ma tu ani śladu i być nie może: do przeglądarki Panelu
  * przychodzą wyłącznie Rezerwacje jego Strzelnicy, bo odcina je widok
  * `panel_bookings` w bazie. Funkcja, która filtrowałaby po Strzelnicy tutaj,
  * byłaby drugą granicą — a druga granica to ta, o której się zapomina.
  */
-import type { Occupancy } from './availability.ts'
-import { addDays, dayIn, zonedMinuteToInstant } from './calendar.ts'
+import type { BlockSchedule, Occupancy } from './availability.ts'
+import { occupied } from './availability.ts'
+import { addDays, dayIn, weekdayOf, zonedMinuteToInstant } from './calendar.ts'
 import type { BookedRental } from './catalog.ts'
 import type { CalendarDay } from './calendar.ts'
 import type { LaneClosure } from './closure.ts'
 import { closureOccupancy } from './closure.ts'
+import type { CalendarException, OpeningHours } from './hours.ts'
+import { hoursForDay } from './hours.ts'
 import type { Database } from './database.types.ts'
 import type { BookingSummary, OrderedItem } from './mail.ts'
 import type { BookingSource, LimitOverride } from './manual.ts'
@@ -422,6 +427,92 @@ export function dayTally({ bookings, day }: DayTallyInput): DayTally {
     ammunition: sumujPozycje(dnia, (wpis) => wpis.booking.ammunition),
     instructorBookings: dnia.filter((wpis) => wpis.booking.withInstructor),
   }
+}
+
+export type DayLoadInput = {
+  /**
+   * Osie, których obłożenie się liczy. Wołający wybiera, które to są —
+   * wskaźnik mówi o tym, co Strzelnica sprzedaje, więc Oś wyłączona do niego
+   * nie należy, a ta sama funkcja policzy i jedną Oś, i wszystkie.
+   */
+  lanes: readonly { id: string }[]
+  /** Rozkład Bloków — tygodniowy rytm, z którego bierze się dzień. */
+  schedules: readonly BlockSchedule[]
+  /** Zajętość Strzelnicy: Rezerwacje trzymające termin i Blokady (`panelOccupancy`). */
+  occupancies: readonly Occupancy[]
+  /** Tydzień Strzelnicy; dzień, którego nie wymienia, jest dniem zamkniętym. */
+  openingHours: readonly OpeningHours[]
+  /** Wyjątki kalendarzowe — każdy zastępuje tydzień na swojej dacie. */
+  exceptions: readonly CalendarException[]
+  day: CalendarDay
+  /** Strefa Strzelnicy: godzina Bloku jest godziną jej zegara, nie zegara obsługi. */
+  timeZone: string
+}
+
+/**
+ * Ile Bloków dnia jest już czyichś i ile ich w ogóle jest. Dwie liczby, a nie
+ * gotowy ułamek: dzień bez rozkładu ma zero z zera, a to nie jest ani dzień
+ * pusty, ani pełny — i wołający ma to poznać przed dzieleniem, a nie po nim.
+ */
+export type DayLoad = {
+  taken: number
+  blocks: number
+}
+
+/**
+ * Obłożenie dnia: ile z Bloków wystawionych na ten dzień jest już wziętych.
+ * Czwarte spojrzenie na ten sam zbiór — po kalendarzu, liście i Zestawieniu —
+ * ale jedyne, które odpowiada jedną liczbą: jak pełny jest dzień.
+ *
+ * Bloki bierze z rozkładu, a nie z Rezerwacji: dzień, w którym nikt nic nie
+ * wziął, ma tyle samo Bloków, co dzień wyprzedany, i właśnie o tę różnicę
+ * wskaźnik pyta.
+ *
+ * Rezerwacja i Blokada są tu nierozróżnialne, tak samo jak w dostępności
+ * Widgetu i z tego samego powodu: obie zajmują Oś na wyłączność, więc obie
+ * zdejmują Blok z tego, co zostało do wzięcia. Rozstrzyga o tym `occupied` —
+ * ta sama reguła zachodzenia, którą pyta kalendarz klienta i formularz
+ * Blokady; druga jej kopia rozjechałaby się na granicy Bloków stykających się
+ * końcami.
+ *
+ * O dzień zamknięty pyta `hoursForDay` — tą samą drogą, co dostępność Bloku
+ * i kalendarz Panelu, więc wyjątek kalendarzowy spotyka się z tygodniem raz
+ * i w jednym miejscu. Dzień zamknięty nie ma Bloków wcale, więc nie ma też
+ * czego obłożyć: wskaźnik dnia świątecznego stoi pusty, zamiast pokazywać
+ * pełność rozkładu, którego tego dnia nikt nie wystawia.
+ *
+ * Blok wypisany **poza godzinami** dnia otwartego liczy się normalnie: stoi na
+ * grafiku, jest widoczny i zajmuje miejsce w dniu, którego pełność tu mierzymy
+ * — inaczej niż w dniu zamkniętym, gdzie Bloków nie ma w ogóle.
+ */
+export function dayLoad({
+  lanes,
+  schedules,
+  occupancies,
+  openingHours,
+  exceptions,
+  day,
+  timeZone,
+}: DayLoadInput): DayLoad {
+  if (!hoursForDay({ day, openingHours, exceptions })) return { taken: 0, blocks: 0 }
+
+  const weekday = weekdayOf(day)
+  const osie = new Set(lanes.map((lane) => lane.id))
+
+  const bloki = schedules.filter(
+    (schedule) => schedule.weekday === weekday && osie.has(schedule.laneId),
+  )
+
+  const wziete = bloki.filter((schedule) =>
+    occupied(
+      occupancies,
+      schedule.laneId,
+      zonedMinuteToInstant(day, schedule.startMinute, timeZone),
+      zonedMinuteToInstant(day, schedule.startMinute + schedule.durationMinutes, timeZone),
+    ),
+  )
+
+  return { taken: wziete.length, blocks: bloki.length }
 }
 
 /**

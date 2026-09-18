@@ -197,7 +197,13 @@ function Rezerwacje({
               z magazynu na niego zejdzie. */}
           <Zestawienie
             day={pokazywanyDzien}
+            lanes={czynneOsie}
             bookings={dane.bookings}
+            closures={dane.closures}
+            schedules={dane.schedules}
+            openingHours={dane.openingHours}
+            exceptions={dane.exceptions}
+            timeZone={dane.facility.timeZone}
             onWybierz={(wpis) => setWybraneId(wpis.id)}
           />
           {/* Ręczny wpis pod obydwoma odczytami dnia, bo z nich bierze się jego

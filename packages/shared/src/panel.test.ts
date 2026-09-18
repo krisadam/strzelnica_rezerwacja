@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type {
+  BlockSchedule,
   DayAgendaInput,
   LaneClosure,
   LaneEntry,
@@ -8,9 +9,11 @@ import type {
   PanelBooking,
   PanelBookingRows,
   TallyItem,
+  Weekday,
 } from './index.ts'
 import {
   dayAgenda,
+  dayLoad,
   dayTally,
   filterBookings,
   IncompletePanelBookingError,
@@ -556,6 +559,208 @@ const WIERSZE: PanelBookingRows = {
   weaponTypes: [{ id: '00000000-0000-0000-0000-0000000000c2', name: 'CZ Shadow 2' }],
   ammunitionKinds: [{ id: '00000000-0000-0000-0000-0000000000e3', name: '.22 Long Rifle' }],
 }
+
+/** Blok rozkładu sprowadzony do tego, o co pytają te testy: kiedy i na której Osi. */
+function blok(dane: {
+  id: string
+  laneId?: string
+  weekday?: Weekday
+  godzina: number
+  dlugosc?: number
+}): BlockSchedule {
+  return {
+    id: dane.id,
+    laneId: dane.laneId ?? OS_PISTOLETOWA,
+    // 2026-06-15 jest poniedziałkiem; rozkład idzie rytmem tygodnia, a nie datą.
+    weekday: dane.weekday ?? 1,
+    startMinute: dane.godzina * 60,
+    durationMinutes: dane.dlugosc ?? 120,
+  }
+}
+
+/** Tydzień otwarty na okrągło — te testy pytają o rozkład, nie o godziny. */
+const TYDZIEN_OTWARTY = [1, 2, 3, 4, 5, 6, 7].map((weekday) => ({
+  weekday: weekday as Weekday,
+  opensMinute: 0,
+  closesMinute: 1440,
+}))
+
+describe('obłożenie dnia', () => {
+  // Zegar Strzelnicy jest w tych testach zegarem UTC, żeby godzina Bloku
+  // z rozkładu i godzina Zajętości dały się zestawić okiem.
+  const STREFA_UTC = 'UTC'
+
+  it('liczy Bloki dnia na wszystkich podanych Osiach', () => {
+    expect(
+      dayLoad({
+        lanes: OSIE,
+        schedules: [
+          blok({ id: 'b1', godzina: 10 }),
+          blok({ id: 'b2', godzina: 14 }),
+          blok({ id: 'b3', laneId: OS_KARABINOWA, godzina: 10 }),
+        ],
+        occupancies: [],
+        openingHours: TYDZIEN_OTWARTY,
+        exceptions: [],
+        day: '2026-06-15',
+        timeZone: STREFA_UTC,
+      }),
+    ).toEqual({ taken: 0, blocks: 3 })
+  })
+
+  it('bierze rozkład dnia tygodnia, na który pytamy, a nie cały tydzień', () => {
+    expect(
+      dayLoad({
+        lanes: OSIE,
+        schedules: [blok({ id: 'poniedzialek', godzina: 10 }), blok({ id: 'wtorek', weekday: 2, godzina: 10 })],
+        occupancies: [],
+        openingHours: TYDZIEN_OTWARTY,
+        exceptions: [],
+        day: '2026-06-15',
+        timeZone: STREFA_UTC,
+      }).blocks,
+    ).toBe(1)
+  })
+
+  // Rozkład Osi, o którą nie pytamy — wyłączonej — nie należy do obłożenia:
+  // wskaźnik mówi, ile z tego, co Strzelnica sprzedaje, jest już wzięte.
+  it('pomija rozkład Osi spoza listy', () => {
+    expect(
+      dayLoad({
+        lanes: [{ id: OS_PISTOLETOWA }],
+        schedules: [blok({ id: 'moja', godzina: 10 }), blok({ id: 'cudza', laneId: OS_KARABINOWA, godzina: 10 })],
+        occupancies: [],
+        openingHours: TYDZIEN_OTWARTY,
+        exceptions: [],
+        day: '2026-06-15',
+        timeZone: STREFA_UTC,
+      }).blocks,
+    ).toBe(1)
+  })
+
+  // Dla obłożenia Rezerwacja i Blokada są nierozróżnialne — obie zajmują Oś na
+  // wyłączność, więc obie zdejmują Blok z puli do wzięcia.
+  it('liczy Blok wzięty Rezerwacją i Blok wyłączony Blokadą tak samo', () => {
+    expect(
+      dayLoad({
+        lanes: OSIE,
+        schedules: [
+          blok({ id: 'wziety', godzina: 10 }),
+          blok({ id: 'wolny', godzina: 14 }),
+          blok({ id: 'zablokowany', laneId: OS_KARABINOWA, godzina: 10 }),
+        ],
+        occupancies: panelOccupancy({
+          bookings: [rezerwacja({ id: 'r', godzina: 10 })],
+          closures: [
+            blokada({
+              id: 'z',
+              laneId: OS_KARABINOWA,
+              od: '2026-06-15T10:00:00Z',
+              do: '2026-06-15T12:00:00Z',
+            }),
+          ],
+        }),
+        openingHours: TYDZIEN_OTWARTY,
+        exceptions: [],
+        day: '2026-06-15',
+        timeZone: STREFA_UTC,
+      }),
+    ).toEqual({ taken: 2, blocks: 3 })
+  })
+
+  // Ta sama reguła zachodzenia, co wszędzie: przedział domknięty od początku
+  // i otwarty od końca. Rezerwacja kończąca się o 12:00 nie bierze Bloku,
+  // który o 12:00 się zaczyna.
+  it('nie bierze Bloku stykającego się z Zajętością końcem', () => {
+    expect(
+      dayLoad({
+        lanes: [{ id: OS_PISTOLETOWA }],
+        schedules: [blok({ id: 'po', godzina: 12 })],
+        occupancies: panelOccupancy({
+          bookings: [rezerwacja({ id: 'r', godzina: 10 })],
+          closures: [],
+        }),
+        openingHours: TYDZIEN_OTWARTY,
+        exceptions: [],
+        day: '2026-06-15',
+        timeZone: STREFA_UTC,
+      }).taken,
+    ).toBe(0)
+  })
+
+  // Dzień bez rozkładu nie jest dniem pustym ani pełnym — nie ma czego obłożyć,
+  // i wołający ma to poznać po zerze, a nie po dzieleniu przez nie.
+  it('dzień bez Bloków jest zerem z zera', () => {
+    expect(
+      dayLoad({
+        lanes: OSIE,
+        schedules: [],
+        occupancies: [],
+        openingHours: TYDZIEN_OTWARTY,
+        exceptions: [],
+        day: '2026-06-15',
+        timeZone: STREFA_UTC,
+      }),
+    ).toEqual({ taken: 0, blocks: 0 })
+  })
+
+  // Dzień zamknięty nie ma Bloków wcale — ani do wzięcia, ani wziętych — więc
+  // nie ma też czego obłożyć. Wskaźnik dnia świątecznego stoi pusty, zamiast
+  // pokazywać pełność rozkładu, którego tego dnia nikt nie wystawia.
+  it('dzień zamknięty wyjątkiem nie ma czego obłożyć', () => {
+    expect(
+      dayLoad({
+        lanes: [{ id: OS_PISTOLETOWA }],
+        schedules: [blok({ id: 'b1', godzina: 10 })],
+        occupancies: panelOccupancy({
+          bookings: [rezerwacja({ id: 'r', godzina: 10 })],
+          closures: [],
+        }),
+        openingHours: TYDZIEN_OTWARTY,
+        exceptions: [{ day: '2026-06-15', hours: null, reason: 'Święto' }],
+        day: '2026-06-15',
+        timeZone: 'UTC',
+      }),
+    ).toEqual({ taken: 0, blocks: 0 })
+  })
+
+  // Dzień, którego tydzień nie wymienia, jest dniem zamkniętym — tak samo jak
+  // zamknięty wyjątkiem, bo obie odpowiedzi daje `hoursForDay`.
+  it('dzień spoza tygodnia otwarcia nie ma czego obłożyć', () => {
+    expect(
+      dayLoad({
+        lanes: [{ id: OS_PISTOLETOWA }],
+        schedules: [blok({ id: 'b1', godzina: 10 })],
+        occupancies: [],
+        openingHours: [],
+        exceptions: [],
+        day: '2026-06-15',
+        timeZone: 'UTC',
+      }),
+    ).toEqual({ taken: 0, blocks: 0 })
+  })
+
+  // Doba jest dobą Strzelnicy: Blok z minuty 1380 stoi w jej dniu, a nie
+  // w dniu UTC, i Zajętość ma go trafić policzona tym samym zegarem.
+  it('liczy godziny Bloku zegarem Strzelnicy', () => {
+    expect(
+      dayLoad({
+        lanes: [{ id: OS_PISTOLETOWA }],
+        schedules: [blok({ id: 'wieczorny', godzina: 23 })],
+        occupancies: panelOccupancy({
+          bookings: [],
+          closures: [
+            blokada({ id: 'z', od: '2026-06-15T21:30:00Z', do: '2026-06-15T22:30:00Z' }),
+          ],
+        }),
+        openingHours: TYDZIEN_OTWARTY,
+        exceptions: [],
+        day: '2026-06-15',
+        timeZone: 'Europe/Warsaw',
+      }).taken,
+    ).toBe(1)
+  })
+})
 
 describe('Rezerwacje Panelu z wierszy bazy', () => {
   it('niosą pełne szczegóły: kontakt, Uczestników, sprzęt, Instruktora i Kwotę', () => {

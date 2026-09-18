@@ -1,5 +1,6 @@
 import type { ConfirmationOutcome, SupabaseConfig } from '@strzelnica/shared'
 import { useEffect, useState } from 'react'
+import { Tarcza } from './Grafiki.js'
 import { potwierdzRezerwacje } from './potwierdzanie.js'
 import { teksty } from './teksty.js'
 
@@ -60,6 +61,10 @@ export function PotwierdzenieAdresu({
   if (stan.wynik.ok) {
     return (
       <section className="krok krok--potwierdzenie">
+        {/* Tarcza stoi przy potwierdzeniu, a nie przy odmowie: pierścień
+            domknięty w całości mówi o sprawie załatwionej, a odmowa załatwiona
+            nie jest. */}
+        <Tarcza />
         <h2>{teksty.potwierdzenieAdresu.naglowek}</h2>
         <p>
           {stan.wynik.alreadyConfirmed

@@ -8,6 +8,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Gospodarz } from './gospodarz.js'
 import { polaczZGospodarzem } from './gospodarz.js'
+import { Znak } from './Grafiki.js'
 import type { Grafik } from './grafik.js'
 import { loadGrafik, UnknownFacilityError } from './grafik.js'
 import { PotwierdzenieAdresu } from './PotwierdzenieAdresu.js'
@@ -230,7 +231,13 @@ export function App() {
 
   return (
     <main className="widget">
-      <h1>{teksty.tytul}</h1>
+      {/* Znak stoi w tytule, a nie obok niego: nagłówkiem ramki jest jedno
+          zdanie i jedna rzecz, a nie dwie ustawione w rzędzie. Nazwy nie
+          zmienia — czytnik ekranu czyta tu dokładnie to, co czytał. */}
+      <h1>
+        <Znak />
+        {teksty.tytul}
+      </h1>
       {slug ? <Wejscie slug={slug} search={search} /> : <Komunikat powod={teksty.brakParametru} />}
     </main>
   )

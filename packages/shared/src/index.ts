@@ -305,6 +305,7 @@ export type {
 } from './manual.ts'
 export {
   dayAgenda,
+  dayLoad,
   dayTally,
   filterBookings,
   PANEL_DAYS_BACK,
@@ -315,6 +316,8 @@ export {
 export type {
   BookingFilter,
   DayAgendaInput,
+  DayLoad,
+  DayLoadInput,
   DayTally,
   DayTallyInput,
   LaneAgenda,

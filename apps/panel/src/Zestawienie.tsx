@@ -1,6 +1,23 @@
-import type { CalendarDay, PanelBooking, TallyItem } from '@strzelnica/shared'
-import { dayTally, formatDayLabel, formatTimeRange, splitFigure } from '@strzelnica/shared'
+import type {
+  BlockSchedule,
+  CalendarDay,
+  CalendarException,
+  Lane,
+  LaneClosure,
+  OpeningHours,
+  PanelBooking,
+  TallyItem,
+} from '@strzelnica/shared'
+import {
+  dayLoad,
+  dayTally,
+  formatDayLabel,
+  formatTimeRange,
+  panelOccupancy,
+  splitFigure,
+} from '@strzelnica/shared'
 import type { ReactNode } from 'react'
+import { Tarcza } from './Grafiki.js'
 import { opisPozycji, teksty } from './teksty.js'
 
 /** Identyfikatory nagłówków grup; wiążą listę z nazwą tego, co w niej stoi. */
@@ -142,18 +159,49 @@ function Pozycje({
  * oglądany dwa razy, raz po Osiach i raz po sprzęcie.
  *
  * Sumowanie razem z regułą, co się w ogóle liczy, robi `dayTally`
- * z `@strzelnica/shared`. Tutaj zostaje rysowanie.
+ * z `@strzelnica/shared`, a obłożenie dnia pod pierścieniem przy dacie —
+ * `dayLoad` stamtąd samego. Tutaj zostaje rysowanie.
  */
 export function Zestawienie({
   day,
+  lanes,
   bookings,
+  closures,
+  schedules,
+  openingHours,
+  exceptions,
+  timeZone,
   onWybierz,
 }: {
   day: CalendarDay
+  /** Osie czynne — obłożenie mierzy to, co Strzelnica sprzedaje. */
+  lanes: readonly Lane[]
   bookings: readonly PanelBooking[]
+  /** Blokady: dla obłożenia zajmują Blok tak samo jak Rezerwacje. */
+  closures: readonly LaneClosure[]
+  /** Rozkład Bloków wszystkich Osi — z niego bierze się, ile dzień ma do wzięcia. */
+  schedules: readonly BlockSchedule[]
+  /** Tydzień Strzelnicy; dzień zamknięty nie ma Bloków wcale, więc i obłożenia. */
+  openingHours: readonly OpeningHours[]
+  /** Wyjątki kalendarzowe — każdy zastępuje tydzień na swojej dacie. */
+  exceptions: readonly CalendarException[]
+  /** Strefa Strzelnicy: godzina Bloku jest godziną jej zegara. */
+  timeZone: string
   onWybierz: (booking: PanelBooking) => void
 }) {
   const { weapons, ammunition, instructorBookings } = dayTally({ bookings, day })
+  // Obłożenie liczone z tego, co Panel ma pod ręką (`panelOccupancy`), tą samą
+  // drogą, co kolizje Blokady i ręcznego wpisu — widoków zajętości Widgetu
+  // Panel nie czyta wcale i nie ma do nich prawa (ADR 0009).
+  const oblozenie = dayLoad({
+    lanes,
+    schedules,
+    occupancies: panelOccupancy({ bookings, closures }),
+    openingHours,
+    exceptions,
+    day,
+    timeZone,
+  })
   // Trzy puste grupy zamienione w jedno zdanie: „nikt nie wypożycza, nikt nie
   // zamawia, nikogo nie trzeba" mówi trzy razy to samo, co „nie ma czego
   // przygotować" — a odpowiedzią jest tu zdanie, nie trzy puste ramki.
@@ -165,7 +213,10 @@ export function Zestawienie({
       <h2>{teksty.zestawienie.naglowek}</h2>
       {/* Dzień wypisany także tutaj, choć bierze się z kalendarza: lista sprzętu
           bez daty nad sobą jest listą, którą da się skompletować na zły dzień. */}
-      <p className="zestawienie__dzien">{formatDayLabel(day)}</p>
+      <p className="zestawienie__dzien">
+        <Tarcza load={oblozenie} />
+        {formatDayLabel(day)}
+      </p>
       <p className="zestawienie__wstep">{teksty.zestawienie.wstep}</p>
 
       {pusto ? (
