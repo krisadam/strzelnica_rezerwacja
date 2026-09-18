@@ -5,17 +5,18 @@
 
    Jeden wygląd dla wszystkich Strzelnic — bez konfiguracji kolorów. Motyw
    ciemny nie jest wyjątkiem od tej zasady: przełącznika nie ustawia żadna
-   Strzelnica, tylko aplikacja — dziś Widget, docelowo obie (ADR 0014).
+   Strzelnica, tylko aplikacja — i ustawiają go obie (ADR 0014).
 
    Oba arkusze importują ten plik u siebie, a nie w module wejściowym swojej
    aplikacji: arkusz ma być samowystarczalny i mówić czytającemu, skąd biorą
    się zmienne, których używa. */
 
 :root {
-  /* Paleta jasna — ta, którą ma dziś na ekranie Panel. Zostaje wartością
-     domyślną, dopóki nie przejdzie on na ciemną własnym ticketem: przestawienie
-     jej tutaj przemalowałoby Panel bez dostosowania jego arkusza, a to osobna
-     robota od tej, którą zrobił u siebie Widget. */
+  /* Paleta jasna — ta, na której moduł stał, zanim obie aplikacje weszły
+     w ciemną. Żadna z nich jej dziś nie pokazuje; zostaje wartością domyślną,
+     bo to ona odpowiada dokumentowi bez przełącznika, a wariant pusty byłby
+     dziurą, na którą natknąłby się dopiero ten, kto atrybut zdejmie. Zdjęcie
+     samej palety jasnej to osobna decyzja i osobny ticket. */
   --tlo: #ffffff;
   --tlo-drugie: #f5f6f8;
   --tekst: #16181d;
@@ -62,11 +63,10 @@
    jasności. Wartości pochodzą z prototypu, który tę decyzję rozstrzygnął.
 
    Włącza ją jeden atrybut na korzeniu dokumentu — `<html data-motyw="ciemny">`.
-   Ustawia go dziś Widget i tylko on; Panel czeka na swój bliźniaczy ticket,
-   więc obie aplikacje wyglądają przez chwilę różnie i tak ma być. Przełącznik
-   jest właśnie po to: arkusz każdej z nich trzeba dostosować osobno, a stan,
+   Ustawiają go dziś obie aplikacje, każda w swoim `index.html`, i po to ten
+   przełącznik był: arkusz każdej z nich trzeba było dostosować osobno, a stan,
    w którym jedna aplikacja jest przemalowana w połowie, byłby gorszy od tego,
-   w którym druga jest jeszcze cała jasna.
+   w którym druga jest jeszcze cała jasna. Ten drugi właśnie się skończył.
 
    Każdy kolor tekstu i każdy kolor stanu trzyma tu co najmniej 4,5:1 wobec obu
    teł — policzone, nie ocenione okiem. Sprawdza to `tokens.test.ts`, który
@@ -91,8 +91,8 @@
      biorą koloru z palety, tylko z tego, co strona zadeklaruje przeglądarce.
      Bez tej deklaracji formularz rezerwacji stoi białymi polami na granacie.
 
-     Stoi tu, a nie w arkuszu Widgetu, bo jest częścią tej palety, a nie tej
-     aplikacji: kiedy przełącznik ustawi u siebie Panel, jego kontrolki mają
-     pociemnieć z tego samego powodu i bez dopisywania tego drugi raz. */
+     Stoi tu, a nie w arkuszu którejkolwiek z aplikacji, bo jest częścią tej
+     palety, a nie żadnej z nich: Panel wziął stąd ciemne listy wyboru w chwili,
+     w której ustawił przełącznik, i nie dopisywał tego u siebie drugi raz. */
   color-scheme: dark;
 }

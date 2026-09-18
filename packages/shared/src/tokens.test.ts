@@ -43,7 +43,9 @@ function token(paleta: Map<string, string>, nazwa: string): string {
 }
 
 /** Ciemna nadpisuje jasną, więc jej pary czyta się z niej samej; wymóg jest
- *  jednak ten sam dla obu — jasna paleta jest dziś tym, co widać na ekranie. */
+ *  jednak ten sam dla obu. Jasnej nie pokazuje dziś żadna aplikacja — obie
+ *  ustawiają przełącznik — ale zostaje wariantem dokumentu bez niego i póki
+ *  stoi w arkuszu, ma trzymać ten sam próg, co ciemna. */
 const PALETY = [
   { nazwa: 'jasna', paleta: JASNY },
   { nazwa: 'ciemna', paleta: CIEMNY },
@@ -68,11 +70,11 @@ describe('obie palety w jednym arkuszu', () => {
     expect([...CIEMNY.keys()].sort()).toEqual(kolory.sort())
   })
 
-  it('nie rusza wartości jasnych — Panel wygląda jak przed zmianą', () => {
+  it('trzyma wartości jasne, na które celuje test przeglądarkowy', () => {
     // Świadkiem jest kolor rzeczy wyjętych ze sprzedaży, ten sam, na którym
-    // stoi test przeglądarkowy. Przełącznik ustawia dziś wyłącznie Widget, więc
-    // to są wartości, które nadal widzi Użytkownik panelu — i mają nimi zostać
-    // do czasu, aż i on dostanie swój ticket przemalowujący.
+    // stoi test przeglądarkowy — a ten pyta o paletę jasną dokument, z którego
+    // zdjęto przełącznik. Obie kopie tych wartości mają się zgadzać: rozjazd
+    // między nimi znaczy test, który mierzy nie to, co myśli, że mierzy.
     expect(token(JASNY, '--wylaczony')).toBe('#6b4ea8')
     expect(token(JASNY, '--tlo')).toBe('#ffffff')
     expect(token(JASNY, '--tekst')).toBe('#16181d')

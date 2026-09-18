@@ -1,5 +1,13 @@
 <!doctype html>
-<html lang="pl">
+<!--
+  Ciemna paleta modułu (ADR 0014) włącza się atrybutem na korzeniu dokumentu —
+  tak samo, jak w Widgecie, i z tego samego powodu: ma obowiązywać od pierwszej
+  klatki, a nadana po starcie Reacta dałaby mignięcie białym tłem.
+
+  Od tego ticketu ustawiają go obie aplikacje, więc moduł ma jedną skórę.
+  Przełącznik zostaje, bo to on pozwolił przemalować je osobno.
+-->
+<html lang="pl" data-motyw="ciemny">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
