@@ -114,7 +114,7 @@ portu pokazuje, jak wygląda blokada osadzenia.
 | --- | --- |
 | `apps/widget` | Widget — React + Vite, aplikacja ładowana w ramce, i skrypt osadzający |
 | `apps/panel` | Panel — React + Vite, logowanie przez Supabase Auth |
-| `packages/shared` | typy ze schematu bazy, logika dostępności, wyliczanie Kwoty, walidacja |
+| `packages/shared` | typy ze schematu bazy, logika dostępności, wyliczanie Kwoty, walidacja, tokeny wizualne obu aplikacji |
 | `supabase/` | migracje, polityki RLS, seed, Edge Functions |
 | `e2e/` | testy przeglądarkowe (Playwright) |
 | `tools/` | skrypty operatora platformy — zakładanie Strzelnicy, obejście błędu Rancher Desktop |
@@ -176,7 +176,9 @@ złożoną wcześniej, oraz domena dopisana w Panelu wchodząca do nagłówka
 `frame-ancestors` bez wdrożenia i znikająca z niego natychmiast po skasowaniu,
 razem z regulaminem tej Strzelnicy stojącym w Widgecie przy zgodzie, oraz
 Strzelnica założona skryptem operatora — z kontem, które wchodzi do Panelu
-i konfiguruje ją stamtąd od zera. Wymagają wstającego Supabase (`pnpm db:start`)
+i konfiguruje ją stamtąd od zera, oraz wspólny arkusz tokenów wizualnych
+docierający do obu aplikacji — bo jego zgubienie jest awarią cichą: strona
+renderuje się dalej, tylko bez kolorów. Wymagają wstającego Supabase (`pnpm db:start`)
 i zbudowanych aplikacji (`pnpm build`). Nie dubluje reguł pokrytych na szwie
 podstawowym.
 

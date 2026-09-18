@@ -1,22 +1,8 @@
 /* Wygląd Panelu. Osobny arkusz od Widgetu i celowo inny w układzie: Widget
    prowadzi jedną osobę przez jeden formularz, a Panel pokazuje obsłudze cały
    dzień naraz — stąd szerokość na pełny ekran i Osie obok siebie. Kolory te
-   same, bo to jeden moduł. */
-:root {
-  --tlo: #ffffff;
-  --tlo-drugie: #f5f6f8;
-  --tekst: #16181d;
-  --przygaszony: #5d636e;
-  --ramka: #d5d9e0;
-  --wolny: #1f7a3f;
-  --blad: #a3232b;
-  /* Blokada nie jest ani wolnym terminem, ani błędem — jest Osią wyjętą z
-     obiegu, więc bierze kolor obok tamtych dwóch, nie któryś z nich. */
-  --wylaczony: #6b4ea8;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  color: var(--tekst);
-  background: var(--tlo);
-}
+   same, bo to jeden moduł — stąd wspólny arkusz tokenów. */
+@import '@strzelnica/shared/tokens.css';
 
 body {
   margin: 0;
