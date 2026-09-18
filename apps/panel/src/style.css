@@ -11,7 +11,8 @@
    ma. Panel jest gęstszy od Widgetu, więc płyt jaśniejszych od tła stałoby na
    jego ekranie kilkanaście naraz i żadna nie znaczyłaby już nic.
 
-   Paletę włącza atrybut `data-motyw` w `index.html`, nie ten arkusz. */
+   Ten arkusz nie ustawia palety ani jej nie wybiera — bierze ją z importu
+   poniżej taką, jaka jest. */
 @import '@strzelnica/shared/tokens.css';
 
 body {

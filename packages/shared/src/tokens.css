@@ -3,50 +3,50 @@
    która kiedyś odpowie innym odcieniem, a CSS nie ma jak zauważyć, że granat
    w Panelu przestał być granatem Widgetu.
 
-   Jeden wygląd dla wszystkich Strzelnic — bez konfiguracji kolorów. Motyw
-   ciemny nie jest wyjątkiem od tej zasady: przełącznika nie ustawia żadna
-   Strzelnica, tylko aplikacja — i ustawiają go obie (ADR 0014).
+   Jeden wygląd dla wszystkich Strzelnic — bez konfiguracji kolorów i bez
+   przełącznika. Przełącznik motywu stał tu tylko na czas przemalowywania, żeby
+   każda aplikacja weszła w ciemną bazę osobnym ticketem; obie już w niej stoją,
+   więc zszedł razem z paletą jasną. Dopóki palety były dwie, istniał stan,
+   w którym Panel i Widget mogły się rozjechać — teraz nie ma czego przełączać.
 
    Oba arkusze importują ten plik u siebie, a nie w module wejściowym swojej
    aplikacji: arkusz ma być samowystarczalny i mówić czytającemu, skąd biorą
    się zmienne, których używa. */
 
+/* Paleta modułu (ADR 0014): granatowa baza, kremowy tekst, bursztynowy akcent,
+   hierarchia budowana obwódkami na jednym płaskim tle, a nie warstwami
+   jasności. Wartości pochodzą z prototypu, który tę decyzję rozstrzygnął.
+
+   Każdy kolor tekstu i każdy kolor stanu trzyma tu co najmniej 4,5:1 wobec obu
+   teł — policzone, nie ocenione okiem. Sprawdza to `tokens.test.ts`, który
+   czyta ten plik: odcień „uspokojony" później cofnąłby przy okazji dostępność
+   publicznego formularza rezerwacji. Jedynym kolorem poza tym rachunkiem jest
+   obwódka: nie niesie ani tekstu, ani stanu. */
 :root {
-  /* Paleta jasna — ta, na której moduł stał, zanim obie aplikacje weszły
-     w ciemną. Żadna z nich jej dziś nie pokazuje; zostaje wartością domyślną,
-     bo to ona odpowiada dokumentowi bez przełącznika, a wariant pusty byłby
-     dziurą, na którą natknąłby się dopiero ten, kto atrybut zdejmie. Zdjęcie
-     samej palety jasnej to osobna decyzja i osobny ticket. */
-  --tlo: #ffffff;
-  --tlo-drugie: #f5f6f8;
-  --tekst: #16181d;
-  --przygaszony: #5d636e;
-  --ramka: #d5d9e0;
+  --tlo: #0e1726;
+  --tlo-drugie: #16223a;
+  --tekst: #f2eadf;
+  --przygaszony: #a9b4c7;
+  --ramka: #2c3c5c;
   /* Akcent — kolor rzeczy, którą moduł wskazuje: przycisku głównego i tego, co
      wybrane. Dotąd tę rolę pełnił kolor wolnego terminu, przez co zieleń mówiła
-     naraz „ten termin jest do wzięcia" i „naciśnij mnie" (ADR 0014). Nikt go
-     jeszcze nie używa; bierze go ticket przemalowujący aplikację.
-
-     ADR podaje bursztyn dla bazy ciemnej i o jasnej nie mówi nic. Ta wartość
-     jest więc tym samym bursztynem przyciemnionym tyle, ile trzeba, by trzymał
-     4,5:1 na bieli (5,2:1) — token pusty w jednym wariancie byłby dziurą, na
-     którą natknąłby się dopiero ktoś przełączający motyw. */
-  --akcent: #a8570a;
-  --wolny: #1f7a3f;
-  --blad: #a3232b;
+     naraz „ten termin jest do wzięcia" i „naciśnij mnie" (ADR 0014). */
+  --akcent: #e08a3c;
+  /* Kolory stanu musiały pojaśnieć, a nie stonować się: na granacie ciemna
+     zieleń wolnego terminu i ciemna czerwień błędu schodzą poniżej progu
+     czytelności. */
+  --wolny: #4bbf7b;
+  --blad: #f0736f;
   /* Blokada nie jest ani wolnym terminem, ani błędem — jest Osią wyjętą z
      obiegu, więc bierze kolor obok tamtych dwóch, nie któryś z nich. */
-  --wylaczony: #6b4ea8;
+  --wylaczony: #a98be0;
 
-  /* Promienie i skala nagłówków stoją poza przełącznikiem motywu, bo motyw ich
-     nie dotyczy: kształt kontrolki i wielkość nagłówka są w obu paletach te
-     same. Wartości niosą skalę Panelu i są zgodne z ADR 0014 — promienie
-     drobne, nie osiemnastopunktowe z referencji.
-
-     Widget miał u siebie miejsca z promieniem 0,4 rem i nagłówki 1,05 rem oraz
-     1 rem tam, gdzie ta skala mówi 1,1 rem i 0,95 rem; różnice zebrał ticket,
-     który go przemalował. Panel stał na tych wartościach od początku, więc
-     podstawienie ich w jego arkuszu niczego nie przesunie. */
+  /* Promienie i skala nagłówków stoją tu obok palety, ale nie są jej częścią:
+     kształt kontrolki i wielkość nagłówka nie zmieniłyby się nawet wtedy, gdyby
+     moduł kiedyś dostał drugą skórę. Rozdziela je dziś wyłącznie ten komentarz
+     — dopóki blok jest jeden, nie ma czego rozdzielać selektorem. Wartości
+     niosą skalę Panelu i są zgodne z ADR 0014 — promienie drobne, nie
+     osiemnastopunktowe z referencji. */
   --promien-drobny: 0.35rem;
   --promien: 0.5rem;
   --naglowek-1: 1.35rem;
@@ -56,36 +56,6 @@
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: var(--tekst);
   background: var(--tlo);
-}
-
-/* Paleta ciemna (ADR 0014): granatowa baza, kremowy tekst, bursztynowy akcent,
-   hierarchia budowana obwódkami na jednym płaskim tle, a nie warstwami
-   jasności. Wartości pochodzą z prototypu, który tę decyzję rozstrzygnął.
-
-   Włącza ją jeden atrybut na korzeniu dokumentu — `<html data-motyw="ciemny">`.
-   Ustawiają go dziś obie aplikacje, każda w swoim `index.html`, i po to ten
-   przełącznik był: arkusz każdej z nich trzeba było dostosować osobno, a stan,
-   w którym jedna aplikacja jest przemalowana w połowie, byłby gorszy od tego,
-   w którym druga jest jeszcze cała jasna. Ten drugi właśnie się skończył.
-
-   Każdy kolor tekstu i każdy kolor stanu trzyma tu co najmniej 4,5:1 wobec obu
-   teł — policzone, nie ocenione okiem. Sprawdza to `tokens.test.ts`, który
-   czyta ten plik: odcień „uspokojony" później cofnąłby przy okazji dostępność
-   publicznego formularza rezerwacji. Jedynym kolorem poza tym rachunkiem jest
-   obwódka: nie niesie ani tekstu, ani stanu. */
-:root[data-motyw='ciemny'] {
-  --tlo: #0e1726;
-  --tlo-drugie: #16223a;
-  --tekst: #f2eadf;
-  --przygaszony: #a9b4c7;
-  --ramka: #2c3c5c;
-  --akcent: #e08a3c;
-  /* Kolory stanu musiały pojaśnieć, a nie stonować się: na granacie ciemna
-     zieleń wolnego terminu i ciemna czerwień błędu schodzą poniżej progu
-     czytelności. */
-  --wolny: #4bbf7b;
-  --blad: #f0736f;
-  --wylaczony: #a98be0;
 
   /* Natywne kontrolki — pola liczbowe, pola wyboru, paski przewijania — nie
      biorą koloru z palety, tylko z tego, co strona zadeklaruje przeglądarce.
@@ -93,6 +63,7 @@
 
      Stoi tu, a nie w arkuszu którejkolwiek z aplikacji, bo jest częścią tej
      palety, a nie żadnej z nich: Panel wziął stąd ciemne listy wyboru w chwili,
-     w której ustawił przełącznik, i nie dopisywał tego u siebie drugi raz. */
+     w której przeszedł na ciemną bazę, i nie dopisywał tego u siebie drugi
+     raz. */
   color-scheme: dark;
 }

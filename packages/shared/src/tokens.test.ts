@@ -5,9 +5,9 @@ import { contrastRatio, MIN_TEXT_CONTRAST } from './contrast.ts'
 
 // Ten test nie sprawdza, czy arkusz tokenów dociera do aplikacji — to mierzy
 // test przeglądarkowy `tokeny-wizualne.spec.ts` i tamto ryzyko zostaje tam.
-// Tutaj przedmiotem są same wartości: kontrast wariantu ciemnego, który ma być
-// policzony, a nie oceniony okiem, i komplet ciemnych odpowiedników. Wartość
-// koloru jest czymś, co da się orzec bez przeglądarki, więc orzeka się to tu.
+// Tutaj przedmiotem są same wartości: kontrast palety, który ma być policzony,
+// a nie oceniony okiem. Wartość koloru jest czymś, co da się orzec bez
+// przeglądarki, więc orzeka się to tu.
 
 const ARKUSZ = readFileSync(fileURLToPath(new URL('./tokens.css', import.meta.url)), 'utf8')
 
@@ -26,8 +26,7 @@ function blok(selektor: string): Map<string, string> {
   return deklaracje
 }
 
-const JASNY = blok(':root')
-const CIEMNY = blok(":root[data-motyw='ciemny']")
+const PALETA = blok(':root')
 
 /** Kolory objęte wymogiem 4,5:1 — tekst i stany. Nie ma tu obwódki: nie niesie
  *  ani tekstu, ani stanu. W wariancie obwódkowym akcent kładzie się na obwódkę
@@ -35,61 +34,50 @@ const CIEMNY = blok(":root[data-motyw='ciemny']")
 const NA_WIERZCHU = ['--tekst', '--przygaszony', '--akcent', '--wolny', '--blad', '--wylaczony']
 const TLA = ['--tlo', '--tlo-drugie']
 
-function token(paleta: Map<string, string>, nazwa: string): string {
-  const wartosc = paleta.get(nazwa)
+function token(nazwa: string): string {
+  const wartosc = PALETA.get(nazwa)
   if (wartosc === undefined) throw new Error(`Paleta nie ma tokenu ${nazwa}`)
 
   return wartosc
 }
 
-/** Ciemna nadpisuje jasną, więc jej pary czyta się z niej samej; wymóg jest
- *  jednak ten sam dla obu. Jasnej nie pokazuje dziś żadna aplikacja — obie
- *  ustawiają przełącznik — ale zostaje wariantem dokumentu bez niego i póki
- *  stoi w arkuszu, ma trzymać ten sam próg, co ciemna. */
-const PALETY = [
-  { nazwa: 'jasna', paleta: JASNY },
-  { nazwa: 'ciemna', paleta: CIEMNY },
-]
-
-describe.each(PALETY)('paleta $nazwa', ({ paleta }) => {
+describe('paleta modułu', () => {
   it.each(NA_WIERZCHU)('%s czyta się na obu tłach', (nazwa) => {
     for (const tlo of TLA) {
-      const wspolczynnik = contrastRatio(token(paleta, nazwa), token(paleta, tlo))
+      const wspolczynnik = contrastRatio(token(nazwa), token(tlo))
 
       expect(wspolczynnik).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
     }
   })
-})
 
-describe('obie palety w jednym arkuszu', () => {
-  it('ma ciemny odpowiednik każdego koloru palety jasnej', () => {
-    // Kolor bez odpowiednika zostałby po przełączeniu jasny na granacie —
-    // i byłaby to awaria widoczna dopiero na ekranie, bo CSS jej nie zgłosi.
-    const kolory = [...JASNY.keys()].filter((nazwa) => token(JASNY, nazwa).startsWith('#'))
+  it('jest jedyną paletą w arkuszu', () => {
+    // Dwie palety naraz znaczą stan, w którym Panel i Widget mogą się rozjechać
+    // — jedna aplikacja przełączona, druga nie. Ciemna została jedyną, więc nie
+    // ma czego przełączać i nie ma jak zapomnieć o przełączeniu.
+    //
+    // Liczymy bloki, a nie szukamy nazwy zdjętego atrybutu: druga paleta wraca
+    // pod dowolnym selektorem — atrybutem o innej nazwie, zapytaniem o
+    // preferencję systemu — a nazwa wyłapałaby wyłącznie powrót tej jednej.
+    const bloki = [...ARKUSZ.matchAll(/^:root[^{]*\{/gm)]
 
-    expect([...CIEMNY.keys()].sort()).toEqual(kolory.sort())
+    expect(bloki.map(([naglowek]) => naglowek)).toEqual([':root {'])
   })
 
-  it('trzyma wartości jasne, na które celuje test przeglądarkowy', () => {
+  it('trzyma wartości, na które celuje test przeglądarkowy', () => {
     // Świadkiem jest kolor rzeczy wyjętych ze sprzedaży, ten sam, na którym
-    // stoi test przeglądarkowy — a ten pyta o paletę jasną dokument, z którego
-    // zdjęto przełącznik. Obie kopie tych wartości mają się zgadzać: rozjazd
-    // między nimi znaczy test, który mierzy nie to, co myśli, że mierzy.
-    expect(token(JASNY, '--wylaczony')).toBe('#6b4ea8')
-    expect(token(JASNY, '--tlo')).toBe('#ffffff')
-    expect(token(JASNY, '--tekst')).toBe('#16181d')
+    // stoi test przeglądarkowy. Obie kopie tych wartości mają się zgadzać:
+    // rozjazd między nimi znaczy test, który mierzy nie to, co myśli, że
+    // mierzy.
+    expect(token('--wylaczony')).toBe('#a98be0')
+    expect(token('--tlo')).toBe('#0e1726')
+    expect(token('--tekst')).toBe('#f2eadf')
   })
 })
 
-describe('tokeny poza paletą', () => {
+describe('tokeny niezależne od skóry', () => {
   it('niosą promienie i skalę nagłówków, których projekt dotąd nie miał', () => {
     for (const nazwa of ['--promien-drobny', '--promien', '--naglowek-1', '--naglowek-2', '--naglowek-3']) {
-      expect(token(JASNY, nazwa)).toMatch(/^[\d.]+rem$/)
+      expect(token(nazwa)).toMatch(/^[\d.]+rem$/)
     }
-  })
-
-  it('stoją poza przełącznikiem, bo motyw ich nie dotyczy', () => {
-    expect(CIEMNY.has('--promien')).toBe(false)
-    expect(CIEMNY.has('--naglowek-1')).toBe(false)
   })
 })
