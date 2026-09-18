@@ -2,6 +2,7 @@ import type { Block, CalendarDay, Intent, Lane } from '@strzelnica/shared'
 import { addDays, bookingHorizon, formatDayLabel, formatTimeRange } from '@strzelnica/shared'
 import { useMemo } from 'react'
 import { Deklaracje } from './Deklaracje.js'
+import { PiktogramOsi } from './Grafiki.js'
 import type { Grafik, Zajetosc } from './grafik.js'
 import { grafikDnia } from './grafik.js'
 import { teksty } from './teksty.js'
@@ -129,9 +130,17 @@ export function Kalendarz({
 
       <p className="reguly">{teksty.zasiegKalendarza(formatDayLabel(ostatniDzien))}</p>
 
-      {!dzien.open && <p className="komunikat">{teksty.dzienZamkniety}</p>}
-      {dzien.open && dzien.blocks.length === 0 && (
-        <p className="komunikat">{teksty.osBezBlokow}</p>
+      {/* Pusty stan kalendarza — jeden, choć powodów ma dwa: dzień zamknięty
+          i Oś bez Bloków są dla Osoby rezerwującej tym samym, czyli dniem, z
+          którego nie ma czego wziąć. Zdanie rozróżnia je dalej, bo naprawia się
+          je inaczej; piktogram stoi nad nim raz, bo ekran jest pusty raz. */}
+      {dzien.blocks.length === 0 && (
+        <div className="pusto">
+          <PiktogramOsi />
+          <p className="komunikat">
+            {dzien.open ? teksty.osBezBlokow : teksty.dzienZamkniety}
+          </p>
+        </div>
       )}
       {dzien.open && dzien.blocks.length > 0 && (
         <ul className="bloki">

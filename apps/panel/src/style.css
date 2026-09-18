@@ -362,6 +362,60 @@ body {
 .zestawienie__dzien {
   font-weight: 600;
   margin: 0 0 0.25rem;
+  /* Pierścień obłożenia stoi przy dniu, którego dotyczy, w jednym z nim
+     wierszu — wyrównany środkiem, bo nie ma linii bazowej. */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Grafika dekoracyjna (`Grafiki.tsx`) — pierścień obłożenia dnia i nic poza
+   nim. Wypełnienia nie ma, kolor niesie obwódką, a kreska jest **kreską
+   interfejsu**: `vector-effect` trzyma ją na jednym pikselu niezależnie od
+   wielkości rysunku, więc obwódka karty i obwódka tarczy to ta sama kreska.
+
+   Koloru stanu tu nie ma: fiolet, zieleń i czerwień mówią w module o Blokadach,
+   terminach i błędach, a nie o ozdobach. */
+.grafika {
+  display: block;
+  flex: none;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Kreska stoi przy kształtach, a nie przy `.grafika`: `vector-effect` się nie
+   dziedziczy, więc na samym `<svg>`, który nic nie maluje, nie robiłby nic —
+   a `stroke-width` dziedziczy się i schodziłby do kształtów w jednostkach
+   `viewBox`, czyli tym grubszy, im większy rysunek. */
+.grafika__kreska,
+.grafika__akcent {
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.grafika__kreska {
+  stroke: var(--ramka);
+}
+
+.grafika__akcent {
+  stroke: var(--akcent);
+}
+
+/* Środek tarczy — jedyne wypełnione miejsce w tym rysunku: trafienie jest
+   punktem, a nie obwódką. */
+.grafika__punkt {
+  fill: var(--akcent);
+  stroke: none;
+}
+
+/* Nazwa mówi o roli — wskaźniku obłożenia — a nie o rysunku, bo tarczę rysuje
+   także Widget, i to w swojej wielkości. Wspólnej nazwy o dwóch znaczeniach
+   nie ma: arkusz ma każda aplikacja swój, tak jak przy chwycie „duża liczba,
+   drobna jednostka". */
+.grafika--oblozenie {
+  width: 1.9rem;
+  height: 1.9rem;
 }
 
 .zestawienie__wstep {

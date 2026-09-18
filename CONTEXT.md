@@ -215,6 +215,17 @@ dla dostępności nierozróżnialne, bo obie zajmują Oś na wyłączność. Zaj
 jest tym, co Osoba rezerwująca widzi o cudzych Rezerwacjach: Oś i przedział
 czasu, nigdy kto ani ilu.
 
+## Obłożenie
+
+Jak pełny jest jeden dzień Strzelnicy: ile z Bloków, które wystawia tego dnia
+na Osiach czynnych, jest już wziętych. Liczy się z Zajętości, więc Rezerwacja
+i Blokada są dla niego tym samym — obie zajmują Blok tak, że nikt inny go już
+nie weźmie.
+
+Dzień zamknięty obłożenia nie ma wcale, a nie zerowe: nie ma wtedy ani jednego
+Bloku, więc nie ma czego obłożyć. Odrębne od Zajętości: tamta mówi, kiedy Oś
+jest czyjaś, a to mówi, ile z dnia zostało — i mówi to wyłącznie Strzelnicy.
+
 ## Wypożyczenie
 
 Pozycja Rezerwacji wskazująca Typ broni i liczbę sztuk. Jedna Rezerwacja może

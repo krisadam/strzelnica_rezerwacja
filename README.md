@@ -108,6 +108,58 @@ Strona staje na <http://localhost:5175> — porcie, który seed wpisuje
 demonstracyjnej Strzelnicy jako dozwolony. Ta sama strona podana spod innego
 portu pokazuje, jak wygląda blokada osadzenia.
 
+## Grafiki
+
+Moduł ma cztery grafiki i ani jednej więcej: tarczę jako pierścień, piktogram
+Osi, znak w nagłówku Widgetu i kopertę z tarczą. Miejsca są wyliczone z góry,
+bo grafika dołożona wszędzie przestaje cokolwiek znaczyć — to ta sama zasada,
+która w Panelu i w Widgecie zostawia chwyt „duża liczba, drobna jednostka"
+jednej rzeczy na ekranie.
+
+| Grafika | Gdzie stoi |
+| --- | --- |
+| Tarcza jako pierścień | ekran potwierdzonego adresu w Widgecie; wskaźnik obłożenia dnia przy dziennym Zestawieniu Panelu |
+| Piktogram Osi | pusty stan kalendarza Widgetu — dzień zamknięty i Oś bez Bloków |
+| Znak | nagłówek Widgetu; jedyny element pełniący rolę marki |
+| Koperta z tarczą | ekran po wysłaniu linku potwierdzającego adres |
+
+Wszystkie są **dekoracją** i wszystkie są ukryte przed technologiami
+wspomagającymi (`aria-hidden`). Nie zmieniają więc ani tego, co czyta czytnik
+ekranu, ani tego, po czym chodzą testy przeglądarkowe — a te idą przez role
+i etykiety, bo tak idzie u nas większość pokrycia.
+
+Znacznik przy Blokadzie i przy Osi wyłączonej świadomie grafiki **nie** dostaje:
+kolor niesie tam już znaczenie i piktogram byłby trzecim nośnikiem tego samego.
+
+Rysują się w dokumencie, a nie dociągają plikiem: Widget dogrywa się na cudzej
+stronie, więc każdy zewnętrzny zasób to drugie żądanie, które może nie dojść —
+a wtedy zostaje po nim dziura w miejscu, którego nikt nie opisał słowami. Kreska
+jest kreską interfejsu dosłownie: `vector-effect: non-scaling-stroke` trzyma ją
+na jednym pikselu niezależnie od wielkości rysunku, więc obwódka karty i obwódka
+tarczy to ta sama kreska. Deklaracja stoi przy **kształtach**, a nie przy
+`<svg>`: nie dziedziczy się, więc na elemencie, który sam nic nie maluje, nie
+robiłaby nic — a `stroke-width` dziedziczy się i schodziłby do kształtów
+w jednostkach `viewBox`, czyli tym grubszy, im większy rysunek. Koloru stanu nie
+niesie żadna z grafik — zieleń, czerwień i fiolet mówią w module o terminach
+i o rzeczach wyjętych ze sprzedaży.
+
+Pierścień obłożenia rysuje się **łukiem**, a nie kreską przerywaną, choć
+`stroke-dasharray` byłby krótszy: wzór kreski liczy się w tej przestrzeni,
+w której kreska jest rysowana, a ta — przez `vector-effect` — rysuje się
+w pikselach ekranu, nie w jednostkach `viewBox`. Długości przerw rozjeżdżałyby
+się więc z obwodem, inaczej przy każdej wielkości rysunku. Łuk jest samą
+geometrią i skaluje się razem z rysunkiem.
+
+Kopie są dwie, po jednej na aplikację (`apps/*/src/Grafiki.tsx`), i tak samo
+dwie są reguły w arkuszach — arkusz ma każda aplikacja swój, dokładnie jak przy
+chwycie „duża liczba, drobna jednostka". Wspólny pakiet modułu jest pakietem
+reguł domeny i czyta go także Deno w funkcjach brzegowych, więc Reactu w nim nie
+ma i mieć nie będzie. Jedną kopię ma to, co mogłoby się rozjechać po cichu:
+obłożenie dnia liczy czysta funkcja `dayLoad` z `packages/shared`, a arytmetyka
+łuku stoi wyłącznie w Panelu, bo tylko tam pierścień coś pokazuje. Wspólnej
+nazwy klasy o dwóch znaczeniach nie ma ani jednej — wskaźnik Panelu nazywa się
+rolą (`grafika--oblozenie`), a nie rysunkiem, który stoi też w Widgecie.
+
 ## Struktura
 
 | Katalog | Zawartość |
@@ -529,6 +581,17 @@ schemat trzyma nazwy Typów broni i Rodzajów amunicji unikalne w obrębie
 Strzelnicy (`unique (facility_id, name)`), a Panel widzi dokładnie jedną
 Strzelnicę. Nazwa jest zarazem tym, co stoi na ekranie — „Glock 17" wykłada się
 z magazynu, nie UUID.
+
+Przy dniu stoi pierścień obłożenia — ile z Bloków, które Strzelnica na ten
+dzień wystawia na Osiach czynnych, jest już wziętych. Liczy to `dayLoad`
+z `packages/shared`, tą samą regułą zachodzenia, którą pyta kalendarz klienta
+i formularz Blokady: Rezerwacja trzymająca termin i Blokada są tu
+nierozróżnialne, bo obie zajmują Oś na wyłączność. O dzień zamknięty pyta
+`hoursForDay` i tą samą drogą, co dostępność Bloku — dzień zdjęty wyjątkiem
+kalendarzowym nie ma Bloków wcale, więc jego pierścień stoi pusty, zamiast
+pokazywać pełność rozkładu, którego tego dnia nikt nie wystawia. Pierścień jest
+[dekoracją](#grafiki) i nic nie mówi sam — dzień, na który patrzy, i to, co
+z niego wynika, stoi na tym ekranie słowami.
 
 Dzień Zestawienie bierze z kalendarza nad sobą i nie ma własnego pola daty: to
 jest jeden dzień oglądany dwa razy — raz po Osiach, raz po tym, co z magazynu na

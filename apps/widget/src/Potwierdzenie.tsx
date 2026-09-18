@@ -1,5 +1,6 @@
 import type { AmmunitionKind, BookingDraft, WeaponType } from '@strzelnica/shared'
 import { HOLD_MINUTES } from '@strzelnica/shared'
+import { KopertaZTarcza } from './Grafiki.js'
 import type { Wybor } from './krok.js'
 import { KwotaZapisana } from './Kwota.js'
 import { opisInstruktora, opisWypozyczen, opisZapotrzebowania, teksty } from './teksty.js'
@@ -34,6 +35,7 @@ export function Potwierdzenie({
 }) {
   return (
     <section className="krok krok--potwierdzenie">
+      <KopertaZTarcza />
       <h2>{teksty.potwierdzenie.naglowek}</h2>
       <p>{teksty.potwierdzenie.tresc(HOLD_MINUTES)}</p>
 

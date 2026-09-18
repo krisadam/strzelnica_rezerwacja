@@ -45,6 +45,12 @@ body {
   font-size: var(--naglowek-1);
   font-weight: var(--waga-naglowka-1);
   margin: 0 0 1.25rem;
+  /* Znak i tytuł stoją w jednym wierszu, bo są jedną rzeczą: nagłówkiem
+     ramki. Wyrównane środkami, nie liniami bazowymi — znak nie ma linii
+     bazowej, więc nie ma czego z czym równać. */
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .widget h2 {
@@ -55,6 +61,69 @@ body {
 .widget h3 {
   font-size: var(--naglowek-3);
   font-weight: var(--waga-naglowka-3);
+}
+
+/* Grafiki dekoracyjne (`Grafiki.tsx`) — cztery i ani jedna więcej. Rysowane
+   w dokumencie, więc stylowane arkuszem jak wszystko inne: wypełnienia nie
+   mają żadne, kolor niosą obwódką.
+
+   Kreska jest **kreską interfejsu**, i to dosłownie: `vector-effect` trzyma ją
+   na jednym pikselu niezależnie od tego, jak duża jest grafika, więc obwódka
+   karty i obwódka tarczy to ta sama kreska. Bez tego grubość zależałaby od
+   skali rysunku i każda grafika miałaby własną.
+
+   Kolorów stanu tu nie ma: zieleń, czerwień i fiolet mówią w module o terminach
+   i o rzeczach wyjętych ze sprzedaży, a nie o ozdobach. */
+.grafika {
+  display: block;
+  flex: none;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Kreska stoi przy kształtach, a nie przy `.grafika`: `vector-effect` się nie
+   dziedziczy, więc na samym `<svg>`, który nic nie maluje, nie robiłby nic —
+   a `stroke-width` dziedziczy się i schodziłby do kształtów w jednostkach
+   `viewBox`, czyli tym grubszy, im większy rysunek. */
+.grafika__kreska,
+.grafika__akcent {
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.grafika__kreska {
+  stroke: var(--ramka);
+}
+
+.grafika__akcent {
+  stroke: var(--akcent);
+}
+
+/* Środek tarczy i środek celownika — jedyne wypełnione miejsce w tych
+   rysunkach, bo trafienie w tarczę jest punktem, a nie obwódką. */
+.grafika__punkt {
+  fill: var(--akcent);
+  stroke: none;
+}
+
+.grafika--znak {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+/* Grafiki ekranów — tarcza po potwierdzeniu adresu i koperta po jego wysłaniu.
+   Większe od znaku, bo nie stoją przy napisie, tylko nad nim. */
+.grafika--tarcza,
+.grafika--koperta {
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: 0 0 1rem;
+}
+
+.grafika--os {
+  width: 4rem;
+  height: 4rem;
 }
 
 .osie,
@@ -214,6 +283,22 @@ body {
 
 .komunikat--blad {
   color: var(--blad);
+}
+
+/* Pusty stan kalendarza: piktogram Osi nad zdaniem o tym, że nie ma czego
+   wziąć. Wyśrodkowany, bo zostaje na ekranie sam — lista Bloków, wobec której
+   miałby się wyrównać do lewej, jest właśnie tym, czego tam nie ma. */
+.pusto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 0 0.5rem;
+  text-align: center;
+}
+
+.pusto .komunikat {
+  margin: 0;
 }
 
 .krok > h2 {
