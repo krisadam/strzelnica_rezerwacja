@@ -1,5 +1,15 @@
 /* Wygląd Widgetu. Kolory przychodzą ze wspólnego arkusza tokenów, tego
-   samego, co w Panelu — to jeden moduł i ma wyglądać jak jeden. */
+   samego, co w Panelu — to jeden moduł i ma wyglądać jak jeden.
+
+   Widget stoi na ciemnej bazie (ADR 0014): granatowy canvas, kremowy tekst,
+   bursztynowy akcent. Hierarchię niosą tu **obwódki na jednym płaskim tle**, a
+   nie warstwy jasności powierzchni — tak rozstrzygnął prototyp trzech
+   wariantów postawionych na tym samym drzewie dokumentu. Karta bez wypełnienia
+   nie jest więc niedokończoną robotą: wypełnienie ma tu tylko to, co musi się
+   odciąć od wszystkiego innego, a takiej rzeczy na tych ekranach nie ma.
+
+   Paletę włącza atrybut `data-motyw` w `index.html`, nie ten arkusz. Panel
+   zostaje do swojego ticketu jasny i to jest stan przejściowy, nie rozjazd. */
 @import '@strzelnica/shared/tokens.css';
 
 body {
@@ -10,10 +20,27 @@ body {
   max-width: 44rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 2.5rem;
+
+  /* Pola wyboru i przełączniki rysuje przeglądarka, a nie ten arkusz, a na
+     ciemnej bazie sięga ona po własny błękit — czytelny, ale jedyny kolor na
+     ekranie spoza palety modułu. */
+  accent-color: var(--akcent);
 }
 
+/* Odnośniki — polityka prywatności Strzelnicy, jej telefon i adres — z tego
+   samego powodu, co wyżej. */
+.widget a {
+  color: var(--akcent);
+}
+
+/* Skala nagłówków i promienie przychodzą z tokenów — jedna skala dla obu
+   aplikacji. Widget miał tu dotąd własne wartości o kilka setnych obok
+   panelowych; ten ticket zbiera tę różnicę, bo i tak przepisuje arkusz.
+   Poziom rozstrzyga znacznik, nie dotychczasowa wielkość: każde `h2` bierze
+   `--naglowek-2`, każde `h3` — `--naglowek-3`, tak jak w Panelu. Nagłówek dnia
+   w Kalendarzu przez to o setne urósł, bo dotąd stał w skali `h3`. */
 .widget h1 {
-  font-size: 1.35rem;
+  font-size: var(--naglowek-1);
   margin: 0 0 1.25rem;
 }
 
@@ -22,7 +49,7 @@ body {
 .wypozyczenie,
 .amunicja {
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   padding: 0.75rem 1rem 1rem;
   margin: 0 0 1.25rem;
 }
@@ -73,7 +100,7 @@ body {
 }
 
 .dzien h2 {
-  font-size: 1rem;
+  font-size: var(--naglowek-2);
   font-weight: 600;
   margin: 0;
   text-align: center;
@@ -83,7 +110,7 @@ body {
 .dzien button {
   border: 1px solid var(--ramka);
   background: none;
-  border-radius: 0.4rem;
+  border-radius: var(--promien-drobny);
   padding: 0.45rem 0.7rem;
   cursor: pointer;
   font: inherit;
@@ -113,7 +140,7 @@ body {
   justify-content: space-between;
   gap: 1rem;
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   padding: 0.7rem 0.9rem;
 }
 
@@ -129,7 +156,7 @@ body {
   gap: 1rem;
   width: 100%;
   border: 0;
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   background: none;
   padding: 0.7rem 0.9rem;
   font: inherit;
@@ -138,9 +165,16 @@ body {
   cursor: pointer;
 }
 
-.blok__wybor:hover,
-.blok__wybor:focus-visible {
-  background: #f2f8f4;
+/* Blok pod kursorem bierze akcent na obwódkę, bo mówi „ten wskazujesz", a nie
+   „ten jest wolny" — zieleń zostaje przy napisie o stanie. Wskazanie idzie na
+   obwódkę, a nie na wypełnienie, bo tak buduje hierarchię cały ten ekran:
+   jasna plama pod kursorem byłaby jedyną taką powierzchnią w module.
+
+   Klawiatura nie przechodzi po `li`, tylko po przycisku w jego środku, więc tę
+   samą obwódkę zapala fokus tego przycisku. */
+.blok--wolny:hover,
+.blok--wolny:has(.blok__wybor:focus-visible) {
+  border-color: var(--akcent);
 }
 
 .blok__czas {
@@ -148,12 +182,18 @@ body {
   font-weight: 600;
 }
 
+/* Stan niesie napis, a obwódka zostaje neutralna (ADR 0014): zielona obwódka
+   przy zielonym napisie „wolny" powtarzałaby ten sam sygnał dwa razy. */
 .blok--wolny .blok__stan {
   color: var(--wolny);
 }
 
+/* Blok niedostępny odcina się od wolnego samym napisem: przygaszonym czasem
+   i przygaszonym powodem niedostępności zamiast kremowego czasu i zielonego
+   „wolny". Obwódka zostaje dokładnie ta sama, co u Bloku wolnego — także
+   kreska, nie tylko jej kolor. Rozpoznanie nie stoi więc na samym odcieniu:
+   niesie je również jasność napisu i jego treść. */
 .blok--niedostepny {
-  background: #f6f7f9;
   color: var(--przygaszony);
 }
 
@@ -166,7 +206,7 @@ body {
 }
 
 .krok > h2 {
-  font-size: 1.05rem;
+  font-size: var(--naglowek-2);
   margin: 0 0 1rem;
 }
 
@@ -176,7 +216,7 @@ body {
   gap: 0.35rem 1rem;
   margin: 0 0 1.25rem;
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   padding: 0.75rem 0.9rem;
 }
 
@@ -201,13 +241,18 @@ body {
   font-size: 0.9rem;
 }
 
+/* Pole jak Karta i jak Blok: obwódka, żadnego wypełnienia. Przeglądarka dałaby
+   tu własną ciemną płytę z deklaracji `color-scheme` — jaśniejszą od granatu
+   i inną niż wszystko dookoła, więc odbieramy jej ją wprost. */
 .pole input {
   font: inherit;
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--ramka);
-  border-radius: 0.4rem;
+  border-radius: var(--promien-drobny);
   width: 100%;
   box-sizing: border-box;
+  background: none;
+  color: inherit;
 }
 
 .pole small {
@@ -225,6 +270,11 @@ body {
 .pole--zgoda input {
   width: auto;
   margin-top: 0.2rem;
+  /* Zgoda to pole wyboru, nie pole tekstowe: rysuje je przeglądarka od zera.
+     Obwódka i zdjęte tło z reguły wyżej opisują pudełko, którego tu nie ma,
+     a w części silników potrafią zgasić samą kontrolkę — oddajemy jej oba. */
+  border: revert;
+  background: revert;
 }
 
 .pole--zgoda > span {
@@ -236,7 +286,7 @@ body {
   margin: 0 0 1rem;
   padding: 0.7rem 0.9rem 0.7rem 2rem;
   border: 1px solid var(--blad);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   color: var(--blad);
 }
 
@@ -250,15 +300,19 @@ body {
   font: inherit;
   padding: 0.55rem 1rem;
   border: 1px solid var(--ramka);
-  border-radius: 0.4rem;
+  border-radius: var(--promien-drobny);
   background: none;
   cursor: pointer;
 }
 
+/* Przycisk główny bierze akcent, nie kolor wolnego terminu: zieleń znaczyła
+   dotąd naraz „ten termin jest do wzięcia" i „naciśnij mnie". Akcent kładzie
+   się na obwódkę i napis, bo wypełniona plama byłaby jedyną taką powierzchnią
+   na ekranie i kłóciłaby się z hierarchią budowaną obwódkami. */
 .przycisk--glowny {
-  border-color: var(--wolny);
-  background: var(--wolny);
-  color: #ffffff;
+  border-color: var(--akcent);
+  color: var(--akcent);
+  font-weight: 600;
 }
 
 .przycisk:disabled {
@@ -272,18 +326,18 @@ body {
   font-size: 0.85rem;
 }
 
-/* Kwota do zapłaty. Wyróżniona ramką i tłem, bo jest tym, po co Osoba
-   rezerwująca schodzi wzrokiem na dół formularza — a nie kolejnym polem. */
+/* Kwota do zapłaty. Wyróżniona ramką, bo jest tym, po co Osoba rezerwująca
+   schodzi wzrokiem na dół formularza — a nie kolejnym polem. Tła nie ma:
+   powierzchnia jaśniejsza od reszty byłaby tu jedyną taką na ekranie. */
 .kwota {
   border: 1px solid var(--ramka);
-  border-radius: 0.5rem;
+  border-radius: var(--promien);
   padding: 0.75rem 0.9rem;
   margin: 0 0 1.25rem;
-  background: #f7f8fa;
 }
 
 .kwota h3 {
-  font-size: 1rem;
+  font-size: var(--naglowek-3);
   margin: 0 0 0.6rem;
 }
 
@@ -332,7 +386,7 @@ body {
    nie jest tym, po co Osoba rezerwująca tu weszła, dopóki nie okaże się, że
    sama nie może już nic zrobić. */
 .kontakt h3 {
-  font-size: 1rem;
+  font-size: var(--naglowek-3);
   margin: 1.5rem 0 0.6rem;
 }
 
