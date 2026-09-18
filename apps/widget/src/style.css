@@ -8,8 +8,8 @@
    nie jest więc niedokończoną robotą: wypełnienie ma tu tylko to, co musi się
    odciąć od wszystkiego innego, a takiej rzeczy na tych ekranach nie ma.
 
-   Paletę włącza atrybut `data-motyw` w `index.html`, nie ten arkusz. Panel
-   ustawia go u siebie tak samo, odkąd przeszedł na tę samą bazę. */
+   Ten arkusz nie ustawia palety ani jej nie wybiera — bierze ją z importu
+   poniżej taką, jaka jest, tę samą, którą bierze Panel. */
 @import '@strzelnica/shared/tokens.css';
 
 body {
